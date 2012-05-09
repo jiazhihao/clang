@@ -34,8 +34,12 @@ def ext_extra_ivar_semi : Extension<
 def ext_duplicate_declspec : Extension<"duplicate '%0' declaration specifier">;
 def ext_plain_complex : ExtWarn<
   "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
+def ext_plain_nan : ExtWarn<
+  "plain 'nan' requires a type specifier; assuming 'nan int'">;
 def ext_integer_complex : Extension<
   "complex integer types are an extension">;
+def ext_integer_nan : Extension<
+  "nan integer types are an extension">;
 def ext_thread_before : Extension<"'__thread' before 'static'">;
 
 def ext_empty_struct_union : Extension<
@@ -48,6 +52,7 @@ def err_invalid_short_spec : Error<"'short %0' is invalid">;
 def err_invalid_long_spec : Error<"'long %0' is invalid">;
 def err_invalid_longlong_spec : Error<"'long long %0' is invalid">;
 def err_invalid_complex_spec : Error<"'_Complex %0' is invalid">;
+def err_invalid_nan_spec : Error<"'nan %0' is invalid">;
 def err_friend_storage_spec : Error<"'%0' is invalid in friend declarations">;
 
 def ext_ident_list_in_param : Extension<

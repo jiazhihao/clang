@@ -1013,6 +1013,12 @@ ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = EltInfo.second;
     break;
   }
+  case Type::Nan: {
+    unsigned EltInfo = getTypeInfo(cast<NanType>(T)->getElementType());
+    Width = EltInfo;
+    Align = EltInfo;
+    break;
+  }
   case Type::ObjCObject:
     return getTypeInfo(cast<ObjCObjectType>(T)->getBaseType().getTypePtr());
   case Type::ObjCInterface: {
@@ -1504,6 +1510,34 @@ QualType ASTContext::getComplexType(QualType T) const {
   return QualType(New, 0);
 }
 
+/// getNanType - Return the uniqued reference to the type for a nan
+/// integer with the specified element type.
+QualType ASTContext::getNanType(QualType T) const {
+  // Unique pointers, to guarantee there is only one pointer of a particular
+  // structure.
+  llvm::FoldingSetNodeID ID;
+  NanType::Profile(ID, T);
+  
+  void *InsertPos = 0;
+  if (NanType *NT = NanTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(CT, 0);
+  
+  // If the pointee type isn't canonical, this won't be a canonical type either,
+  // so fill in the canonical type field.
+  QualType Canonical;
+  if (!T.isCanonical()) {
+    Canonical = getNanType(getCanonicalType(T));
+    
+    // Get the new insert position for the node we care about.
+    NanType *NewIP = NanTypes.FindNodeOrInsertPos(ID, InsertPos);
+    assert(NewIP == 0 && "Shouldn't be in the map!"); (void)NewIP;
+  }
+  NanType *New = new (*this, TypeAlignment) NanType(T, Canonical);
+  Types.push_back(New);
+  NanTypes.InsertNode(New, InsertPos);
+  return QualType(New, 0);
+}
+
 /// getPointerType - Return the uniqued reference to the type for a pointer to
 /// the specified type.
 QualType ASTContext::getPointerType(QualType T) const {
@@ -1738,6 +1772,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   // These types should never be variably-modified.
   case Type::Builtin:
   case Type::Complex:
+  case Type::Nan:
   case Type::Vector:
   case Type::ExtVector:
   case Type::DependentSizedExtVector:
@@ -6076,6 +6111,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::Complex:
     // Distinct complex types are incompatible.
     return QualType();
+  case Type::Nan:
+    return QualType();
   case Type::Vector:
     // FIXME: The merged type should be an ExtVector!
     if (areCompatVectorTypes(LHSCan->getAs<VectorType>(),
@@ -6411,7 +6448,14 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
     assert(!RequiresICE && "Can't require complex ICE");
     Type = Context.getComplexType(ElementType);
     break;
-  }  
+  }
+  case 'N': {
+    QualType ElementType = DecodeTypeFromStr(Str, Context, Error, RequiresICE,
+                                             false);
+    assert(!RequiresICE && "Can't require nan ICE");
+    Type = Context.getNanType(ElementType);
+    break;
+  }
   case 'Y' : {
     Type = Context.getPointerDiffType();
     break;

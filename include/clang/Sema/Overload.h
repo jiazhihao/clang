@@ -65,9 +65,11 @@ namespace clang {
     ICK_Integral_Promotion,    ///< Integral promotions (C++ 4.5)
     ICK_Floating_Promotion,    ///< Floating point promotions (C++ 4.6)
     ICK_Complex_Promotion,     ///< Complex promotions (Clang extension)
+    ICK_Nan_Promotion,         ///< nan promotions
     ICK_Integral_Conversion,   ///< Integral conversions (C++ 4.7)
     ICK_Floating_Conversion,   ///< Floating point conversions (C++ 4.8)
     ICK_Complex_Conversion,    ///< Complex conversions (C99 6.3.1.6)
+    ICK_Nan_Conversion,        ///< nan conversions
     ICK_Floating_Integral,     ///< Floating-integral conversions (C++ 4.9)
     ICK_Pointer_Conversion,    ///< Pointer conversions (C++ 4.10)
     ICK_Pointer_Member,        ///< Pointer-to-member conversions (C++ 4.11)

@@ -143,6 +143,10 @@ APValue::APValue(const APValue &RHS) : Kind(Uninitialized) {
     MakeComplexInt();
     setComplexInt(RHS.getComplexIntReal(), RHS.getComplexIntImag());
     break;
+  case Nan:
+    makeNan();
+    setNan(RHS.getNanVal(), true);
+    break;  
   case ComplexFloat:
     MakeComplexFloat();
     setComplexFloat(RHS.getComplexFloatReal(), RHS.getComplexFloatImag());
@@ -197,6 +201,8 @@ void APValue::DestroyDataAndMakeUninit() {
     ((ComplexAPSInt*)(char*)Data)->~ComplexAPSInt();
   else if (Kind == ComplexFloat)
     ((ComplexAPFloat*)(char*)Data)->~ComplexAPFloat();
+  else if (kind == Nan)
+    ((NanAPSInt*)(char*)Data)->~NanAPSInt();
   else if (Kind == LValue)
     ((LV*)(char*)Data)->~LV();
   else if (Kind == Array)
@@ -258,6 +264,9 @@ void APValue::dump(raw_ostream &OS) const {
   case ComplexFloat:
     OS << "ComplexFloat: " << GetApproxValue(getComplexFloatReal())
        << ", " << GetApproxValue(getComplexFloatImag());
+    return;
+  case Nan:
+    OS << "nan: " << getNanVal();
     return;
   case LValue:
     OS << "LValue: <todo>";
@@ -334,6 +343,9 @@ void APValue::printPretty(raw_ostream &Out, ASTContext &Ctx, QualType Ty) const{
   case APValue::ComplexFloat:
     Out << GetApproxValue(getComplexFloatReal()) << "+"
         << GetApproxValue(getComplexFloatImag()) << "i";
+    return;
+  case APValue::Nan:
+    Out << getNanVal();
     return;
   case APValue::LValue: {
     LValueBase Base = getLValueBase();

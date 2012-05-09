@@ -45,7 +45,7 @@ public:
     Float,
     ComplexInt,
     ComplexFloat,
-    NanInt,
+    Nan,
     LValue,
     Vector,
     Array,
@@ -141,7 +141,7 @@ public:
     MakeComplexFloat(); setComplexFloat(R, I);
   }
   APValue(const APSInt &V, bool nan) : Kind(Uninitialized) {
-    MakeNaNInt(); setNaNInt(V);
+    MakeNan(); setNan(V);
   }
   APValue(const APValue &RHS);
   APValue(LValueBase B, const CharUnits &O, NoLValuePath N, unsigned CallIndex)
@@ -185,7 +185,7 @@ public:
   bool isFloat() const { return Kind == Float; }
   bool isComplexInt() const { return Kind == ComplexInt; }
   bool isComplexFloat() const { return Kind == ComplexFloat; }
-  bool isNanInt() const { return Kind == NanInt; }
+  bool isNan() const { return Kind == Nan; }
   bool isLValue() const { return Kind == LValue; }
   bool isVector() const { return Kind == Vector; }
   bool isArray() const { return Kind == Array; }
@@ -248,12 +248,12 @@ public:
     return const_cast<APValue*>(this)->getComplexFloatImag();
   }
   
-  APSInt &getNanIntVal() {
-    assert(isNanInt() && "Invalid accessor");
+  APSInt &getNanVal() {
+    assert(isNan() && "Invalid accessor");
     return ((NanAPSInt*)(char*)Data)->Val;
   }
-  const APSInt &getNanIntVal() const {
-    return const_cast<APValue*>(this)->getNanIntVal();
+  const APSInt &getNanVal() const {
+    return const_cast<APValue*>(this)->getNanVal();
   }
 
   const LValueBase getLValueBase() const;
@@ -384,8 +384,8 @@ public:
     ((ComplexAPFloat*)(char*)Data)->Real = R;
     ((ComplexAPFloat*)(char*)Data)->Imag = I;
   }
-  void setNanInt(const APSInt &V, bool nan) {
-    assert(isNanInt() && "Invalid accessor");
+  void setNan(const APSInt &V, bool nan) {
+    assert(isNan() && "Invalid accessor");
     ((NanAPSInt*)(char*)Data)->Val = V;
   }
   
@@ -442,10 +442,10 @@ private:
     new ((void*)(char*)Data) ComplexAPFloat();
     Kind = ComplexFloat;
   }
-  void MakeComplexInt() {
+  void MakeNan() {
     assert(isUninit() && "Bad state change");
     new ((void*)(char*)Data) NanAPSInt();
-    Kind = NanInt;
+    Kind = Nan;
   }
   void MakeLValue();
   void MakeArray(unsigned InitElts, unsigned Size);

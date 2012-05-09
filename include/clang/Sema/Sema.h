@@ -1482,6 +1482,7 @@ public:
   bool IsIntegralPromotion(Expr *From, QualType FromType, QualType ToType);
   bool IsFloatingPointPromotion(QualType FromType, QualType ToType);
   bool IsComplexPromotion(QualType FromType, QualType ToType);
+  bool IsNanPromotion(QualType FromType, QualType ToType);
   bool IsPointerConversion(Expr *From, QualType FromType, QualType ToType,
                            bool InOverloadResolution,
                            QualType& ConvertedType, bool &IncompatibleObjC);

@@ -42,6 +42,7 @@ namespace clang {
     QualType VisitType(const Type *T);
     QualType VisitBuiltinType(const BuiltinType *T);
     QualType VisitComplexType(const ComplexType *T);
+    QualType VisitNanType(const NanType *T);
     QualType VisitPointerType(const PointerType *T);
     QualType VisitBlockPointerType(const BlockPointerType *T);
     QualType VisitLValueReferenceType(const LValueReferenceType *T);
@@ -416,6 +417,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     if (!IsStructurallyEquivalent(Context,
                                   cast<ComplexType>(T1)->getElementType(),
                                   cast<ComplexType>(T2)->getElementType()))
+      return false;
+    break;
+  
+  case Type::Nan:
+    if (!IsStructurallyEquivalent(Context,
+                                  cast<NanType>(T1)->getElementType(),
+                                  cast<NanType>(T2)->getElementType()))
       return false;
     break;
   
@@ -1389,6 +1397,14 @@ QualType ASTNodeImporter::VisitComplexType(const ComplexType *T) {
     return QualType();
   
   return Importer.getToContext().getComplexType(ToElementType);
+}
+
+QualType ASTNodeImporter::VisitNanType(const NanType *T) {
+  QualType ToElementType = Importer.Import(T->getElementType());
+  if (ToElementType.isNull())
+    return QualType();
+  
+  return Importer.getToContext().getNanType(ToElementType);
 }
 
 QualType ASTNodeImporter::VisitPointerType(const PointerType *T) {

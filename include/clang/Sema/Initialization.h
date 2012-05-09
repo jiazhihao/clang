@@ -71,6 +71,9 @@ public:
     /// \brief The entity being initialized is the real or imaginary part of a
     /// complex number.
     EK_ComplexElement,
+    /// \brief The entity being initialized is the value of a 
+    /// nan integer.
+    EK_NanElement,
     /// \brief The entity being initialized is the field that captures a 
     /// variable in a lambda.
     EK_LambdaCapture
