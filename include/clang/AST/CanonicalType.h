@@ -263,6 +263,7 @@ public:
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isRealFloatingType)
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isComplexType)
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isAnyComplexType)
+  LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isNanType)
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isFloatingType)
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isRealType)
   LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isArithmeticType)
@@ -477,6 +478,12 @@ template<>
 struct CanProxyAdaptor<ComplexType> : public CanProxyBase<ComplexType> {
   LLVM_CLANG_CANPROXY_TYPE_ACCESSOR(getElementType)
 };
+  
+template<>
+struct CanProxyAdaptor<NanType> : public CanProxyBase<NanType> {
+  LLVM_CLANG_CANPROXY_TYPE_ACCESSOR(getElementType)
+};
+  
 
 template<>
 struct CanProxyAdaptor<PointerType> : public CanProxyBase<PointerType> {
