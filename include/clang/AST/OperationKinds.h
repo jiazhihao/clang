@@ -255,6 +255,10 @@ enum CastKind {
   /// \brief Converts from an integral complex to a floating complex.
   ///   _Complex unsigned -> _Complex float
   CK_IntegralComplexToFloatingComplex,
+  
+  CK_IntegralToNan,
+  CK_NanToIntegral,
+  CK_NanCast,
 
   /// \brief [ARC] Produces a retainable object pointer so that it may
   /// be consumed, e.g. by being passed to a consuming parameter.
