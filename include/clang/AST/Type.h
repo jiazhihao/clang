@@ -1447,6 +1447,7 @@ public:
   /// isComplexIntegerType() can be used to test for complex integers.
   bool isComplexType() const;      // C99 6.2.5p11 (complex)
   bool isAnyComplexType() const;   // C99 6.2.5p11 (complex) + Complex Int.
+  bool isNanType() const;
   bool isFloatingType() const;     // C99 6.2.5p11 (real floating + complex)
   bool isHalfType() const;         // OpenCL 6.1.1.1, NEON (IEEE 754-2008 half)
   bool isRealType() const;         // C99 6.2.5p17 (real floating + integer)
@@ -1526,7 +1527,8 @@ public:
     STK_Integral,
     STK_Floating,
     STK_IntegralComplex,
-    STK_FloatingComplex
+    STK_FloatingComplex,
+    STK_Nan
   };
   /// getScalarTypeKind - Given that this is a scalar type, classify it.
   ScalarTypeKind getScalarTypeKind() const;
@@ -1596,6 +1598,7 @@ public:
   const ComplexType *getAsComplexIntegerType() const; // GCC complex int type.
   // The following is a convenience method that returns an ObjCObjectPointerType
   // for object declared using an interface.
+  const NanType *getAsNanType() const;
   const ObjCObjectPointerType *getAsObjCInterfacePointerType() const;
   const ObjCObjectPointerType *getAsObjCQualifiedIdType() const;
   const ObjCObjectPointerType *getAsObjCQualifiedClassType() const;
@@ -1830,6 +1833,34 @@ public:
 
   static bool classof(const Type *T) { return T->getTypeClass() == Complex; }
   static bool classof(const ComplexType *) { return true; }
+};
+  
+class NanType : public Type, public llvm::FoldingSetNode {
+  QualType ElementType;
+  NanType(QualType Element, QualType CanonicalPtr) :
+  Type(Nan, CanonicalPtr, Element->isDependentType(),
+       Element->isInstantiationDependentType(),
+       Element->isVariablyModifiedType(),
+       Element->containsUnexpandedParameterPack()),
+  ElementType(Element) {
+  }
+  friend class ASTContext;  // ASTContext creates these.
+    
+public:
+  QualType getElementType() const { return ElementType; }
+  
+  bool isSugared() const { return false; }
+  QualType desugar() const { return QualType(this, 0); }
+  
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, getElementType());
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Element) {
+    ID.AddPointer(Element.getAsOpaquePtr());
+  }
+  
+  static bool classof(const Type *T) { return T->getTypeClass() == Nan; }
+  static bool classof(const NanType *) { return true; }
 };
 
 /// ParenType - Sugar for parentheses used when specifying types.
@@ -4863,6 +4894,7 @@ inline bool Type::isScalarType() const {
          isa<BlockPointerType>(CanonicalType) ||
          isa<MemberPointerType>(CanonicalType) ||
          isa<ComplexType>(CanonicalType) ||
+         isa<NanType>(CanonicalType) ||
          isa<ObjCObjectPointerType>(CanonicalType);
 }
 
