@@ -88,6 +88,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable std::vector<Type*> Types;
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
+  mutable llvm::FoldingSet<NanType> NanTypes;
   mutable llvm::FoldingSet<PointerType> PointerTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -671,7 +672,14 @@ public:
   CanQualType getComplexType(CanQualType T) const {
     return CanQualType::CreateUnsafe(getComplexType((QualType) T));
   }
-
+  
+  /// getNanType - Return the uniqued reference to the type for a nan
+  /// number with the specified element type.
+  QualType getNanType(QualType T) const;
+  CanQualType getNanType(CanQualType T) const {
+    return CanQualType::CreateUnsafe(getNanType((QualType) T));
+  }
+  
   /// getPointerType - Return the uniqued reference to the type for a pointer to
   /// the specified type.
   QualType getPointerType(QualType T) const;
@@ -1564,6 +1572,9 @@ public:
   /// '_Complex double').  If LHS > RHS, return 1.  If LHS == RHS, return 0. If
   /// LHS < RHS, return -1.
   int getFloatingTypeOrder(QualType LHS, QualType RHS) const;
+  
+  /// getNanTypeOrder - Compare the rank of two Nan Type
+  int getNanTypeOrder(QualType LHS, QualType RHS) const;
 
   /// getFloatingTypeOfSizeWithinDomain - Returns a real floating
   /// point or a complex type (based on typeDomain/typeSize).
