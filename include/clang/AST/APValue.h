@@ -45,6 +45,7 @@ public:
     Float,
     ComplexInt,
     ComplexFloat,
+    NanInt,
     LValue,
     Vector,
     Array,
@@ -76,6 +77,10 @@ private:
     APFloat Real, Imag;
     ComplexAPFloat() : Real(0.0), Imag(0.0) {}
   };
+  struct NanAPSInt {
+    APSInt Val;
+    NanAPSInt() : Val(0) {}
+  }
   struct LV;
   struct Vec {
     APValue *Elts;
@@ -135,6 +140,9 @@ public:
   APValue(const APFloat &R, const APFloat &I) : Kind(Uninitialized) {
     MakeComplexFloat(); setComplexFloat(R, I);
   }
+  APValue(const APSInt &V, bool nan) : Kind(Uninitialized) {
+    MakeNaNInt(); setNaNInt(V);
+  }
   APValue(const APValue &RHS);
   APValue(LValueBase B, const CharUnits &O, NoLValuePath N, unsigned CallIndex)
       : Kind(Uninitialized) {
@@ -177,6 +185,7 @@ public:
   bool isFloat() const { return Kind == Float; }
   bool isComplexInt() const { return Kind == ComplexInt; }
   bool isComplexFloat() const { return Kind == ComplexFloat; }
+  bool isNanInt() const { return Kind == NanInt; }
   bool isLValue() const { return Kind == LValue; }
   bool isVector() const { return Kind == Vector; }
   bool isArray() const { return Kind == Array; }
@@ -237,6 +246,14 @@ public:
   }
   const APFloat &getComplexFloatImag() const {
     return const_cast<APValue*>(this)->getComplexFloatImag();
+  }
+  
+  APSInt &getNanIntVal() {
+    assert(isNanInt() && "Invalid accessor");
+    return ((NanAPSInt*)(char*)Data)->Val;
+  }
+  const APSInt &getNanIntVal() const {
+    return const_cast<APValue*>(this)->getNanIntVal();
   }
 
   const LValueBase getLValueBase() const;
@@ -367,6 +384,11 @@ public:
     ((ComplexAPFloat*)(char*)Data)->Real = R;
     ((ComplexAPFloat*)(char*)Data)->Imag = I;
   }
+  void setNanInt(const APSInt &V, bool nan) {
+    assert(isNanInt() && "Invalid accessor");
+    ((NanAPSInt*)(char*)Data)->Val = V;
+  }
+  
   void setLValue(LValueBase B, const CharUnits &O, NoLValuePath,
                  unsigned CallIndex);
   void setLValue(LValueBase B, const CharUnits &O,
@@ -419,6 +441,11 @@ private:
     assert(isUninit() && "Bad state change");
     new ((void*)(char*)Data) ComplexAPFloat();
     Kind = ComplexFloat;
+  }
+  void MakeComplexInt() {
+    assert(isUninit() && "Bad state change");
+    new ((void*)(char*)Data) NanAPSInt();
+    Kind = NanInt;
   }
   void MakeLValue();
   void MakeArray(unsigned InitElts, unsigned Size);
