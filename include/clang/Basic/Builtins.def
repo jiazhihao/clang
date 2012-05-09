@@ -343,6 +343,9 @@ BUILTIN(__builtin_ctanh, "XdXd", "Fnc")
 BUILTIN(__builtin_ctanhf, "XfXf", "Fnc")
 BUILTIN(__builtin_ctanhl, "XLdXLd", "Fnc")
 
+// Nan builtins
+BUILTIN(__builtin_nui, "NUd", "Fnc")
+
 // FP Comparisons.
 BUILTIN(__builtin_isgreater     , "i.", "nc")
 BUILTIN(__builtin_isgreaterequal, "i.", "nc")
