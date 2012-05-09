@@ -1350,6 +1350,12 @@ class ComplexTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                         ComplexTypeLoc,
                                                         ComplexType> {
 };
+  
+// FIXME: location of the 'nan' keyword.
+class NanTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+                                                        NanTypeLoc,
+                                                        NanType> {
+};
 
 struct TypeofLocInfo {
   SourceLocation TypeofLoc;

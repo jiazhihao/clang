@@ -61,6 +61,7 @@
 
 TYPE(Builtin, Type)
 TYPE(Complex, Type)
+TYPE(Nan, Type)
 TYPE(Pointer, Type)
 TYPE(BlockPointer, Type)
 ABSTRACT_TYPE(Reference, Type)
