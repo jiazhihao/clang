@@ -363,10 +363,21 @@ bool Type::isComplexIntegerType() const {
   return getAsComplexIntegerType();
 }
 
+bool Type::isNanType() const {
+  return getAsNanType();
+}
+
 const ComplexType *Type::getAsComplexIntegerType() const {
   if (const ComplexType *Complex = getAs<ComplexType>())
     if (Complex->getElementType()->isIntegerType())
       return Complex;
+  return 0;
+}
+
+const NanType *Type::getAsNanType() const {
+  if (const NanType *Nan = getAs<NanType>())
+    if (Nan->getElementType()->isIntegerType())
+      return Nan;
   return 0;
 }
 
@@ -775,7 +786,7 @@ bool Type::isArithmeticType() const {
     // false for scoped enumerations since that will disable any
     // unwanted implicit conversions.
     return !ET->getDecl()->isScoped() && ET->getDecl()->isComplete();
-  return isa<ComplexType>(CanonicalType);
+  return isa<ComplexType>(CanonicalType) || isa<NanType>(CanonicalType);
 }
 
 Type::ScalarTypeKind Type::getScalarTypeKind() const {
@@ -803,6 +814,8 @@ Type::ScalarTypeKind Type::getScalarTypeKind() const {
     if (CT->getElementType()->isRealFloatingType())
       return STK_FloatingComplex;
     return STK_IntegralComplex;
+  } else if (const nanType *NT = dyn_cast<NanType>(T)) {
+    return STK_Nan;
   }
 
   llvm_unreachable("unknown scalar type");
@@ -935,6 +948,7 @@ bool QualType::isPODType(ASTContext &Context) const {
   case Type::BlockPointer:
   case Type::Builtin:
   case Type::Complex:
+  case Type::Nan:
   case Type::Pointer:
   case Type::MemberPointer:
   case Type::Vector:
@@ -1095,7 +1109,7 @@ bool Type::isLiteralType() const {
   // As an extension, Clang treats vector types and complex types as
   // literal types.
   if (BaseTy->isScalarType() || BaseTy->isVectorType() ||
-      BaseTy->isAnyComplexType())
+      BaseTy->isAnyComplexType() || BaseTy->isNanType())
     return true;
   //    -- a reference type; or
   if (BaseTy->isReferenceType())
@@ -1263,6 +1277,7 @@ bool Type::isSpecifierType() const {
   case Enum:
   case Typedef:
   case Complex:
+  case Nan:
   case TypeOfExpr:
   case TypeOf:
   case TemplateTypeParm:
@@ -2031,6 +2046,8 @@ static CachedProperties computeCachedProperties(const Type *T) {
     //     compounded exclusively from types that have linkage; or
   case Type::Complex:
     return Cache::get(cast<ComplexType>(T)->getElementType());
+  case Type;:Nan:
+    return Cache::get(cast<NanType>(T)->getElementType());
   case Type::Pointer:
     return Cache::get(cast<PointerType>(T)->getPointeeType());
   case Type::BlockPointer:

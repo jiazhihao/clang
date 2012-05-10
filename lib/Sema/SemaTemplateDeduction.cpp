@@ -1130,7 +1130,14 @@ DeduceTemplateArgumentsByTypeMatch(Sema &S,
                                     Info, Deduced, TDF);
 
       return Sema::TDK_NonDeducedMismatch;
-
+    case Type::Nan:
+      if (const NanType *NanArg = Arg->getAs<NanType>())
+        return DeduceTemplateArgumentsByTypeMatch(S, TemplateParams, 
+                                                  cast<NanType>(Param)->getElementType(), 
+                                                  NanArg->getElementType(),
+                                                  Info, Deduced, TDF);
+    
+      return Sema::TDK_NonDeducedMismatch;
     //     _Atomic T   [extension]
     case Type::Atomic:
       if (const AtomicType *AtomicArg = Arg->getAs<AtomicType>())
@@ -4299,6 +4306,13 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
                                  cast<ComplexType>(T)->getElementType(),
                                  OnlyDeduced, Depth, Used);
     break;
+  case Type::Nan:
+    if (!OnlyDeduced)
+      MarkUsedTemplateParameters(Ctx,
+                                 cast<NanType>(T)->getElementType(),
+                                 OnlyDeduced, Depth, Used);
+    break;
+      
 
   case Type::Atomic:
     if (!OnlyDeduced)

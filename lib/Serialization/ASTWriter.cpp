@@ -99,6 +99,11 @@ void ASTTypeWriter::VisitComplexType(const ComplexType *T) {
   Code = TYPE_COMPLEX;
 }
 
+void ASTTypeWriter::VisitNanType(const NanType *T) {
+  Writer.AddTypeRef(T->getElementType(), Record);
+  Code = TYPE_NAN;
+}
+
 void ASTTypeWriter::VisitPointerType(const PointerType *T) {
   Writer.AddTypeRef(T->getPointeeType(), Record);
   Code = TYPE_POINTER;
@@ -430,6 +435,9 @@ void TypeLocWriter::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
   }
 }
 void TypeLocWriter::VisitComplexTypeLoc(ComplexTypeLoc TL) {
+  Writer.AddSourceLocation(TL.getNameLoc(), Record);
+}
+void TypeLocWriter::VisitNanTypeLoc(NanTypeLoc TL) {
   Writer.AddSourceLocation(TL.getNameLoc(), Record);
 }
 void TypeLocWriter::VisitPointerTypeLoc(PointerTypeLoc TL) {
@@ -830,6 +838,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   BLOCK(DECLTYPES_BLOCK);
   RECORD(TYPE_EXT_QUAL);
   RECORD(TYPE_COMPLEX);
+  RECORD(TYPE_NAN);
   RECORD(TYPE_POINTER);
   RECORD(TYPE_BLOCK_POINTER);
   RECORD(TYPE_LVALUE_REFERENCE);

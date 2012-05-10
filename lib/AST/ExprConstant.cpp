@@ -690,6 +690,23 @@ namespace {
       }
     }
   };
+  
+  struct NanValue {
+    
+  public:
+    APSInt Val;
+    NanValue(){}
+    
+    APSInt &getNanVal() { return Val; }
+    
+    void moveInto(APValue &v) const {
+        v = APValue(Val, true);
+    }
+    void setFrom(const APValue &v) {
+        makeNan();
+        Val = v.getNanVal();
+    }
+  };
 
   struct LValue {
     APValue::LValueBase Base;
@@ -1132,6 +1149,9 @@ static bool HandleConversionToBool(const APValue &Val, bool &Result) {
   case APValue::ComplexFloat:
     Result = !Val.getComplexFloatReal().isZero() ||
              !Val.getComplexFloatImag().isZero();
+    return true;
+  case APVAlue::Nan:
+    Result = Val.getNanVal().getBoolValue();
     return true;
   case APValue::LValue:
     return EvalPointerValueAsBool(Val, Result);
@@ -4161,6 +4181,7 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E) {
     enumeral_type_class, boolean_type_class,
     pointer_type_class, reference_type_class, offset_type_class,
     real_type_class, complex_type_class,
+    nan_type_class,
     function_type_class, method_type_class,
     record_type_class, union_type_class,
     array_type_class, string_type_class,
@@ -4191,6 +4212,8 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E) {
     return real_type_class;
   else if (ArgTy->isComplexType())
     return complex_type_class;
+  else if (ArgTy->isNanType())
+    return nan_type_class;
   else if (ArgTy->isFunctionType())
     return function_type_class;
   else if (ArgTy->isStructureOrClassType())

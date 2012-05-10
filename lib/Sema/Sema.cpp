@@ -303,6 +303,7 @@ CastKind Sema::ScalarTypeToBooleanCastKind(QualType ScalarTy) {
   case Type::STK_Integral: return CK_IntegralToBoolean;
   case Type::STK_Floating: return CK_FloatingToBoolean;
   case Type::STK_IntegralComplex: return CK_IntegralComplexToBoolean;
+  case Type::STK_Nan: return CK_NanToBoolean;
   case Type::STK_FloatingComplex: return CK_FloatingComplexToBoolean;
   }
   return CK_Invalid;

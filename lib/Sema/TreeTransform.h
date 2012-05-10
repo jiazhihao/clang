@@ -3491,6 +3491,12 @@ QualType TreeTransform<Derived>::TransformComplexType(TypeLocBuilder &TLB,
   // FIXME: recurse?
   return TransformTypeSpecType(TLB, T);
 }
+  
+template<typename Derived>
+QualType TreeTransform<Derived>::TransformNanType(TypeLocBuilder &TLB,
+                                                  NanTypeLoc T) {
+  return TransformTypeSpecType(TLB, T);
+}
 
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformPointerType(TypeLocBuilder &TLB,

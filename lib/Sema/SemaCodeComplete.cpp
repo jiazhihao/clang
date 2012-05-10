@@ -602,6 +602,7 @@ SimplifiedTypeClass clang::getSimplifiedTypeClass(CanQualType T) {
     }
 
   case Type::Complex:
+  case Type::Nan:
     return STC_Arithmetic;
     
   case Type::Pointer:
@@ -1234,6 +1235,7 @@ static void AddTypeSpecifierResults(const LangOptions &LangOpts,
   if (LangOpts.C99) {
     // C99-specific
     Results.AddResult(Result("_Complex", CCP_Type));
+    Results.AddResult(Result("nan", CCP_TYpe));
     Results.AddResult(Result("_Imaginary", CCP_Type));
     Results.AddResult(Result("_Bool", CCP_Type));
     Results.AddResult(Result("restrict", CCP_Type));

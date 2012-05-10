@@ -3314,6 +3314,8 @@ struct IntRange {
       T = VT->getElementType().getTypePtr();
     if (const ComplexType *CT = dyn_cast<ComplexType>(T))
       T = CT->getElementType().getTypePtr();
+    if (const NanType *CT = dyn_cast<NanType>(T))
+      T = CT->getElementType().getTypePtr();
 
     // For enum types, use the known bit width of the enumerators.
     if (const EnumType *ET = dyn_cast<EnumType>(T)) {
@@ -3344,6 +3346,8 @@ struct IntRange {
     if (const VectorType *VT = dyn_cast<VectorType>(T))
       T = VT->getElementType().getTypePtr();
     if (const ComplexType *CT = dyn_cast<ComplexType>(T))
+      T = CT->getElementType().getTypePtr();
+    if (const NanType *CT = dyn_cast<NanType>(T))
       T = CT->getElementType().getTypePtr();
     if (const EnumType *ET = dyn_cast<EnumType>(T))
       T = C.getCanonicalType(ET->getDecl()->getIntegerType()).getTypePtr();
@@ -3398,6 +3402,11 @@ static IntRange GetValueRange(ASTContext &C, APValue &result, QualType Ty,
     IntRange R = GetValueRange(C, result.getComplexIntReal(), MaxWidth);
     IntRange I = GetValueRange(C, result.getComplexIntImag(), MaxWidth);
     return IntRange::join(R, I);
+  }
+  
+  if (result.isNan()) {
+    IntRange R = GetValueRange(C, result.getNanVal(), MaxWidth);
+    return R;
   }
 
   // This can happen with lossless casts to intptr_t of "based" lvalues.
@@ -4018,7 +4027,20 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
     Source = cast<ComplexType>(Source)->getElementType().getTypePtr();
     Target = cast<ComplexType>(Target)->getElementType().getTypePtr();
   }
-
+  
+  // Strip nan types.
+  if (isa<NanType>(Source)) {
+    if (!isa<NanType>(Target)) {
+      if (S.SourceMgr.isInSystemMacro(CC))
+        return;
+      
+      return DiagnoseImpCast(S, E, T, CC, diag::warn_impcast_nan_scalar);
+    }
+    
+    Source = cast<NanType>(Source)->getElementType().getTypePtr();
+    Target = cast<NanType>(Target)->getElementType().getTypePtr();
+  }
+  
   const BuiltinType *SourceBT = dyn_cast<BuiltinType>(Source);
   const BuiltinType *TargetBT = dyn_cast<BuiltinType>(Target);
 

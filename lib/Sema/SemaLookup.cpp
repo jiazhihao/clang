@@ -2049,6 +2049,7 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     case Type::Vector:
     case Type::ExtVector:
     case Type::Complex:
+    case Type::Nan:
       break;
 
     // If T is an Objective-C object or interface type, or a pointer to an 
@@ -3559,7 +3560,7 @@ static void AddKeywordsToConsumer(Sema &SemaRef,
     const char *CTypeSpecs[] = {
       "char", "const", "double", "enum", "float", "int", "long", "short",
       "signed", "struct", "union", "unsigned", "void", "volatile", 
-      "_Complex", "_Imaginary",
+      "_Complex", "_Imaginary", "nan"
       // storage-specifiers as well
       "extern", "inline", "static", "typedef"
     };

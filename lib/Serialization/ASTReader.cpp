@@ -3762,6 +3762,14 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType ElemType = readType(*Loc.F, Record, Idx);
     return Context.getComplexType(ElemType);
   }
+  case TYPE_NAN: {
+    if (Record.size() != 1) {
+      Error("Incorrect encoding of nan type");
+      return QualType();
+    }
+    QualType ElemType = readType(*Loc.F, Record, Idx);
+    return Context.getNanType(ElemType);
+  }
 
   case TYPE_POINTER: {
     if (Record.size() != 1) {
@@ -4206,6 +4214,9 @@ void TypeLocReader::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
   }
 }
 void TypeLocReader::VisitComplexTypeLoc(ComplexTypeLoc TL) {
+  TL.setNameLoc(ReadSourceLocation(Record, Idx));
+}
+void TypeLocReader::VisitNanTypeLoc(NanTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation(Record, Idx));
 }
 void TypeLocReader::VisitPointerTypeLoc(PointerTypeLoc TL) {

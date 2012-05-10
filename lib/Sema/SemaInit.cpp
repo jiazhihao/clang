@@ -202,6 +202,11 @@ class InitListChecker {
                         unsigned &Index,
                         InitListExpr *StructuredList,
                         unsigned &StructuredIndex);
+  void CheckNanType(const InitializedEntity &Entity,
+                    InitListExpr *IList, QualType DeclType,
+                    unsigned &Index,
+                    InitListExpr *StructuredList,
+                    unsigned &StructuredIndex);
   void CheckScalarType(const InitializedEntity &Entity,
                        InitListExpr *IList, QualType DeclType,
                        unsigned &Index,
@@ -681,6 +686,9 @@ void InitListChecker::CheckListElementTypes(const InitializedEntity &Entity,
     // parts.
     CheckComplexType(Entity, IList, DeclType, Index,
                      StructuredList, StructuredIndex);
+  } else if (DeclType->isNanType()) {
+    CheckNanType(Entity, IList, DeclType, Index,
+                 StructuredList, StructuredIndex);
   } else if (DeclType->isScalarType()) {
     CheckScalarType(Entity, IList, DeclType, Index,
                     StructuredList, StructuredIndex);
@@ -898,6 +906,30 @@ void InitListChecker::CheckComplexType(const InitializedEntity &Entity,
     CheckSubElementType(ElementEntity, IList, elementType, Index,
                         StructuredList, StructuredIndex);
   }
+}
+
+void InitListChecker::CheckNanType(const InitializedEntity &Entity,
+                                   InitListExpr *IList, QualType DeclType,
+                                   unsigned &Index,
+                                   InitListExpr *StructuredList,
+                                   unsigned &StructuredIndex) {
+  assert(Index == 0 && "Index in explicit init list must be zero");
+    
+  if (IList->getNumInits() != 1)
+    return CheckScalarType(Entity, IList, DeclType, Index, StructuredList,
+                           StructuredIndex);
+  
+  if (!SemaRef.getLangOpts().CPlusPlus && !VerifyOnly)
+    SemaRef.Diag(IList->getLocStart(), diag::ext_nan_component_init)
+    << IList->getSourceRange();
+  
+  QualType elementType = DeclType->getAs<NanType>()->getElementType();
+  InitializedEntity ElementEntity =
+  InitializedEntity::InitializeElement(SemaRef.Context, 0, Entity);
+  
+  ElementEntity.setElementIndex(Index);
+  CheckSubElementType(ElementEntity, IList, elementType, Index,
+                      StructuredList, StructuredIndex);
 }
 
 
@@ -2293,6 +2325,9 @@ InitializedEntity::InitializedEntity(ASTContext &Context, unsigned Index,
   } else if (const VectorType *VT = Parent.getType()->getAs<VectorType>()) {
     Kind = EK_VectorElement;
     Type = VT->getElementType();
+  } else if (const NanType *VT = Parent.getType()->getAs<NanType>()) {
+    Kind = EK_NanElement;
+    Type = VT->getElementType();
   } else {
     const ComplexType *CT = Parent.getType()->getAs<ComplexType>();
     assert(CT && "Unexpected type");
@@ -2338,6 +2373,7 @@ DeclarationName InitializedEntity::getName() const {
   case EK_ArrayElement:
   case EK_VectorElement:
   case EK_ComplexElement:
+  case EK_NanElement:
   case EK_BlockElement:
     return DeclarationName();
   }
@@ -2363,6 +2399,7 @@ DeclaratorDecl *InitializedEntity::getDecl() const {
   case EK_ArrayElement:
   case EK_VectorElement:
   case EK_ComplexElement:
+  case EK_NanElement:
   case EK_BlockElement:
   case EK_LambdaCapture:
     return 0;
@@ -2387,6 +2424,7 @@ bool InitializedEntity::allowsNRVO() const {
   case EK_ArrayElement:
   case EK_VectorElement:
   case EK_ComplexElement:
+  case EK_NanElement:
   case EK_BlockElement:
   case EK_LambdaCapture:
     break;
@@ -4256,6 +4294,7 @@ getAssignmentAction(const InitializedEntity &Entity) {
   case InitializedEntity::EK_ArrayElement:
   case InitializedEntity::EK_VectorElement:
   case InitializedEntity::EK_ComplexElement:
+  case InitializedEntity::EK_NanElement:
   case InitializedEntity::EK_BlockElement:
   case InitializedEntity::EK_LambdaCapture:
     return Sema::AA_Initializing;
@@ -4277,6 +4316,7 @@ static bool shouldBindAsTemporary(const InitializedEntity &Entity) {
   case InitializedEntity::EK_Delegating:
   case InitializedEntity::EK_VectorElement:
   case InitializedEntity::EK_ComplexElement:
+  case InitializedEntity::EK_NanElement:
   case InitializedEntity::EK_Exception:
   case InitializedEntity::EK_BlockElement:
   case InitializedEntity::EK_LambdaCapture:
@@ -4301,6 +4341,7 @@ static bool shouldDestroyTemporary(const InitializedEntity &Entity) {
     case InitializedEntity::EK_Delegating:
     case InitializedEntity::EK_VectorElement:
     case InitializedEntity::EK_ComplexElement:
+    case InitializedEntity::EK_NanElement:
     case InitializedEntity::EK_BlockElement:
     case InitializedEntity::EK_LambdaCapture:
       return false;
@@ -4385,6 +4426,7 @@ static SourceLocation getInitializationLoc(const InitializedEntity &Entity,
   case InitializedEntity::EK_Delegating:
   case InitializedEntity::EK_VectorElement:
   case InitializedEntity::EK_ComplexElement:
+  case InitializedEntity::EK_NanElement:
   case InitializedEntity::EK_BlockElement:
     return Initializer->getLocStart();
   }

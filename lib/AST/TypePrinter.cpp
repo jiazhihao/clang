@@ -106,6 +106,7 @@ void TypePrinter::print(const Type *T, Qualifiers Quals, std::string &buffer) {
   switch (TC) {
     case Type::Builtin:
     case Type::Complex:
+    case Type::Nan:
     case Type::UnresolvedUsing:
     case Type::Typedef:
     case Type::TypeOfExpr:
@@ -217,6 +218,11 @@ void TypePrinter::printBuiltin(const BuiltinType *T, std::string &S) {
 void TypePrinter::printComplex(const ComplexType *T, std::string &S) {
   print(T->getElementType(), S);
   S = "_Complex " + S;
+}
+
+void TypePrinter::printNan(const Nan *T, std::string &S) {
+  print(T->getElementType(), S);
+  S = "nan " + S;
 }
 
 void TypePrinter::printPointer(const PointerType *T, std::string &S) { 

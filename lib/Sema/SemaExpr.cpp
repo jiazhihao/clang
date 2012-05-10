@@ -840,6 +840,48 @@ static QualType handleComplexIntConversion(Sema &S, ExprResult &LHS,
   return RHSType;
 }
 
+static QualType handleNanIntConversion(Sema &S, ExprResult &LHS,
+                                       ExprResult &RHS, QualType LHSType,
+                                       QualType RHSType,
+                                       bool IsCompAssign) {
+  const NanType *LHSNanInt = LHSType->getAsNanType();
+  const NanType *RHSNanInt = RHSType->getAsNanType();
+  
+  if (LHSNanInt && RHSNanInt) {
+    int order = S.Context.getIntegerTypeOrder(LHSNanInt->getElementType(),
+                                              RHSNanInt->getElementType());
+    assert(order && "inequal types with equal element ordering");
+    if (order > 0) {
+      // nan int -> nan long
+      RHS = S.ImpCastExprToType(RHS.take(), LHSType, CK_NanCast);
+      return LHSType;
+    }
+    
+    if (!IsCompAssign)
+      LHS = S.ImpCastExprToType(LHS.take(), RHSType, CK_NanCast);
+    return RHSType;
+  }
+  
+  if (LHSNanInt) {
+    // int -> nan int
+    // FIXME: This needs to take integer ranks into account
+    RHS = S.ImpCastExprToType(RHS.take(), LHSNanInt->getElementType(),
+                              CK_IntegralCast);
+    RHS = S.ImpCastExprToType(RHS.take(), LHSType, CK_IntegralToNan);
+    return LHSType;
+  }
+  
+  assert(RHSNanInt);
+  // int -> nan int
+  // FIXME: This needs to take integer ranks into account
+  if (!IsCompAssign) {
+    LHS = S.ImpCastExprToType(LHS.take(), RHSNanInt->getElementType(),
+                              CK_IntegralCast);
+    LHS = S.ImpCastExprToType(LHS.take(), RHSType, CK_IntegralToNan);
+  }
+  return RHSType;
+}
+
 /// \brief Handle integer arithmetic conversions.  Helper function of
 /// UsualArithmeticConversions()
 static QualType handleIntegerConversion(Sema &S, ExprResult &LHS,
@@ -954,7 +996,11 @@ QualType Sema::UsualArithmeticConversions(ExprResult &LHS, ExprResult &RHS,
   if (LHSType->isComplexIntegerType() || RHSType->isComplexIntegerType())
     return handleComplexIntConversion(*this, LHS, RHS, LHSType, RHSType,
                                       IsCompAssign);
-
+  
+  if (LHSType->isNanType() || RHSType->isNanType())
+    return handleNanIntConversion(*this, LHS, RHS, LHSType, RHSType,
+                                  IsCompAssign);
+  
   // Finally, we have two differing integer types.
   return handleIntegerConversion(*this, LHS, RHS, LHSType, RHSType,
                                  IsCompAssign);
@@ -3009,6 +3055,10 @@ static QualType CheckRealImagOperand(Sema &S, ExprResult &V, SourceLocation Loc,
   // These operators return the element type of a complex type.
   if (const ComplexType *CT = V.get()->getType()->getAs<ComplexType>())
     return CT->getElementType();
+  
+  // 
+  if (const NanType *CT = V.get()->getType()->getAs<NanType>())
+    return CT->getElementType();
 
   // Otherwise they pass through real integer and floating point types here.
   if (V.get()->getType()->isArithmeticType())
@@ -4064,6 +4114,7 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
     case Type::STK_Floating:
     case Type::STK_FloatingComplex:
     case Type::STK_IntegralComplex:
+    case Type::STK_Nan:
     case Type::STK_MemberPointer:
       llvm_unreachable("illegal cast from pointer");
     }
@@ -4090,6 +4141,11 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
                               DestTy->castAs<ComplexType>()->getElementType(),
                               CK_IntegralCast);
       return CK_IntegralRealToComplex;
+    case Type::STK_Nan:
+      Src = ImpCastExprToType(Src.take(),
+                              DestTy->castAs<NanType>()->getElementType(),
+                              CK_IntegralCast);
+      return CK_IntegralToNan;
     case Type::STK_FloatingComplex:
       Src = ImpCastExprToType(Src.take(),
                               DestTy->castAs<ComplexType>()->getElementType(),
@@ -4097,6 +4153,25 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
       return CK_FloatingRealToComplex;
     case Type::STK_MemberPointer:
       llvm_unreachable("member pointer type in C");
+    }
+    llvm_unreachable("Should have returned before this");
+  case Type::STK_Nan:
+    switch (DestTy->getScalarTypeKind()) {
+      case Type::STK_CPointer:
+      case Type::STK_ObjCObjectPointer:
+      case Type::STK_BlockPointer:
+        if (Src.get()->isNullPointerConstant(Context,
+                                              Expr::NPC_ValueDependentIsNull))
+        return CK_NullToPointer;
+        return CK_NanToPointer;
+      case Type::STK_Bool:
+        return CK_NanToBoolean;
+      case Type::STK_Integral:
+        return CK_NanToIntegral;
+      case Type::STK_Nan:
+        return CK_NanCast;
+      case Type::STK_MemberPointer:
+        llvm_unreachable("member pointer type in C");
     }
     llvm_unreachable("Should have returned before this");
 

@@ -2546,7 +2546,18 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
                              VK_RValue, /*BasePath=*/0, CCK).take();
     break;
   }
-
+      
+  case ICK_Nan_Promotion:
+  case ICK_Nan_Conversion: {
+    QualType FromEl = From->getType()->getAs<NanType>()->getElementType();
+    QualType ToEl = ToType->getAs<NanType>()->getElementType();
+    CastKind CK;
+      CK = CK_IntegralComplexCast;
+    From = ImpCastExprToType(From, ToType, CK, 
+                              VK_RValue, /*BasePath=*/0, CCK).take();
+    break;
+  }
+      
   case ICK_Floating_Integral:
     if (ToType->isRealFloatingType())
       From = ImpCastExprToType(From, ToType, CK_IntegralToFloating, 

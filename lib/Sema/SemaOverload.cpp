@@ -167,6 +167,8 @@ const char* GetImplicitConversionName(ImplicitConversionKind Kind) {
     "Integral conversion",
     "Floating conversion",
     "Complex conversion",
+    "Nan promotion",
+    "Nan conversion",
     "Floating-integral conversion",
     "Pointer conversion",
     "Pointer-to-member conversion",
@@ -1447,6 +1449,9 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // Complex promotion (Clang extension)
     SCS.Second = ICK_Complex_Promotion;
     FromType = ToType.getUnqualifiedType();
+  } else if (S.IsNanPromotion(FromType, ToType)) {
+    SCS.Second = ICK_Nan_Promotion;
+    FromType = ToType.getUnqualifiedType();
   } else if (ToType->isBooleanType() &&
              (FromType->isArithmeticType() ||
               FromType->isAnyPointerType() ||
@@ -1464,6 +1469,9 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
   } else if (FromType->isAnyComplexType() && ToType->isComplexType()) {
     // Complex conversions (C99 6.3.1.6)
     SCS.Second = ICK_Complex_Conversion;
+    FromType = ToType.getUnqualifiedType();
+  } else if (FromType->isNanType() && ToType->isNanType()) {
+    SCS.Second = ICK_Nan_Conversion;
     FromType = ToType.getUnqualifiedType();
   } else if ((FromType->isAnyComplexType() && ToType->isArithmeticType()) ||
              (ToType->isAnyComplexType() && FromType->isArithmeticType())) {
@@ -1765,6 +1773,20 @@ bool Sema::IsComplexPromotion(QualType FromType, QualType ToType) {
                                   ToComplex->getElementType()) ||
     IsIntegralPromotion(0, FromComplex->getElementType(),
                         ToComplex->getElementType());
+}
+  
+///
+bool Sema::IsNanPromotion(QualType FromType, QualType ToType) {
+  const NanType *FromNan = FromType->getAs<NanType>();
+  if (!FromNan)
+    return false;
+  
+  const NanType *ToNan = ToType->getAs<NanType>();
+  if (!ToNan)
+    return false;
+    
+  return IsIntegralPromotion(0, FromNan->getElementType(),
+                             ToNan->getElementType());
 }
 
 /// BuildSimilarlyQualifiedPointerType - In a pointer conversion from
@@ -4704,6 +4726,8 @@ static bool CheckConvertedConstantConversions(Sema &S,
   case ICK_Floating_Promotion:
   case ICK_Complex_Promotion:
   case ICK_Complex_Conversion:
+  case ICK_Nan_Promotion:
+  case ICK_Nan_Conversion:
   case ICK_Floating_Conversion:
   case ICK_TransparentUnionConversion:
     llvm_unreachable("unexpected second conversion kind");

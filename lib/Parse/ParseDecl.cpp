@@ -2212,6 +2212,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isInvalid = DS.SetTypeSpecComplex(DeclSpec::TSC_complex, Loc, PrevSpec,
                                         DiagID);
       break;
+    case tok::kw_nan:
+      isInvalid = DS.SetTypeSpecNan(DeclSpec::TSC_nan, Loc, PrevSpec,
+                                    DiagID);
+      break;
     case tok::kw__Imaginary:
       isInvalid = DS.SetTypeSpecComplex(DeclSpec::TSC_imaginary, Loc, PrevSpec,
                                         DiagID);
@@ -3017,6 +3021,7 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw_signed:
   case tok::kw_unsigned:
   case tok::kw__Complex:
+  case tok::kw_nan:
   case tok::kw__Imaginary:
   case tok::kw_void:
   case tok::kw_char:
@@ -3087,6 +3092,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw_signed:
   case tok::kw_unsigned:
   case tok::kw__Complex:
+  case tok::kw_nan:
   case tok::kw__Imaginary:
   case tok::kw_void:
   case tok::kw_char:
@@ -3222,6 +3228,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_signed:
   case tok::kw_unsigned:
   case tok::kw__Complex:
+  case tok::kw_nan:
   case tok::kw__Imaginary:
   case tok::kw_void:
   case tok::kw_char:
