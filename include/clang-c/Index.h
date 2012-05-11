@@ -2398,7 +2398,8 @@ enum CXTypeKind {
   CXType_FunctionNoProto = 110,
   CXType_FunctionProto = 111,
   CXType_ConstantArray = 112,
-  CXType_Vector = 113
+  CXType_Vector = 113,
+  CXType_Nan = 114
 };
 
 /**
