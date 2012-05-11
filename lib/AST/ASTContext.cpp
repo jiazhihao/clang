@@ -1015,7 +1015,7 @@ ASTContext::getTypeInfoImpl(const Type *T) const {
   }
   case Type::Nan: {
     std::pair<uint64_t, unsigned> EltInfo =
-    getTypeInfo(cast<ComplexType>(T)->getElementType());
+    getTypeInfo(cast<NanType>(T)->getElementType());
     Width = EltInfo.first;
     Align = EltInfo.second;
     break;

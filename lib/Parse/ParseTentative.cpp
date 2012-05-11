@@ -716,7 +716,7 @@ Parser::isExpressionOrTypeSpecifierSimple(tok::TokenKind Kind) {
   case tok::kw_volatile:
   case tok::kw__Bool:
   case tok::kw__Complex:
-  case tok::kw_nan:
+  case tok::kw__nan:
   case tok::kw_class:
   case tok::kw_typename:
   case tok::kw_wchar_t:

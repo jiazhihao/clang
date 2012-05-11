@@ -647,6 +647,11 @@ void USRGenerator::VisitType(QualType T) {
       T = CT->getElementType();
       continue;
     }
+    if (const NanType *NT = T->getAs<NanType>()) {
+      Out << 'n';
+      T = NT->getElementType();
+      continue;
+    }
     if (const TagType *TT = T->getAs<TagType>()) {
       Out << '$';
       VisitTagDecl(TT->getDecl());

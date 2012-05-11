@@ -305,8 +305,6 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class, Base) case Type::Class:
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("Non-canonical or dependent types aren't possible.");
-  case Type::Nan:
-    llvm_unreachable("will implement later.");
   case Type::Builtin: {
     switch (cast<BuiltinType>(Ty)->getKind()) {
     case BuiltinType::Void:
@@ -380,6 +378,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case Type::Complex: {
     llvm::Type *EltTy = ConvertType(cast<ComplexType>(Ty)->getElementType());
     ResultType = llvm::StructType::get(EltTy, EltTy, NULL);
+    break;
+  }
+  case Type::Nan: {
+    ResultType = llvm::IntegerType::get(getLLVMContext(),
+                                        static_cast<unsigned>(Context.getTypeSize(T)));
     break;
   }
   case Type::LValueReference:
