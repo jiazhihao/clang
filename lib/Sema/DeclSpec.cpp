@@ -360,6 +360,13 @@ const char *DeclSpec::getSpecifierName(TSC C) {
   llvm_unreachable("Unknown typespec!");
 }
 
+const char *DeclSpec::getSpecifierName(TSN N) {
+  switch (N) {
+    case TSN_unspecified: return "unspecified";
+    case TSN_nan:         return "nan";
+  }
+  llvm_unreachable("Unknown typespec!");
+}
 
 const char *DeclSpec::getSpecifierName(TSS S) {
   switch (S) {
@@ -508,6 +515,16 @@ bool DeclSpec::SetTypeSpecComplex(TSC C, SourceLocation Loc,
     return BadSpecifier(C, (TSC)TypeSpecComplex, PrevSpec, DiagID);
   TypeSpecComplex = C;
   TSCLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::SetTypeSpecNan(TSN N, SourceLocation Loc,
+                              const char *&PrevSpec,
+                              unsigned &DiagID) {
+  if (TypeSpecNan != TSN_unspecified)
+    return BadSpecifier(N, (TSN)TypeSpecNan, PrevSpec, DiagID);
+  TypeSpecNan = N;
+  TSNLoc = Loc;
   return false;
 }
 

@@ -884,7 +884,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     if (S.getLangOpts().Freestanding)
       S.Diag(DS.getTypeSpecComplexLoc(), diag::ext_freestanding_complex);
     Result = Context.getComplexType(Result);
-  } else if (DS.isTypeAltiVecVector()) {
+  } else if (DS.getTypeSpecNan() == DeclSpec::TSN_nan) {
+    if (S.getLangOpts().Freestanding)
+      S.Diag(DS.getTypeSpecNanLoc(), diag::ext_freestanding_nan);
+    Result = Context.getNanType(Result);
+  }else if (DS.isTypeAltiVecVector()) {
     unsigned typeSize = static_cast<unsigned>(Context.getTypeSize(Result));
     assert(typeSize > 0 && "type size for vector must be greater than 0 bits");
     VectorType::VectorKind VecKind = VectorType::AltiVecVector;

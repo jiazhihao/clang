@@ -4216,9 +4216,11 @@ void TypeLocReader::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
 void TypeLocReader::VisitComplexTypeLoc(ComplexTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation(Record, Idx));
 }
+
 void TypeLocReader::VisitNanTypeLoc(NanTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation(Record, Idx));
 }
+
 void TypeLocReader::VisitPointerTypeLoc(PointerTypeLoc TL) {
   TL.setStarLoc(ReadSourceLocation(Record, Idx));
 }

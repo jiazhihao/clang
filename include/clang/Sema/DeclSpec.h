@@ -229,6 +229,11 @@ public:
     TSC_imaginary,
     TSC_complex
   };
+  
+  enum TSN {
+    TSN_unspecified,
+    TSN_nan
+  };
 
   // Import type specifier sign enumeration and constants.
   typedef TypeSpecifierSign TSS;
@@ -294,6 +299,7 @@ private:
   /*TSW*/unsigned TypeSpecWidth : 2;
   /*TSC*/unsigned TypeSpecComplex : 2;
   /*TSS*/unsigned TypeSpecSign : 2;
+  /*TCN*/unsigned TypeSpecNan : 2;
   /*TST*/unsigned TypeSpecType : 5;
   unsigned TypeAltiVecVector : 1;
   unsigned TypeAltiVecPixel : 1;
@@ -341,7 +347,7 @@ private:
   SourceRange Range;
 
   SourceLocation StorageClassSpecLoc, SCS_threadLoc;
-  SourceLocation TSWLoc, TSCLoc, TSSLoc, TSTLoc, AltiVecLoc;
+  SourceLocation TSWLoc, TSCLoc, TSSLoc, TSTLoc, AltiVecLoc, TSNLoc;
   /// TSTNameLoc - If TypeSpecType is any of class, enum, struct, union,
   /// typename, then this is the location of the named type (if present);
   /// otherwise, it is the same as TSTLoc. Hence, the pair TSTLoc and
@@ -381,6 +387,7 @@ public:
       TypeSpecWidth(TSW_unspecified),
       TypeSpecComplex(TSC_unspecified),
       TypeSpecSign(TSS_unspecified),
+      TypeSpecNan(TSN_unspecified),
       TypeSpecType(TST_unspecified),
       TypeAltiVecVector(false),
       TypeAltiVecPixel(false),
@@ -426,6 +433,7 @@ public:
   // type-specifier
   TSW getTypeSpecWidth() const { return (TSW)TypeSpecWidth; }
   TSC getTypeSpecComplex() const { return (TSC)TypeSpecComplex; }
+  TSN getTypeSpecNan() const { return (TSN)TypeSpecNan; }
   TSS getTypeSpecSign() const { return (TSS)TypeSpecSign; }
   TST getTypeSpecType() const { return (TST)TypeSpecType; }
   bool isTypeAltiVecVector() const { return TypeAltiVecVector; }
@@ -453,6 +461,7 @@ public:
 
   SourceLocation getTypeSpecWidthLoc() const { return TSWLoc; }
   SourceLocation getTypeSpecComplexLoc() const { return TSCLoc; }
+  SourceLocation getTypeSpecNanLoc() const { return TSNLoc; }
   SourceLocation getTypeSpecSignLoc() const { return TSSLoc; }
   SourceLocation getTypeSpecTypeLoc() const { return TSTLoc; }
   SourceLocation getAltiVecLoc() const { return AltiVecLoc; }
@@ -471,6 +480,7 @@ public:
   static const char *getSpecifierName(DeclSpec::TQ Q);
   static const char *getSpecifierName(DeclSpec::TSS S);
   static const char *getSpecifierName(DeclSpec::TSC C);
+  static const char *getSpecifierName(DeclSpec::TSN N);
   static const char *getSpecifierName(DeclSpec::TSW W);
   static const char *getSpecifierName(DeclSpec::SCS S);
 
@@ -514,6 +524,7 @@ public:
     return getTypeSpecType() != DeclSpec::TST_unspecified ||
            getTypeSpecWidth() != DeclSpec::TSW_unspecified ||
            getTypeSpecComplex() != DeclSpec::TSC_unspecified ||
+           getTypeSpecNan() != DeclSpec::TSN_unspecified ||
            getTypeSpecSign() != DeclSpec::TSS_unspecified;
   }
 
@@ -553,6 +564,8 @@ public:
                         unsigned &DiagID);
   bool SetTypeSpecComplex(TSC C, SourceLocation Loc, const char *&PrevSpec,
                           unsigned &DiagID);
+  bool SetTypeSpecNan(TSN N, SourceLocation Loc, const char *&PrevSpec,
+                      unsigned &DiagID);
   bool SetTypeSpecSign(TSS S, SourceLocation Loc, const char *&PrevSpec,
                        unsigned &DiagID);
   bool SetTypeSpecType(TST T, SourceLocation Loc, const char *&PrevSpec,

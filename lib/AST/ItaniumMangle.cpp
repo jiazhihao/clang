@@ -822,6 +822,7 @@ void CXXNameMangler::mangleUnresolvedPrefix(NestedNameSpecifier *qualifier,
     switch (type->getTypeClass()) {
     case Type::Builtin:
     case Type::Complex:
+    case Type::Nan:
     case Type::Pointer:
     case Type::BlockPointer:
     case Type::LValueReference:
@@ -2042,6 +2043,11 @@ void CXXNameMangler::mangleType(const RValueReferenceType *T) {
 // <type> ::= C <type>   # complex pair (C 2000)
 void CXXNameMangler::mangleType(const ComplexType *T) {
   Out << 'C';
+  mangleType(T->getElementType());
+}
+
+void CXXNameMangler::mangleType(const NanType *T) {
+  Out << 'N';
   mangleType(T->getElementType());
 }
 

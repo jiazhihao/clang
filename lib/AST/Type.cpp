@@ -814,7 +814,7 @@ Type::ScalarTypeKind Type::getScalarTypeKind() const {
     if (CT->getElementType()->isRealFloatingType())
       return STK_FloatingComplex;
     return STK_IntegralComplex;
-  } else if (const nanType *NT = dyn_cast<NanType>(T)) {
+  } else if (isa<NanType>(T)) {
     return STK_Nan;
   }
 
@@ -2046,7 +2046,7 @@ static CachedProperties computeCachedProperties(const Type *T) {
     //     compounded exclusively from types that have linkage; or
   case Type::Complex:
     return Cache::get(cast<ComplexType>(T)->getElementType());
-  case Type;:Nan:
+  case Type::Nan:
     return Cache::get(cast<NanType>(T)->getElementType());
   case Type::Pointer:
     return Cache::get(cast<PointerType>(T)->getPointeeType());

@@ -1693,6 +1693,9 @@ def warn_impcast_vector_scalar : Warning<
 def warn_impcast_complex_scalar : Warning<
   "implicit conversion discards imaginary component: %0 to %1">,
   InGroup<DiagGroup<"conversion">>, DefaultIgnore;
+def warn_impcast_nan_scalar : Warning<
+  "implicit conversion discards nan component: %0 to %1">,
+  InGroup<DiagGroup<"conversion">>, DefaultIgnore;
 def warn_impcast_float_precision : Warning<
   "implicit conversion loses floating-point precision: %0 to %1">,
   InGroup<DiagGroup<"conversion">>, DefaultIgnore;
@@ -2982,6 +2985,9 @@ def warn_many_braces_around_scalar_init : ExtWarn<
 def ext_complex_component_init : Extension<
   "complex initialization specifying real and imaginary components "
   "is an extension">, InGroup<DiagGroup<"complex-component-init">>;
+def ext_nan_component_init : Extension<
+  "nan initialization specifying val component "
+  "is an extension">, InGroup<DiagGroup<"nan-component-init">>;
 def err_empty_scalar_initializer : Error<"scalar initializer cannot be empty">;
 def warn_cxx98_compat_empty_scalar_initializer : Warning<
   "scalar initialized from empty initializer list is incompatible with C++98">,
@@ -3823,6 +3829,9 @@ def err_qualified_objc_access : Error<
   
 def ext_freestanding_complex : Extension<
   "complex numbers are an extension in a freestanding C99 implementation">;
+
+def ext_freestanding_nan : Extension<
+  "nan numbers are an extension in a freestanding implementation">;
 
 // FIXME: Remove when we support imaginary.
 def err_imaginary_not_supported : Error<"imaginary types are not supported">;

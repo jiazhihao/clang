@@ -110,6 +110,11 @@ namespace {
         Type = CT->getElementType();
         ArraySize = 2;
         MostDerivedLength = I + 1;
+      } else if (Type->isNanType()) {
+        const NanType *NT = Type->castAs<NanType>();
+        Type = NT->getElementType();
+        ArraySize = 1;
+        MostDerivedLength = I + 1;
       } else if (const FieldDecl *FD = getAsField(Path[I])) {
         Type = FD->getType();
         ArraySize = 0;
@@ -125,7 +130,7 @@ namespace {
   // The order of this enum is important for diagnostics.
   enum CheckSubobjectKind {
     CSK_Base, CSK_Derived, CSK_Field, CSK_ArrayToPointer, CSK_ArrayIndex,
-    CSK_This, CSK_Real, CSK_Imag
+    CSK_This, CSK_Real, CSK_Imag, CSK_Val
   };
 
   /// A path from a glvalue to a subobject of that glvalue.
@@ -238,6 +243,16 @@ namespace {
       MostDerivedArraySize = 2;
       MostDerivedPathLength = Entries.size();
     }
+    
+    void addNanUnchecked(QualType EltTy) {
+      PathEntry Entry;
+      Entries.push_back(Entry);
+      
+      MostDerivedType = EltTy;
+      MostDerivedArraySize = 1;
+      MostDerivedPathLength = Entries.size();
+    }
+    
     void diagnosePointerArithmetic(EvalInfo &Info, const Expr *E, uint64_t N);
     /// Add N to the address of this subobject.
     void adjustIndex(EvalInfo &Info, const Expr *E, uint64_t N) {
@@ -703,7 +718,6 @@ namespace {
         v = APValue(Val, true);
     }
     void setFrom(const APValue &v) {
-        makeNan();
         Val = v.getNanVal();
     }
   };
@@ -781,6 +795,10 @@ namespace {
     void addComplex(EvalInfo &Info, const Expr *E, QualType EltTy, bool Imag) {
       if (checkSubobject(Info, E, Imag ? CSK_Imag : CSK_Real))
         Designator.addComplexUnchecked(EltTy, Imag);
+    }
+    void addNan(EvalInfo &Info, const Expr *E, QualType EltTy) {
+      if (checkSubobject(Info, E, CSK_Val))
+        Designator.addNanUnchecked(EltTy);
     }
     void adjustIndex(EvalInfo &Info, const Expr *E, uint64_t N) {
       if (checkNullPointer(Info, E, CSK_ArrayIndex))
@@ -909,6 +927,7 @@ static bool EvaluateIntegerOrLValue(const Expr *E, APValue &Result,
                                     EvalInfo &Info);
 static bool EvaluateFloat(const Expr *E, APFloat &Result, EvalInfo &Info);
 static bool EvaluateComplex(const Expr *E, ComplexValue &Res, EvalInfo &Info);
+static bool EvaluateNan(const Expr *E, NanValue &Res, EvalInfo &Info);
 
 //===----------------------------------------------------------------------===//
 // Misc utilities
@@ -1150,7 +1169,7 @@ static bool HandleConversionToBool(const APValue &Val, bool &Result) {
     Result = !Val.getComplexFloatReal().isZero() ||
              !Val.getComplexFloatImag().isZero();
     return true;
-  case APVAlue::Nan:
+  case APValue::Nan:
     Result = Val.getNanVal().getBoolValue();
     return true;
   case APValue::LValue:
@@ -1428,6 +1447,14 @@ static bool HandleLValueComplexElement(EvalInfo &Info, const Expr *E,
   return true;
 }
 
+/*
+static bool HandleLValueNanElement(EvalInfo &Info, const Expr *E,
+                                   LValue &LVal, QualType EltTy) {
+  LVal.addNan(Info, E, EltTy);
+  return true;
+}
+ */
+
 /// Try to evaluate the initializer for a variable declaration.
 static bool EvaluateVarDeclInit(EvalInfo &Info, const Expr *E,
                                 const VarDecl *VD,
@@ -1592,6 +1619,9 @@ static bool ExtractSubobject(EvalInfo &Info, const Expr *E,
                             : O->getComplexFloatReal());
       }
       return true;
+    } else if (ObjType->isNanType()) {
+      Obj = APValue(O->getNanVal());
+      return true;
     } else if (const FieldDecl *Field = getAsField(Sub.Entries[I])) {
       if (Field->isMutable()) {
         Info.Diag(E, diag::note_constexpr_ltor_mutable, 1)
@@ -1675,7 +1705,9 @@ static unsigned FindDesignatorMismatch(QualType ObjType,
         WasArrayIndex = false;
         return I;
       }
-      if (const FieldDecl *FD = getAsField(A.Entries[I]))
+      if (ObjType->isNanType())
+        ObjType = ObjType->castAs<NanType>()->getElementType();
+      else if (const FieldDecl *FD = getAsField(A.Entries[I]))
         // Next subobject is a field.
         ObjType = FD->getType();
       else
@@ -4267,7 +4299,7 @@ static bool EvaluateBuiltinConstantP(ASTContext &Ctx, const Expr *Arg) {
       return true;
 
     return EvaluateBuiltinConstantPForLValue(V);
-  } else if (ArgType->isFloatingType() || ArgType->isAnyComplexType()) {
+  } else if (ArgType->isFloatingType() || ArgType->isAnyComplexType() || ArgType->isNanType()) {
     return Arg->isEvaluatable(Ctx);
   } else if (ArgType->isPointerType() || Arg->isGLValue()) {
     LValue LV;
@@ -4909,6 +4941,25 @@ bool IntExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
       }
     }
   }
+  
+  if (LHSTy->isNanType()) {
+    assert(RHSTy->isNanType() && "Invalid comparison");
+    NanValue LHS, RHS;
+    
+    bool LHSOK = EvaluateNan(E->getLHS(), LHS, Info);
+    if (!LHSOK && !Info.keepEvaluatingAfterFailure())
+      return false;
+    
+    if (!EvaluateNan(E->getRHS(), RHS, Info) || !LHSOK)
+      return false;
+    
+    if (E->getOpcode() == BO_EQ)
+      return Success(LHS.getNanVal() == RHS.getNanVal(), E);
+    else {
+      assert(E->getOpcode() == BO_NE && "Invalid compex comparison.");
+      return Success(LHS.getNanVal() != RHS.getNanVal(), E);
+    }
+  }
 
   if (LHSTy->isRealFloatingType() &&
       RHSTy->isRealFloatingType()) {
@@ -5467,6 +5518,14 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
       return false;
     return Success(C.getComplexIntReal(), E);
   }
+      
+  case CK_IntegralToNan:
+  case CK_NanCast: {
+    NanValue N;
+    if (!EvaluateNan(SubExpr, N, Info))
+      return false;
+    return Success(N.getNanVal(), E);
+  }
 
   case CK_FloatingToIntegral: {
     APFloat F(0.0);
@@ -5491,6 +5550,11 @@ bool IntExprEvaluator::VisitUnaryReal(const UnaryOperator *E) {
     if (!LV.isComplexInt())
       return Error(E);
     return Success(LV.getComplexIntReal(), E);
+  } else if (E->getSubExpr()->getType()->isNanType()) {
+    NanValue LV;
+    if (!EvaluateNan(E->getSubExpr(), LV, Info))
+      return false;
+    return Success(LV.getNanVal(), E);
   }
 
   return Visit(E->getSubExpr());
@@ -5504,6 +5568,11 @@ bool IntExprEvaluator::VisitUnaryImag(const UnaryOperator *E) {
     if (!LV.isComplexInt())
       return Error(E);
     return Success(LV.getComplexIntImag(), E);
+  } else if (E->getSubExpr()->getType()->isNanType()) {
+    NanValue LV;
+    if (!EvaluateNan(E->getSubExpr(), LV, Info))
+      return false;
+    return Success(LV.getNanVal(), E);
   }
 
   VisitIgnoredValue(E->getSubExpr());
@@ -5871,6 +5940,8 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_ARCReclaimReturnedObject:
   case CK_ARCExtendBlockObject:
   case CK_CopyAndAutoreleaseBlockObject:
+  case CK_IntegralToNan:
+  case CK_NanCast:
     llvm_unreachable("invalid cast kind for complex value");
 
   case CK_LValueToRValue:
@@ -6132,6 +6203,219 @@ bool ComplexExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
 }
 
 //===----------------------------------------------------------------------===//
+// Nan Evaluation (for integer)
+//===----------------------------------------------------------------------===//
+
+namespace {
+  class NanExprEvaluator
+  : public ExprEvaluatorBase<NanExprEvaluator, bool> {
+    NanValue &Result;
+    
+  public:
+    NanExprEvaluator(EvalInfo &info, NanValue &Result)
+    : ExprEvaluatorBaseTy(info), Result(Result) {}
+    
+    bool Success(const APValue &V, const Expr *e) {
+      Result.setFrom(V);
+      return true;
+    }
+    
+    bool ZeroInitialization(const Expr *E);
+    
+    //===--------------------------------------------------------------------===//
+    //                            Visitor Methods
+    //===--------------------------------------------------------------------===//
+    
+    bool VisitImaginaryLiteral(const ImaginaryLiteral *E);
+    bool VisitCastExpr(const CastExpr *E);
+    bool VisitBinaryOperator(const BinaryOperator *E);
+    bool VisitUnaryOperator(const UnaryOperator *E);
+    bool VisitInitListExpr(const InitListExpr *E);
+  };
+} // end anonymous namespace
+
+static bool EvaluateNan(const Expr *E, NanValue &Result,
+                        EvalInfo &Info) {
+  assert(E->isRValue() && E->getType()->isNanType());
+  return NanExprEvaluator(Info, Result).Visit(E);
+}
+
+bool NanExprEvaluator::ZeroInitialization(const Expr *E) {
+  QualType ElemTy = E->getType()->getAs<NanType>()->getElementType();
+  APSInt Zero = Info.Ctx.MakeIntValue(0, ElemTy);
+  Result.Val = Zero;
+  return true;
+}
+
+bool NanExprEvaluator::VisitImaginaryLiteral(const ImaginaryLiteral *E) {
+  const Expr* SubExpr = E->getSubExpr();
+  
+  assert(SubExpr->getType()->isIntegerType() &&
+         "Unexpected imaginary literal.");
+  APSInt &Val = Result.Val;
+  if (!EvaluateInteger(SubExpr, Val, Info))
+    return false;
+    
+  Result.Val = APSInt(Val.getBitWidth(), !Val.isSigned());
+  return true;
+}
+
+bool NanExprEvaluator::VisitCastExpr(const CastExpr *E) {
+  
+  switch (E->getCastKind()) {
+    case CK_BitCast:
+    case CK_BaseToDerived:
+    case CK_DerivedToBase:
+    case CK_UncheckedDerivedToBase:
+    case CK_Dynamic:
+    case CK_ToUnion:
+    case CK_ArrayToPointerDecay:
+    case CK_FunctionToPointerDecay:
+    case CK_NullToPointer:
+    case CK_NullToMemberPointer:
+    case CK_BaseToDerivedMemberPointer:
+    case CK_DerivedToBaseMemberPointer:
+    case CK_MemberPointerToBoolean:
+    case CK_ReinterpretMemberPointer:
+    case CK_ConstructorConversion:
+    case CK_IntegralToPointer:
+    case CK_PointerToIntegral:
+    case CK_PointerToBoolean:
+    case CK_ToVoid:
+    case CK_VectorSplat:
+    case CK_IntegralCast:
+    case CK_IntegralToBoolean:
+    case CK_IntegralToFloating:
+    case CK_FloatingToIntegral:
+    case CK_FloatingToBoolean:
+    case CK_FloatingCast:
+    case CK_CPointerToObjCPointerCast:
+    case CK_BlockPointerToObjCPointerCast:
+    case CK_AnyPointerToBlockPointerCast:
+    case CK_ObjCObjectLValueCast:
+    case CK_FloatingComplexToReal:
+    case CK_FloatingComplexToBoolean:
+    case CK_IntegralComplexToReal:
+    case CK_IntegralComplexToBoolean:
+    case CK_ARCProduceObject:
+    case CK_ARCConsumeObject:
+    case CK_ARCReclaimReturnedObject:
+    case CK_ARCExtendBlockObject:
+    case CK_CopyAndAutoreleaseBlockObject:
+    case CK_FloatingRealToComplex:
+    case CK_FloatingComplexCast:
+    case CK_FloatingComplexToIntegralComplex:
+    case CK_IntegralRealToComplex:
+    case CK_IntegralComplexCast:
+    case CK_IntegralComplexToFloatingComplex: 
+      llvm_unreachable("invalid cast kind for nan value");
+      
+    case CK_LValueToRValue:
+    case CK_AtomicToNonAtomic:
+    case CK_NonAtomicToAtomic:
+    case CK_NoOp:
+      return ExprEvaluatorBaseTy::VisitCastExpr(E);
+      
+    case CK_Dependent:
+    case CK_LValueBitCast:
+    case CK_UserDefinedConversion:
+      return Error(E);
+    
+    case CK_IntegralToNan: {
+      APSInt &Val = Result.Val;
+      if (!EvaluateInteger(E->getSubExpr(), Val, Info))
+        return false;
+      Result.Val = APSInt(Val.getBitWidth(), !Val.isSigned());
+      return true;
+    }
+      
+    case CK_NanCast: {
+      if (!Visit(E->getSubExpr()))
+        return false;
+      
+      QualType To = E->getType()->getAs<NanType>()->getElementType();
+      QualType From
+      = E->getSubExpr()->getType()->getAs<NanType>()->getElementType();
+      
+      Result.Val = HandleIntToIntCast(Info, E, To, From, Result.Val);
+      return true;
+    }
+  }
+  
+  llvm_unreachable("unknown cast resulting in nan value");
+}
+
+bool NanExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
+  if (E->isPtrMemOp() || E->isAssignmentOp() || E->getOpcode() == BO_Comma)
+    return ExprEvaluatorBaseTy::VisitBinaryOperator(E);
+  
+  bool LHSOK = Visit(E->getLHS());
+  if (!LHSOK && !Info.keepEvaluatingAfterFailure())
+    return false;
+  
+  NanValue LHS, RHS;
+  if (!EvaluateNan(E->getRHS(), RHS, Info) || !LHSOK)
+    return false;
+  
+  switch (E->getOpcode()) {
+    default: return Error(E);
+    case BO_Add:
+      Result.getNanVal() += RHS.getNanVal();
+      break;
+    case BO_Sub:
+      Result.getNanVal() -= RHS.getNanVal();
+      break;
+    case BO_Mul:
+      LHS = Result;
+      Result.getNanVal() = LHS.getNanVal() * RHS.getNanVal();
+      break;
+    case BO_Div:
+      if (RHS.getNanVal() == 0)
+        return Error(E, diag::note_expr_divide_by_zero);
+      
+      LHS = Result;
+      APSInt Den = RHS.getNanVal();
+      Result.getNanVal() = LHS.getNanVal() / Den;
+      break;
+  }
+  
+  return true;
+}
+
+bool NanExprEvaluator::VisitUnaryOperator(const UnaryOperator *E) {
+  // Get the operand value into 'Result'.
+  if (!Visit(E->getSubExpr()))
+    return false;
+  
+  switch (E->getOpcode()) {
+    default:
+      return Error(E);
+    case UO_Extension:
+      return true;
+    case UO_Plus:
+      // The result is always just the subexpr.
+      return true;
+    case UO_Minus:
+      Result.getNanVal() = -Result.getNanVal();
+      return true;
+    case UO_Not:
+      Result.getNanVal() = -Result.getNanVal();
+      return true;
+  }
+}
+
+bool NanExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
+  if (E->getNumInits() == 1) {
+    if (!EvaluateInteger(E->getInit(0), Result.Val, Info))
+      return false;
+    return true;
+  }
+  return ExprEvaluatorBaseTy::VisitInitListExpr(E);
+}
+
+/// end jia
+
+//===----------------------------------------------------------------------===//
 // Void expression evaluation, primarily for a cast to void on the LHS of a
 // comma operator
 //===----------------------------------------------------------------------===//
@@ -6194,6 +6478,11 @@ static bool Evaluate(APValue &Result, EvalInfo &Info, const Expr *E) {
     if (!EvaluateComplex(E, C, Info))
       return false;
     C.moveInto(Result);
+  } else if (E->getType()->isNanType()) {
+    NanValue N;
+    if (!EvaluateNan(E, N, Info))
+      return false;
+    N.moveInto(Result);
   } else if (E->getType()->isMemberPointerType()) {
     MemberPtr P;
     if (!EvaluateMemberPointer(E, P, Info))

@@ -441,6 +441,18 @@ llvm::DIType CGDebugInfo::CreateType(const ComplexType *Ty) {
   return DbgTy;
 }
 
+llvm::DIType CGDebugInfo::CreateType(const NanType *Ty) {
+  // Bit size, align and offset of the type.
+  unsigned Encoding = llvm::dwarf::DW_ATE_lo_user;
+  
+  uint64_t Size = CGM.getContext().getTypeSize(Ty);
+  uint64_t Align = CGM.getContext().getTypeAlign(Ty);
+  llvm::DIType DbgTy = 
+  DBuilder.createBasicType("nan", Size, Align, Encoding);
+  
+  return DbgTy;
+}
+
 /// CreateCVRType - Get the qualified type from the cache or create
 /// a new one if necessary.
 llvm::DIType CGDebugInfo::CreateQualifiedType(QualType Ty, llvm::DIFile Unit) {
@@ -1713,6 +1725,8 @@ llvm::DIType CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile Unit) {
     return CreateType(cast<BuiltinType>(Ty));
   case Type::Complex:
     return CreateType(cast<ComplexType>(Ty));
+  case Type::Nan:
+    return CreateType(cast<NanType>(Ty));
   case Type::Pointer:
     return CreateType(cast<PointerType>(Ty), Unit);
   case Type::BlockPointer:

@@ -83,6 +83,7 @@ class CGDebugInfo {
   /// Helper functions for getOrCreateType.
   llvm::DIType CreateType(const BuiltinType *Ty);
   llvm::DIType CreateType(const ComplexType *Ty);
+  llvm::DIType CreateType(const NanType *Ty);
   llvm::DIType CreateQualifiedType(QualType Ty, llvm::DIFile F);
   llvm::DIType CreateType(const TypedefType *Ty, llvm::DIFile F);
   llvm::DIType CreateType(const ObjCObjectPointerType *Ty,

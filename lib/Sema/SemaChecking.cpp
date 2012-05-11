@@ -4031,9 +4031,10 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
   // Strip nan types.
   if (isa<NanType>(Source)) {
     if (!isa<NanType>(Target)) {
+      /*
       if (S.SourceMgr.isInSystemMacro(CC))
         return;
-      
+      */
       return DiagnoseImpCast(S, E, T, CC, diag::warn_impcast_nan_scalar);
     }
     

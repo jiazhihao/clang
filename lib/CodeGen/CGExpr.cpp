@@ -2218,6 +2218,10 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     EmitAnyExprToMem(E, V, E->getType().getQualifiers(), false);
     return MakeAddrLValue(V, E->getType());
   }
+      
+  case CK_IntegralToNan:
+  case CK_NanCast:
+    llvm_unreachable("will implement later");
 
   case CK_Dynamic: {
     LValue LV = EmitLValue(E->getSubExpr());

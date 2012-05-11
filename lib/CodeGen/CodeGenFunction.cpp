@@ -70,7 +70,8 @@ bool CodeGenFunction::hasAggregateLLVMType(QualType type) {
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(name, parent) case Type::name:
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("non-canonical or dependent type in IR-generation");
-
+  case Type::Nan:
+    llvm_unreachable("will implement later.");
   case Type::Builtin:
   case Type::Pointer:
   case Type::BlockPointer:
@@ -965,7 +966,9 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class, Base)
 #include "clang/AST/TypeNodes.def"
       llvm_unreachable("unexpected dependent type!");
-
+    
+    case Type::Nan:
+      llvm_unreachable("will implement later.");
     // These types are never variably-modified.
     case Type::Builtin:
     case Type::Complex:

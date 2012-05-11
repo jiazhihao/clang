@@ -1047,6 +1047,10 @@ void MicrosoftCXXNameMangler::mangleType(const ComplexType *T) {
   llvm_unreachable("Don't know how to mangle ComplexTypes yet!");
 }
 
+void MicrosoftCXXNameMangler::mangleType(const NanType *T) {
+  llvm_unreachable("Don't know how to mangle NanTypes yet!");
+}
+
 void MicrosoftCXXNameMangler::mangleType(const VectorType *T) {
   llvm_unreachable("Don't know how to mangle VectorTypes yet!");
 }

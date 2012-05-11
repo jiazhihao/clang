@@ -1148,7 +1148,6 @@ void CastExpr::CheckCastConsistency() const {
   case CK_IntegralComplexCast:
   case CK_IntegralComplexToFloatingComplex:
   case CK_IntegralToNan:
-  case CK_NanToIntegral:
   case CK_NanCast:
   case CK_ARCProduceObject:
   case CK_ARCConsumeObject:
@@ -1270,8 +1269,6 @@ const char *CastExpr::getCastKindName() const {
     return "IntegralComplexToFloatingComplex";
   case CK_IntegralToNan:
     return "IntegralToNan";
-  case CK_NanToIntegral:
-    return "NanToIntegral";
   case CK_NanCast:
     return "NanCast";
   case CK_ARCConsumeObject:

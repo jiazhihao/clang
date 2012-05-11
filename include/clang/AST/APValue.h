@@ -80,7 +80,7 @@ private:
   struct NanAPSInt {
     APSInt Val;
     NanAPSInt() : Val(0) {}
-  }
+  };
   struct LV;
   struct Vec {
     APValue *Elts;
@@ -141,7 +141,7 @@ public:
     MakeComplexFloat(); setComplexFloat(R, I);
   }
   APValue(const APSInt &V, bool nan) : Kind(Uninitialized) {
-    MakeNan(); setNan(V);
+    MakeNan(); setNan(V, true);
   }
   APValue(const APValue &RHS);
   APValue(LValueBase B, const CharUnits &O, NoLValuePath N, unsigned CallIndex)

@@ -396,7 +396,8 @@ void RTTIBuilder::BuildVTablePointer(const Type *Ty) {
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
-
+  case Type::Nan:
+    llvm_unreachable("will implement later.");
   case Type::LValueReference:
   case Type::RValueReference:
     llvm_unreachable("References shouldn't get here");
@@ -593,7 +594,9 @@ llvm::Constant *RTTIBuilder::BuildTypeInfo(QualType Ty, bool Force) {
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
-
+  case Type::Nan:
+    llvm_unreachable("will implement later.");
+      
   // GCC treats vector types as fundamental types.
   case Type::Builtin:
   case Type::Vector:

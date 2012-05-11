@@ -2213,7 +2213,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         DiagID);
       break;
     case tok::kw_nan:
-      isInvalid = DS.SetTypeSpecNan(DeclSpec::TSC_nan, Loc, PrevSpec,
+      isInvalid = DS.SetTypeSpecNan(DeclSpec::TSN_nan, Loc, PrevSpec,
                                     DiagID);
       break;
     case tok::kw__Imaginary:

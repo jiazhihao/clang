@@ -749,6 +749,9 @@ public:
     case CK_FloatingToBoolean:
     case CK_FloatingCast:
       return 0;
+    case CK_IntegralToNan:
+    case CK_NanCast:
+      llvm_unreachable("will implement later.");
     }
     llvm_unreachable("Invalid CastKind");
   }
@@ -1068,6 +1071,8 @@ llvm::Constant *CodeGenModule::EmitConstantValue(const APValue &Value,
                                                  QualType DestType,
                                                  CodeGenFunction *CGF) {
   switch (Value.getKind()) {
+  case APValue::Nan:
+    llvm_unreachable("will implement later.");
   case APValue::Uninitialized:
     llvm_unreachable("Constant expressions should be initialized.");
   case APValue::LValue: {

@@ -220,7 +220,7 @@ void TypePrinter::printComplex(const ComplexType *T, std::string &S) {
   S = "_Complex " + S;
 }
 
-void TypePrinter::printNan(const Nan *T, std::string &S) {
+void TypePrinter::printNan(const NanType *T, std::string &S) {
   print(T->getElementType(), S);
   S = "nan " + S;
 }

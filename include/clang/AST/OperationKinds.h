@@ -257,7 +257,6 @@ enum CastKind {
   CK_IntegralComplexToFloatingComplex,
   
   CK_IntegralToNan,
-  CK_NanToIntegral,
   CK_NanCast,
 
   /// \brief [ARC] Produces a retainable object pointer so that it may

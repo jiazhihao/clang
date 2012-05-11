@@ -437,9 +437,11 @@ void TypeLocWriter::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
 void TypeLocWriter::VisitComplexTypeLoc(ComplexTypeLoc TL) {
   Writer.AddSourceLocation(TL.getNameLoc(), Record);
 }
+
 void TypeLocWriter::VisitNanTypeLoc(NanTypeLoc TL) {
   Writer.AddSourceLocation(TL.getNameLoc(), Record);
 }
+
 void TypeLocWriter::VisitPointerTypeLoc(PointerTypeLoc TL) {
   Writer.AddSourceLocation(TL.getStarLoc(), Record);
 }

@@ -1014,9 +1014,10 @@ ASTContext::getTypeInfoImpl(const Type *T) const {
     break;
   }
   case Type::Nan: {
-    unsigned EltInfo = getTypeInfo(cast<NanType>(T)->getElementType());
-    Width = EltInfo;
-    Align = EltInfo;
+    std::pair<uint64_t, unsigned> EltInfo =
+    getTypeInfo(cast<ComplexType>(T)->getElementType());
+    Width = EltInfo.first;
+    Align = EltInfo.second;
     break;
   }
   case Type::ObjCObject:
@@ -1520,7 +1521,7 @@ QualType ASTContext::getNanType(QualType T) const {
   
   void *InsertPos = 0;
   if (NanType *NT = NanTypes.FindNodeOrInsertPos(ID, InsertPos))
-    return QualType(CT, 0);
+    return QualType(NT, 0);
   
   // If the pointee type isn't canonical, this won't be a canonical type either,
   // so fill in the canonical type field.

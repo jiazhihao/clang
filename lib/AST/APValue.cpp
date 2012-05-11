@@ -144,7 +144,7 @@ APValue::APValue(const APValue &RHS) : Kind(Uninitialized) {
     setComplexInt(RHS.getComplexIntReal(), RHS.getComplexIntImag());
     break;
   case Nan:
-    makeNan();
+    MakeNan();
     setNan(RHS.getNanVal(), true);
     break;  
   case ComplexFloat:
@@ -201,7 +201,7 @@ void APValue::DestroyDataAndMakeUninit() {
     ((ComplexAPSInt*)(char*)Data)->~ComplexAPSInt();
   else if (Kind == ComplexFloat)
     ((ComplexAPFloat*)(char*)Data)->~ComplexAPFloat();
-  else if (kind == Nan)
+  else if (Kind == Nan)
     ((NanAPSInt*)(char*)Data)->~NanAPSInt();
   else if (Kind == LValue)
     ((LV*)(char*)Data)->~LV();

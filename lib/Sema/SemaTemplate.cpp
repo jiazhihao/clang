@@ -3218,6 +3218,10 @@ bool UnnamedLocalNoLinkageFinder::VisitComplexType(const ComplexType* T) {
   return Visit(T->getElementType());
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitNanType(const NanType* T) {
+  return Visit(T->getElementType());
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitPointerType(const PointerType* T) {
   return Visit(T->getPointeeType());
 }
