@@ -562,6 +562,7 @@ public:
   const TargetInfo &Target;
 
   typedef std::pair<llvm::Value *, llvm::Value *> ComplexPairTy;
+  typedef llvm::Value * NanTy;
   CGBuilderTy Builder;
 
   /// CurFuncDecl - Holds the Decl for the current function or ObjC method.

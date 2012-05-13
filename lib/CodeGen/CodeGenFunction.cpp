@@ -71,6 +71,7 @@ bool CodeGenFunction::hasAggregateLLVMType(QualType type) {
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("non-canonical or dependent type in IR-generation");
   case Type::Builtin:
+  case Type::Nan:
   case Type::Pointer:
   case Type::BlockPointer:
   case Type::LValueReference:
@@ -86,7 +87,6 @@ bool CodeGenFunction::hasAggregateLLVMType(QualType type) {
 
   // Complexes, nans, arrays, records, and Objective-C objects.
   case Type::Complex:
-  case Type::Nan:
   case Type::ConstantArray:
   case Type::IncompleteArray:
   case Type::VariableArray:

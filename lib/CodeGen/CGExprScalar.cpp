@@ -1029,6 +1029,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   // Since almost all cast kinds apply to scalars, this switch doesn't have
   // a default case, so the compiler will warn on a missing case.  The cases
   // are in the same order as in the CastKind enum.
+  printf("VisitCastExpr: Kind = %d\n", (int)Kind);
   switch (Kind) {
   case CK_Dependent: llvm_unreachable("dependent cast kind in IR gen!");
       
@@ -1156,6 +1157,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
   
   case CK_IntegralToNan:
+    return EmitScalarConversion(Visit(E), E->getType(), DestTy);
   case CK_NanCast:
     llvm_unreachable("will implement later");
 
