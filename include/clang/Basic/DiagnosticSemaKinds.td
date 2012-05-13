@@ -4449,6 +4449,12 @@ def err_atomic_op_logical_needs_atomic_int : Error<
   "first argument to logical atomic operation must be a pointer to atomic "
   "integer (%0 invalid)">;
 
+def err_nan_type_must_be_nan_type : Error<
+  "first argument to isnan/unnan must be a nan type (%0 invalid)">;
+
+def err_nan_type_must_be_integer_type : Error<
+  "second argument to unnan must be an integer type (%0 invalid)">;
+
 def err_deleted_function_use : Error<"attempt to use a deleted function">;
 
 def err_kern_type_not_void_return : Error<

@@ -256,6 +256,14 @@ Sema::CheckBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     return SemaAtomicOpsOverloaded(move(TheCallResult), AtomicExpr::Store);
   case Builtin::BI__atomic_init:
     return SemaAtomicOpsOverloaded(move(TheCallResult), AtomicExpr::Init);
+  case Builtin::BIisnan:
+    if (SemaIsnanOverloaded(TheCall))
+      return ExprError();
+    break;
+  case Builtin::BIunnan:
+    if (SemaUnnanOverloaded(TheCall))
+      return ExprError();
+    break; 
   case Builtin::BI__atomic_exchange:
     return SemaAtomicOpsOverloaded(move(TheCallResult), AtomicExpr::Xchg);
   case Builtin::BI__atomic_compare_exchange_strong:
@@ -501,6 +509,39 @@ bool Sema::CheckBlockCall(NamedDecl *NDecl, CallExpr *TheCall) {
     CheckFormatArguments(*i, TheCall);
   }
 
+  return false;
+}
+
+bool Sema::SemaIsnanOverloaded(CallExpr *TheCall) {
+  DeclRefExpr *DRE =cast<DeclRefExpr>(TheCall->getCallee()->IgnoreParenCasts());
+  if (checkArgCount(*this, TheCall, 1))
+    return true;
+  Expr *arg = TheCall->getArg(0);
+  QualType Ty = TheCall->getArg(0)->getType();
+  if (!Ty->isNanType())
+    return Diag(DRE->getLocStart(), diag::err_nan_type_must_be_nan_type)
+    << arg->getType() << arg->getSourceRange();
+  TheCall->setType(Context.BoolTy);
+  return false;
+}
+
+bool Sema::SemaUnnanOverloaded(CallExpr *TheCall) {
+  DeclRefExpr *DRE =cast<DeclRefExpr>(TheCall->getCallee()->IgnoreParenCasts());
+  if (checkArgCount(*this, TheCall, 2))
+    return true;
+  Expr *arg = TheCall->getArg(0);
+  QualType Ty = TheCall->getArg(0)->getType();
+  if (!Ty->isNanType())
+    return Diag(DRE->getLocStart(), diag::err_nan_type_must_be_nan_type)
+    << arg->getType() << arg->getSourceRange();
+  
+  arg = TheCall->getArg(0);
+  Ty = TheCall->getArg(1)->getType();
+  if (!Ty->isIntegerType())
+    return Diag(DRE->getLocStart(), diag::err_nan_type_must_be_integer_type)
+    << arg->getType() << arg->getSourceRange();
+  
+  TheCall->setType(Ty);
   return false;
 }
 

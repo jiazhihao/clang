@@ -620,6 +620,10 @@ BUILTIN(__sync_fetch_and_max, "iiD*i", "n")
 BUILTIN(__sync_fetch_and_umin, "UiUiD*Ui", "n")
 BUILTIN(__sync_fetch_and_umax, "UiUiD*Ui", "n")
 
+// nan type builtins.
+BUILTIN(isnan, "v.", "t")
+BUILTIN(unnan, "v.", "t")
+
 // Random libc builtins.
 BUILTIN(__builtin_abort, "v", "Fnr")
 BUILTIN(__builtin_index, "c*cC*i", "Fn")

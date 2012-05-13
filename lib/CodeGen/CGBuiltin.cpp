@@ -143,6 +143,36 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
   return RValue::get(Result);
 }
 
+static RValue EmitIsnan(CodeGenFunction &CGF, const CallExpr *E) {
+  // incorrect implementation
+  const Expr* E1 = E->getArg(0);
+  assert(E1 && E1->getType()->isNanType() && "Invalid nan expression to emit");
+  QualType T = E->getArg(0)->getType();
+  llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(T));
+  Value *arg = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), T, IntType);
+  Value *NaN;
+    NaN = llvm::ConstantInt::getSigned(IntType, 0xffffffff);
+  
+  Value *Result = CGF.Builder.CreateICmpEQ(arg, NaN);
+  return RValue::get(Result);
+}
+
+static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
+  // incorrect implementation.
+  const Expr* E1 = E->getArg(0);
+  assert(E1 && E1->getType()->isNanType() && "Invalid nan expression to emit");
+  QualType T = E->getArg(0)->getType();
+  //llvm::NanType* NT = T->getTypePtr();
+  llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(T));
+  Value *arg = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), T, IntType);
+  
+  return RValue::get(arg);
+}
+
 /// EmitFAbs - Emit a call to fabs/fabsf/fabsl, depending on the type of ValTy,
 /// which must be a scalar floating point type.
 static Value *EmitFAbs(CodeGenFunction &CGF, Value *V, QualType ValTy) {
@@ -1031,6 +1061,12 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     Builder.SetInsertPoint(ContBB);
     return RValue::get(0);
   }
+  
+    // nan type
+  case Builtin::BIisnan:
+    return EmitIsnan(*this, E);
+  case Builtin::BIunnan:
+    return EmitUnnan(*this, E);
 
     // Library functions with special handling.
   case Builtin::BIsqrt:
