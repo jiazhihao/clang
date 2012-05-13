@@ -164,6 +164,7 @@ static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
   const Expr* E1 = E->getArg(0);
   assert(E1 && E1->getType()->isNanType() && "Invalid nan expression to emit");
   QualType T = E->getArg(0)->getType();
+  
   //llvm::NanType* NT = T->getTypePtr();
   llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
