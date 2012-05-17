@@ -175,7 +175,16 @@ static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
   llvm::IntegerType *IntType0 =
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(QT0));
-  Value *nanValue = llvm::Constant::getAllOnesValue(IntType0);
+  
+  Value *nanValue;
+  if(QT0->isNanUnsignedIntegerType()) {
+    nanValue = llvm::Constant::getAllOnesValue(IntType0);
+  }
+  else {
+    nanValue = llvm::ConstantInt::get(IntType0->getContext(),
+                                      llvm::APInt::getSignedMaxValue(IntType0->getBitWidth()));
+  }
+  
   Value *arg0 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), QT0, IntType0);
   
   QualType QT1 = E->getArg(1)->getType();

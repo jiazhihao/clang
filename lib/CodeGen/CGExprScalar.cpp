@@ -395,8 +395,17 @@ public:
       llvm::IntegerType *IntType =
         llvm::IntegerType::get(CGF.getLLVMContext(),
                                CGF.getContext().getTypeSize(T));
-      Value *NaN = llvm::Constant::getAllOnesValue(IntType);
-      unsigned IID = llvm::Intrinsic::umul_with_overflow;
+      Value *NaN;
+      unsigned IID;
+      if(T->isNanUnsignedIntegerType()) {
+        NaN = llvm::Constant::getAllOnesValue(IntType);
+        IID = llvm::Intrinsic::umul_with_overflow;
+      }
+      else {
+        NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+        IID = llvm::Intrinsic::smul_with_overflow;
+      }
       llvm::Function *F = CGF.CGM.getIntrinsic(IID, IntType);
       llvm::CallInst *Result = Builder.CreateCall2(F, Ops.LHS, Ops.RHS);
       Value *HasOverflowed = Builder.CreateExtractValue(Result, 1);
@@ -2035,6 +2044,44 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
 }
 
 Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
+  if (op.Ty->isNanType()) {
+    //op.Ty->dump();
+    QualType T = op.Ty;
+    llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(T));
+    Value *NaN;
+    unsigned IID;
+    if(T->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(IntType);
+      IID = llvm::Intrinsic::uadd_with_overflow;
+    }
+    else {
+      NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                   llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+      IID = llvm::Intrinsic::sadd_with_overflow;
+    }
+    
+    llvm::Function *F = CGF.CGM.getIntrinsic(IID, IntType);
+    llvm::CallInst *Result = Builder.CreateCall2(F, op.LHS, op.RHS);
+    Value *HasOverflowed = Builder.CreateExtractValue(Result, 1);
+    Value *Prod = Builder.CreateExtractValue(Result, 0);
+    // Result2 = HasOverflowed ? NaN : Prod
+    Value *Result2 = Builder.CreateSelect(HasOverflowed, NaN, Prod, "cond");
+    // Cmp = y == NaN
+    Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, op.RHS, NaN, "cmp");
+    // Result1 = Cmp ? NaN : Result2
+    Value *Result1 = Builder.CreateSelect(Cmp, NaN, Result2, "cond");
+    // Cmp = x == NaN
+    Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, op.LHS, NaN, "cmp");
+    // return Cmp ? NaN : Result1
+    return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
+  }
+  else {
+    //printf("EmitAdd_Other : \n");
+    //Ops.E->dump();
+  }
+  
   if (op.LHS->getType()->isPointerTy() ||
       op.RHS->getType()->isPointerTy())
     return emitPointerArithmetic(CGF, op, /*subtraction*/ false);
@@ -2057,6 +2104,44 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
 }
 
 Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
+  if (op.Ty->isNanType()) {
+    //op.Ty->dump();
+    QualType T = op.Ty;
+    llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(T));
+    Value *NaN;
+    unsigned IID;
+    if(T->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(IntType);
+      IID = llvm::Intrinsic::usub_with_overflow;
+    }
+    else {
+      NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                   llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+      IID = llvm::Intrinsic::ssub_with_overflow;
+    }
+    
+    llvm::Function *F = CGF.CGM.getIntrinsic(IID, IntType);
+    llvm::CallInst *Result = Builder.CreateCall2(F, op.LHS, op.RHS);
+    Value *HasOverflowed = Builder.CreateExtractValue(Result, 1);
+    Value *Prod = Builder.CreateExtractValue(Result, 0);
+    // Result2 = HasOverflowed ? NaN : Prod
+    Value *Result2 = Builder.CreateSelect(HasOverflowed, NaN, Prod, "cond");
+    // Cmp = y == NaN
+    Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, op.RHS, NaN, "cmp");
+    // Result1 = Cmp ? NaN : Result2
+    Value *Result1 = Builder.CreateSelect(Cmp, NaN, Result2, "cond");
+    // Cmp = x == NaN
+    Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, op.LHS, NaN, "cmp");
+    // return Cmp ? NaN : Result1
+    return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
+  }
+  else {
+    //printf("EmitSub_Other : \n");
+    //Ops.E->dump();
+  }
+  
   // The LHS is always a pointer if either side is.
   if (!op.LHS->getType()->isPointerTy()) {
     if (op.Ty->isSignedIntegerOrEnumerationType()) {

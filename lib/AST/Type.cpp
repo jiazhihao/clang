@@ -367,6 +367,16 @@ bool Type::isNanType() const {
   return getAsNanType();
 }
 
+bool Type::isNanUnsignedIntegerType() const {
+  if (const NanType *Nan = getAs<NanType>()) {
+    if (Nan->getElementType()->isUnsignedIntegerType())
+      return true;
+    else
+      return false;
+  }
+  llvm_unreachable("wrong in isNanUnsignedIntegerType()");
+}
+
 const ComplexType *Type::getAsComplexIntegerType() const {
   if (const ComplexType *Complex = getAs<ComplexType>())
     if (Complex->getElementType()->isIntegerType())
