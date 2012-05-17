@@ -144,36 +144,50 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
 }
 
 static RValue EmitIsnan(CodeGenFunction &CGF, const CallExpr *E) {
-  // incorrect implementation
-  const Expr* E1 = E->getArg(0);
-  assert(E1 && E1->getType()->isNanType() && "Invalid nan expression to emit");
-  QualType T = E->getArg(0)->getType();
-  llvm::IntegerType *IntType =
-    llvm::IntegerType::get(CGF.getLLVMContext(),
-                           CGF.getContext().getTypeSize(T));
-  Value *arg = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), T, IntType);
-  Value *NaN;
-    NaN = llvm::ConstantInt::getSigned(IntType, 0xffffffff);
+  // incorrect implementation.
+  const Expr* E0 = E->getArg(0);
+  assert(E0 && E0->getType()->isNanType() && "Invalid nan expression to emit");
+  QualType QT0 = E->getArg(0)->getType();
+  //QT->dump();
   
-  Value *Result = CGF.Builder.CreateICmpEQ(arg, NaN);
-  return RValue::get(Result);
+  //llvm::Type* NT = CGF.ConvertType(QT0);
+  //NT->dump();
+  llvm::IntegerType *IntType0 =
+  llvm::IntegerType::get(CGF.getLLVMContext(),
+                         CGF.getContext().getTypeSize(QT0));
+  Value *nanValue = llvm::Constant::getAllOnesValue(IntType0);
+  Value *arg0 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), QT0, IntType0);
+  
+  Value *cmp = CGF.Builder.CreateICmpEQ(arg0, nanValue);
+  
+  return RValue::get(cmp);
 }
 
 static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
   // incorrect implementation.
-  const Expr* E1 = E->getArg(0);
-  assert(E1 && E1->getType()->isNanType() && "Invalid nan expression to emit");
-  QualType QT = E->getArg(0)->getType();
+  const Expr* E0 = E->getArg(0);
+  assert(E0 && E0->getType()->isNanType() && "Invalid nan expression to emit");
+  QualType QT0 = E->getArg(0)->getType();
   //QT->dump();
   
-  llvm::Type* NT = CGF.ConvertType(QT);
-  NT->dump();
-  llvm::IntegerType *IntType =
+  //llvm::Type* NT = CGF.ConvertType(QT0);
+  //NT->dump();
+  llvm::IntegerType *IntType0 =
     llvm::IntegerType::get(CGF.getLLVMContext(),
-                           CGF.getContext().getTypeSize(QT));
-  Value *arg = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), QT, IntType);
+                           CGF.getContext().getTypeSize(QT0));
+  Value *nanValue = llvm::Constant::getAllOnesValue(IntType0);
+  Value *arg0 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), QT0, IntType0);
   
-  return RValue::get(arg);
+  QualType QT1 = E->getArg(1)->getType();
+  llvm::IntegerType *IntType1 = 
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(QT1));
+  Value *arg1 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(1)), QT1, IntType1);
+  
+  Value *cmp = CGF.Builder.CreateICmpEQ(arg0, nanValue);
+  Value *result = CGF.Builder.CreateSelect(cmp, arg1, arg0, "cond");
+  
+  return RValue::get(result);
 }
 
 /// EmitFAbs - Emit a call to fabs/fabsf/fabsl, depending on the type of ValTy,
