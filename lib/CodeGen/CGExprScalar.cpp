@@ -390,6 +390,33 @@ public:
 
   // Binary Operators.
   Value *EmitMul(const BinOpInfo &Ops) {
+    if (Ops.Ty->isNanType()) {
+      QualType T = Ops.Ty;
+      llvm::IntegerType *IntType =
+        llvm::IntegerType::get(CGF.getLLVMContext(),
+                               CGF.getContext().getTypeSize(T));
+      Value *NaN = llvm::Constant::getAllOnesValue(IntType);
+      unsigned IID = llvm::Intrinsic::umul_with_overflow;
+      llvm::Function *F = CGF.CGM.getIntrinsic(IID, IntType);
+      llvm::CallInst *Result = Builder.CreateCall2(F, Ops.LHS, Ops.RHS);
+      Value *HasOverflowed = Builder.CreateExtractValue(Result, 1);
+      Value *Prod = Builder.CreateExtractValue(Result, 0);
+      // Result2 = HasOverflowed ? NaN : Prod
+      Value *Result2 = Builder.CreateSelect(HasOverflowed, NaN, Prod, "cond");
+      // Cmp = y == NaN
+      Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
+      // Result1 = Cmp ? NaN : Result2
+      Value *Result1 = Builder.CreateSelect(Cmp, NaN, Result2, "cond");
+      // Cmp = x == NaN
+      Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
+      // return Cmp ? NaN : Result1
+      return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
+    }
+    else {
+      //printf("EmitMul_Other : \n");
+      //Ops.E->dump();
+    }
+    
     if (Ops.Ty->isSignedIntegerOrEnumerationType()) {
       switch (CGF.getContext().getLangOpts().getSignedOverflowBehavior()) {
       case LangOptions::SOB_Undefined:
