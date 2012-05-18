@@ -390,7 +390,6 @@ public:
 
   // Binary Operators.
   Value *EmitMul(const BinOpInfo &Ops) {
-    Ops.Ty->dump();
     if (Ops.Ty->isNanType()) {
       QualType T = Ops.Ty;
       llvm::IntegerType *IntType =

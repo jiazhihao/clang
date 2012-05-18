@@ -144,14 +144,9 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
 }
 
 static RValue EmitIsnan(CodeGenFunction &CGF, const CallExpr *E) {
-  // incorrect implementation.
   const Expr* E0 = E->getArg(0);
   assert(E0 && E0->getType()->isNanType() && "Invalid nan expression to emit");
   QualType QT0 = E->getArg(0)->getType();
-  //QT->dump();
-  
-  //llvm::Type* NT = CGF.ConvertType(QT0);
-  //NT->dump();
   llvm::IntegerType *IntType0 =
   llvm::IntegerType::get(CGF.getLLVMContext(),
                          CGF.getContext().getTypeSize(QT0));
@@ -164,14 +159,9 @@ static RValue EmitIsnan(CodeGenFunction &CGF, const CallExpr *E) {
 }
 
 static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
-  // incorrect implementation.
   const Expr* E0 = E->getArg(0);
   assert(E0 && E0->getType()->isNanType() && "Invalid nan expression to emit");
   QualType QT0 = E->getArg(0)->getType();
-  //QT->dump();
-  
-  //llvm::Type* NT = CGF.ConvertType(QT0);
-  //NT->dump();
   llvm::IntegerType *IntType0 =
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(QT0));
