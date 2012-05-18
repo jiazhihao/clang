@@ -176,6 +176,12 @@ static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(QT0));
   
+  /*
+  QualType QT1 = E->getArg(1)->getType();
+  llvm::IntegerType *IntType1 = 
+  llvm::IntegerType::get(CGF.getLLVMContext(),
+                         CGF.getContext().getTypeSize(QT1));
+  */
   Value *nanValue;
   if(QT0->isNanUnsignedIntegerType()) {
     nanValue = llvm::Constant::getAllOnesValue(IntType0);
@@ -187,15 +193,10 @@ static RValue EmitUnnan(CodeGenFunction &CGF, const CallExpr *E) {
   
   Value *arg0 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(0)), QT0, IntType0);
   
-  QualType QT1 = E->getArg(1)->getType();
-  llvm::IntegerType *IntType1 = 
-    llvm::IntegerType::get(CGF.getLLVMContext(),
-                           CGF.getContext().getTypeSize(QT1));
-  Value *arg1 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(1)), QT1, IntType1);
+  Value *arg1 = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(1)), QT0, IntType0);
   
   Value *cmp = CGF.Builder.CreateICmpEQ(arg0, nanValue);
   Value *result = CGF.Builder.CreateSelect(cmp, arg1, arg0, "cond");
-  
   return RValue::get(result);
 }
 
