@@ -1,0 +1,1570 @@
+docs/InternalsManual.html:t.c:38:15: error: invalid operands to binary expression ('int *' and '_Complex float')
+docs/InternalsManual.html:the source ranges "~~~~", arguments to the diagnostic ("int*" and "_Complex
+docs/UsersManual.html:exprs.c:47:15:{47:8-47:14}{47:17-47:24}: error: invalid operands to binary expression ('int *' and '_Complex float')
+include/clang-c/Index.h:  CXType_Complex = 100,
+include/clang/AST/APValue.h://===--- APValue.h - Union class for APFloat/APSInt/Complex -----*- C++ -*-===//
+include/clang/AST/APValue.h:/// [APSInt] [APFloat], [Complex APSInt] [Complex APFloat], [Expr + Offset],
+include/clang/AST/APValue.h:    ComplexInt,
+include/clang/AST/APValue.h:    ComplexFloat,
+include/clang/AST/APValue.h:  struct ComplexAPSInt {
+include/clang/AST/APValue.h:    ComplexAPSInt() : Real(1), Imag(1) {}
+include/clang/AST/APValue.h:  struct ComplexAPFloat {
+include/clang/AST/APValue.h:    ComplexAPFloat() : Real(0.0), Imag(0.0) {}
+include/clang/AST/APValue.h:    MaxSize = (sizeof(ComplexAPSInt) > sizeof(ComplexAPFloat) ?
+include/clang/AST/APValue.h:               sizeof(ComplexAPSInt) : sizeof(ComplexAPFloat))
+include/clang/AST/APValue.h:    MakeComplexInt(); setComplexInt(R, I);
+include/clang/AST/APValue.h:    MakeComplexFloat(); setComplexFloat(R, I);
+include/clang/AST/APValue.h:  bool isComplexInt() const { return Kind == ComplexInt; }
+include/clang/AST/APValue.h:  bool isComplexFloat() const { return Kind == ComplexFloat; }
+include/clang/AST/APValue.h:  APSInt &getComplexIntReal() {
+include/clang/AST/APValue.h:    assert(isComplexInt() && "Invalid accessor");
+include/clang/AST/APValue.h:    return ((ComplexAPSInt*)(char*)Data)->Real;
+include/clang/AST/APValue.h:  const APSInt &getComplexIntReal() const {
+include/clang/AST/APValue.h:    return const_cast<APValue*>(this)->getComplexIntReal();
+include/clang/AST/APValue.h:  APSInt &getComplexIntImag() {
+include/clang/AST/APValue.h:    assert(isComplexInt() && "Invalid accessor");
+include/clang/AST/APValue.h:    return ((ComplexAPSInt*)(char*)Data)->Imag;
+include/clang/AST/APValue.h:  const APSInt &getComplexIntImag() const {
+include/clang/AST/APValue.h:    return const_cast<APValue*>(this)->getComplexIntImag();
+include/clang/AST/APValue.h:  APFloat &getComplexFloatReal() {
+include/clang/AST/APValue.h:    assert(isComplexFloat() && "Invalid accessor");
+include/clang/AST/APValue.h:    return ((ComplexAPFloat*)(char*)Data)->Real;
+include/clang/AST/APValue.h:  const APFloat &getComplexFloatReal() const {
+include/clang/AST/APValue.h:    return const_cast<APValue*>(this)->getComplexFloatReal();
+include/clang/AST/APValue.h:  APFloat &getComplexFloatImag() {
+include/clang/AST/APValue.h:    assert(isComplexFloat() && "Invalid accessor");
+include/clang/AST/APValue.h:    return ((ComplexAPFloat*)(char*)Data)->Imag;
+include/clang/AST/APValue.h:  const APFloat &getComplexFloatImag() const {
+include/clang/AST/APValue.h:    return const_cast<APValue*>(this)->getComplexFloatImag();
+include/clang/AST/APValue.h:  void setComplexInt(const APSInt &R, const APSInt &I) {
+include/clang/AST/APValue.h:    assert(isComplexInt() && "Invalid accessor");
+include/clang/AST/APValue.h:    ((ComplexAPSInt*)(char*)Data)->Real = R;
+include/clang/AST/APValue.h:    ((ComplexAPSInt*)(char*)Data)->Imag = I;
+include/clang/AST/APValue.h:  void setComplexFloat(const APFloat &R, const APFloat &I) {
+include/clang/AST/APValue.h:    assert(isComplexFloat() && "Invalid accessor");
+include/clang/AST/APValue.h:    ((ComplexAPFloat*)(char*)Data)->Real = R;
+include/clang/AST/APValue.h:    ((ComplexAPFloat*)(char*)Data)->Imag = I;
+include/clang/AST/APValue.h:  void MakeComplexInt() {
+include/clang/AST/APValue.h:    new ((void*)(char*)Data) ComplexAPSInt();
+include/clang/AST/APValue.h:    Kind = ComplexInt;
+include/clang/AST/APValue.h:  void MakeComplexFloat() {
+include/clang/AST/APValue.h:    new ((void*)(char*)Data) ComplexAPFloat();
+include/clang/AST/APValue.h:    Kind = ComplexFloat;
+include/clang/AST/ASTContext.h:  mutable llvm::FoldingSet<ComplexType> ComplexTypes;
+include/clang/AST/ASTContext.h:  CanQualType FloatComplexTy, DoubleComplexTy, LongDoubleComplexTy;
+include/clang/AST/ASTContext.h:  /// getComplexType - Return the uniqued reference to the type for a complex
+include/clang/AST/ASTContext.h:  QualType getComplexType(QualType T) const;
+include/clang/AST/ASTContext.h:  CanQualType getComplexType(CanQualType T) const {
+include/clang/AST/ASTContext.h:    return CanQualType::CreateUnsafe(getComplexType((QualType) T));
+include/clang/AST/ASTContext.h:  /// '_Complex double').  If LHS > RHS, return 1.  If LHS == RHS, return 0. If
+include/clang/AST/CanonicalType.h:  LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isComplexType)
+include/clang/AST/CanonicalType.h:  LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isAnyComplexType)
+include/clang/AST/CanonicalType.h:  LLVM_CLANG_CANPROXY_SIMPLE_ACCESSOR(bool, isComplexIntegerType)
+include/clang/AST/CanonicalType.h:struct CanProxyAdaptor<ComplexType> : public CanProxyBase<ComplexType> {
+include/clang/AST/Expr.h:/// IntegerLiteral classes.  Instances of this class always have a Complex type
+include/clang/AST/OperationKinds.h:  ///   float -> _Complex float
+include/clang/AST/OperationKinds.h:  CK_FloatingRealToComplex,
+include/clang/AST/OperationKinds.h:  ///   _Complex long double -> long double
+include/clang/AST/OperationKinds.h:  CK_FloatingComplexToReal,
+include/clang/AST/OperationKinds.h:  CK_FloatingComplexToBoolean,
+include/clang/AST/OperationKinds.h:  ///   _Complex float -> _Complex double
+include/clang/AST/OperationKinds.h:  CK_FloatingComplexCast,
+include/clang/AST/OperationKinds.h:  ///   _Complex float -> _Complex int
+include/clang/AST/OperationKinds.h:  CK_FloatingComplexToIntegralComplex,
+include/clang/AST/OperationKinds.h:  ///   long -> _Complex long
+include/clang/AST/OperationKinds.h:  CK_IntegralRealToComplex,
+include/clang/AST/OperationKinds.h:  ///   _Complex short -> short
+include/clang/AST/OperationKinds.h:  CK_IntegralComplexToReal,
+include/clang/AST/OperationKinds.h:  CK_IntegralComplexToBoolean,
+include/clang/AST/OperationKinds.h:  ///   _Complex char -> _Complex long long
+include/clang/AST/OperationKinds.h:  ///   _Complex unsigned int -> _Complex signed int
+include/clang/AST/OperationKinds.h:  CK_IntegralComplexCast,
+include/clang/AST/OperationKinds.h:  ///   _Complex unsigned -> _Complex float
+include/clang/AST/OperationKinds.h:  CK_IntegralComplexToFloatingComplex,
+include/clang/AST/RecursiveASTVisitor.h:DEF_TRAVERSE_TYPE(ComplexType, {
+include/clang/AST/RecursiveASTVisitor.h:// FIXME: ComplexTypeLoc is unfinished
+include/clang/AST/RecursiveASTVisitor.h:DEF_TRAVERSE_TYPELOC(ComplexType, {
+include/clang/AST/Type.h:  /// isComplexIntegerType() can be used to test for complex integers.
+include/clang/AST/Type.h:  /// isComplexType() does *not* include complex integers (a GCC extension).
+include/clang/AST/Type.h:  /// isComplexIntegerType() can be used to test for complex integers.
+include/clang/AST/Type.h:  bool isComplexType() const;      // C99 6.2.5p11 (complex)
+include/clang/AST/Type.h:  bool isAnyComplexType() const;   // C99 6.2.5p11 (complex) + Complex Int.
+include/clang/AST/Type.h:  bool isComplexIntegerType() const;            // GCC _Complex integer type.
+include/clang/AST/Type.h:    STK_IntegralComplex,
+include/clang/AST/Type.h:    STK_FloatingComplex,
+include/clang/AST/Type.h:  const ComplexType *getAsComplexIntegerType() const; // GCC complex int type.
+include/clang/AST/Type.h:/// ComplexType - C99 6.2.5p11 - Complex values.  This supports the C99 complex
+include/clang/AST/Type.h:/// types (_Complex float etc) as well as the GCC integer complex extensions.
+include/clang/AST/Type.h:class ComplexType : public Type, public llvm::FoldingSetNode {
+include/clang/AST/Type.h:  ComplexType(QualType Element, QualType CanonicalPtr) :
+include/clang/AST/Type.h:    Type(Complex, CanonicalPtr, Element->isDependentType(),
+include/clang/AST/Type.h:  static bool classof(const Type *T) { return T->getTypeClass() == Complex; }
+include/clang/AST/Type.h:  static bool classof(const ComplexType *) { return true; }
+include/clang/AST/Type.h:inline bool Type::isAnyComplexType() const {
+include/clang/AST/Type.h:  return isa<ComplexType>(CanonicalType);
+include/clang/AST/Type.h:         isa<ComplexType>(CanonicalType) ||
+include/clang/AST/TypeLoc.h:// FIXME: location of the '_Complex' keyword.
+include/clang/AST/TypeLoc.h:class ComplexTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+include/clang/AST/TypeLoc.h:                                                        ComplexTypeLoc,
+include/clang/AST/TypeLoc.h:                                                        ComplexType> {
+include/clang/AST/TypeNodes.def:TYPE(Complex, Type)
+include/clang/Basic/Builtins.def://  X -> _Complex, followed by the base type.
+include/clang/Basic/Builtins.def:// _Complex long double objc_msgSend_fp2ret(id self, SEL op, ...)
+include/clang/Basic/DiagnosticParseKinds.td:  "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
+include/clang/Basic/DiagnosticParseKinds.td:def err_invalid_complex_spec : Error<"'_Complex %0' is invalid">;
+include/clang/Basic/TargetInfo.h:  unsigned ComplexLongDoubleUsesFP2Ret : 1;
+include/clang/Basic/TargetInfo.h:  /// \brief Check whether _Complex long double should use the "fp2ret" flavor
+include/clang/Basic/TargetInfo.h:  bool useObjCFP2RetForComplexLongDouble() const {
+include/clang/Basic/TargetInfo.h:    return ComplexLongDoubleUsesFP2Ret;
+include/clang/Basic/TokenKinds.def:KEYWORD(_Complex                    , KEYALL)
+include/clang/Basic/TokenKinds.def:ALIAS("__complex"    , _Complex   , KEYALL)
+include/clang/Basic/TokenKinds.def:ALIAS("__complex__"  , _Complex   , KEYALL)
+include/clang/Sema/DeclSpec.h:  /*TSC*/unsigned TypeSpecComplex : 2;
+include/clang/Sema/DeclSpec.h:      TypeSpecComplex(TSC_unspecified),
+include/clang/Sema/DeclSpec.h:  TSC getTypeSpecComplex() const { return (TSC)TypeSpecComplex; }
+include/clang/Sema/DeclSpec.h:  SourceLocation getTypeSpecComplexLoc() const { return TSCLoc; }
+include/clang/Sema/DeclSpec.h:           getTypeSpecComplex() != DeclSpec::TSC_unspecified ||
+include/clang/Sema/DeclSpec.h:  bool SetTypeSpecComplex(TSC C, SourceLocation Loc, const char *&PrevSpec,
+include/clang/Sema/Initialization.h:    EK_ComplexElement,
+include/clang/Sema/Initialization.h:    /// EK_ComplexElement, the index of the array or vector element being
+include/clang/Sema/Initialization.h:           EK_ComplexElement);
+include/clang/Sema/Overload.h:    ICK_Complex_Promotion,     ///< Complex promotions (Clang extension)
+include/clang/Sema/Overload.h:    ICK_Complex_Conversion,    ///< Complex conversions (C99 6.3.1.6)
+include/clang/Sema/Overload.h:    ICK_Complex_Real,          ///< Complex-real conversions (C99 6.3.1.7)
+include/clang/Sema/Overload.h:    ICR_Complex_Real_Conversion, ///< Complex <-> Real conversion
+include/clang/Sema/Sema.h:  bool IsComplexPromotion(QualType FromType, QualType ToType);
+include/clang/Serialization/ASTBitCodes.h:      /// \brief A ComplexType record.
+lib/AST/APValue.cpp://===--- APValue.cpp - Union class for APFloat/APSInt/Complex -------------===//
+lib/AST/APValue.cpp:  case ComplexInt:
+lib/AST/APValue.cpp:    MakeComplexInt();
+lib/AST/APValue.cpp:    setComplexInt(RHS.getComplexIntReal(), RHS.getComplexIntImag());
+lib/AST/APValue.cpp:  case ComplexFloat:
+lib/AST/APValue.cpp:    MakeComplexFloat();
+lib/AST/APValue.cpp:    setComplexFloat(RHS.getComplexFloatReal(), RHS.getComplexFloatImag());
+lib/AST/APValue.cpp:  else if (Kind == ComplexInt)
+lib/AST/APValue.cpp:    ((ComplexAPSInt*)(char*)Data)->~ComplexAPSInt();
+lib/AST/APValue.cpp:  else if (Kind == ComplexFloat)
+lib/AST/APValue.cpp:    ((ComplexAPFloat*)(char*)Data)->~ComplexAPFloat();
+lib/AST/APValue.cpp:  case ComplexInt:
+lib/AST/APValue.cpp:    OS << "ComplexInt: " << getComplexIntReal() << ", " << getComplexIntImag();
+lib/AST/APValue.cpp:  case ComplexFloat:
+lib/AST/APValue.cpp:    OS << "ComplexFloat: " << GetApproxValue(getComplexFloatReal())
+lib/AST/APValue.cpp:       << ", " << GetApproxValue(getComplexFloatImag());
+lib/AST/APValue.cpp:  case APValue::ComplexInt:
+lib/AST/APValue.cpp:    Out << getComplexIntReal() << "+" << getComplexIntImag() << "i";
+lib/AST/APValue.cpp:  case APValue::ComplexFloat:
+lib/AST/APValue.cpp:    Out << GetApproxValue(getComplexFloatReal()) << "+"
+lib/AST/APValue.cpp:        << GetApproxValue(getComplexFloatImag()) << "i";
+lib/AST/ASTContext.cpp:  FloatComplexTy      = getComplexType(FloatTy);
+lib/AST/ASTContext.cpp:  DoubleComplexTy     = getComplexType(DoubleTy);
+lib/AST/ASTContext.cpp:  LongDoubleComplexTy = getComplexType(LongDoubleTy);
+lib/AST/ASTContext.cpp:  case Type::Complex: {
+lib/AST/ASTContext.cpp:    // Complex types have the same alignment as their elements, but twice the
+lib/AST/ASTContext.cpp:      getTypeInfo(cast<ComplexType>(T)->getElementType());
+lib/AST/ASTContext.cpp:    getTypeInfo(cast<ComplexType>(T)->getElementType());
+lib/AST/ASTContext.cpp:  if (const ComplexType* CT = T->getAs<ComplexType>())
+lib/AST/ASTContext.cpp:/// getComplexType - Return the uniqued reference to the type for a complex
+lib/AST/ASTContext.cpp:QualType ASTContext::getComplexType(QualType T) const {
+lib/AST/ASTContext.cpp:  ComplexType::Profile(ID, T);
+lib/AST/ASTContext.cpp:  if (ComplexType *CT = ComplexTypes.FindNodeOrInsertPos(ID, InsertPos))
+lib/AST/ASTContext.cpp:    Canonical = getComplexType(getCanonicalType(T));
+lib/AST/ASTContext.cpp:    ComplexType *NewIP = ComplexTypes.FindNodeOrInsertPos(ID, InsertPos);
+lib/AST/ASTContext.cpp:  ComplexType *New = new (*this, TypeAlignment) ComplexType(T, Canonical);
+lib/AST/ASTContext.cpp:  ComplexTypes.InsertNode(New, InsertPos);
+lib/AST/ASTContext.cpp:  case Type::Complex:
+lib/AST/ASTContext.cpp:  if (const ComplexType *CT = T->getAs<ComplexType>())
+lib/AST/ASTContext.cpp:  if (Domain->isComplexType()) {
+lib/AST/ASTContext.cpp:    case HalfRank: llvm_unreachable("Complex half is not supported");
+lib/AST/ASTContext.cpp:    case FloatRank:      return FloatComplexTy;
+lib/AST/ASTContext.cpp:    case DoubleRank:     return DoubleComplexTy;
+lib/AST/ASTContext.cpp:    case LongDoubleRank: return LongDoubleComplexTy;
+lib/AST/ASTContext.cpp:/// '_Complex double').  If LHS > RHS, return 1.  If LHS == RHS, return 0. If
+lib/AST/ASTContext.cpp:  if (const ComplexType *CT = T->getAs<ComplexType>()) {
+lib/AST/ASTContext.cpp:  case Type::Complex:
+lib/AST/ASTContext.cpp:    Type = Context.getComplexType(ElementType);
+lib/AST/ASTImporter.cpp:    QualType VisitComplexType(const ComplexType *T);
+lib/AST/ASTImporter.cpp:  case Type::Complex:
+lib/AST/ASTImporter.cpp:                                  cast<ComplexType>(T1)->getElementType(),
+lib/AST/ASTImporter.cpp:                                  cast<ComplexType>(T2)->getElementType()))
+lib/AST/ASTImporter.cpp:QualType ASTNodeImporter::VisitComplexType(const ComplexType *T) {
+lib/AST/ASTImporter.cpp:  return Importer.getToContext().getComplexType(ToElementType);
+lib/AST/Expr.cpp:  case CK_FloatingRealToComplex:
+lib/AST/Expr.cpp:  case CK_FloatingComplexToReal:
+lib/AST/Expr.cpp:  case CK_FloatingComplexCast:
+lib/AST/Expr.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/AST/Expr.cpp:  case CK_IntegralRealToComplex:
+lib/AST/Expr.cpp:  case CK_IntegralComplexToReal:
+lib/AST/Expr.cpp:  case CK_IntegralComplexCast:
+lib/AST/Expr.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/AST/Expr.cpp:  case CK_FloatingComplexToBoolean:
+lib/AST/Expr.cpp:  case CK_IntegralComplexToBoolean:
+lib/AST/Expr.cpp:  case CK_FloatingRealToComplex:
+lib/AST/Expr.cpp:    return "FloatingRealToComplex";
+lib/AST/Expr.cpp:  case CK_FloatingComplexToReal:
+lib/AST/Expr.cpp:    return "FloatingComplexToReal";
+lib/AST/Expr.cpp:  case CK_FloatingComplexToBoolean:
+lib/AST/Expr.cpp:    return "FloatingComplexToBoolean";
+lib/AST/Expr.cpp:  case CK_FloatingComplexCast:
+lib/AST/Expr.cpp:    return "FloatingComplexCast";
+lib/AST/Expr.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/AST/Expr.cpp:    return "FloatingComplexToIntegralComplex";
+lib/AST/Expr.cpp:  case CK_IntegralRealToComplex:
+lib/AST/Expr.cpp:    return "IntegralRealToComplex";
+lib/AST/Expr.cpp:  case CK_IntegralComplexToReal:
+lib/AST/Expr.cpp:    return "IntegralComplexToReal";
+lib/AST/Expr.cpp:  case CK_IntegralComplexToBoolean:
+lib/AST/Expr.cpp:    return "IntegralComplexToBoolean";
+lib/AST/Expr.cpp:  case CK_IntegralComplexCast:
+lib/AST/Expr.cpp:    return "IntegralComplexCast";
+lib/AST/Expr.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/AST/Expr.cpp:    return "IntegralComplexToFloatingComplex";
+lib/AST/ExprConstant.cpp:      } else if (Type->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:        const ComplexType *CT = Type->castAs<ComplexType>();
+lib/AST/ExprConstant.cpp:    void addComplexUnchecked(QualType EltTy, bool Imag) {
+lib/AST/ExprConstant.cpp:  struct ComplexValue {
+lib/AST/ExprConstant.cpp:    ComplexValue() : FloatReal(APFloat::Bogus), FloatImag(APFloat::Bogus) {}
+lib/AST/ExprConstant.cpp:    void makeComplexFloat() { IsInt = false; }
+lib/AST/ExprConstant.cpp:    bool isComplexFloat() const { return !IsInt; }
+lib/AST/ExprConstant.cpp:    APFloat &getComplexFloatReal() { return FloatReal; }
+lib/AST/ExprConstant.cpp:    APFloat &getComplexFloatImag() { return FloatImag; }
+lib/AST/ExprConstant.cpp:    void makeComplexInt() { IsInt = true; }
+lib/AST/ExprConstant.cpp:    bool isComplexInt() const { return IsInt; }
+lib/AST/ExprConstant.cpp:    APSInt &getComplexIntReal() { return IntReal; }
+lib/AST/ExprConstant.cpp:    APSInt &getComplexIntImag() { return IntImag; }
+lib/AST/ExprConstant.cpp:      if (isComplexFloat())
+lib/AST/ExprConstant.cpp:      assert(v.isComplexFloat() || v.isComplexInt());
+lib/AST/ExprConstant.cpp:      if (v.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:        makeComplexFloat();
+lib/AST/ExprConstant.cpp:        FloatReal = v.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:        FloatImag = v.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:        makeComplexInt();
+lib/AST/ExprConstant.cpp:        IntReal = v.getComplexIntReal();
+lib/AST/ExprConstant.cpp:        IntImag = v.getComplexIntImag();
+lib/AST/ExprConstant.cpp:    void addComplex(EvalInfo &Info, const Expr *E, QualType EltTy, bool Imag) {
+lib/AST/ExprConstant.cpp:        Designator.addComplexUnchecked(EltTy, Imag);
+lib/AST/ExprConstant.cpp:static bool EvaluateComplex(const Expr *E, ComplexValue &Res, EvalInfo &Info);
+lib/AST/ExprConstant.cpp:  case APValue::ComplexInt:
+lib/AST/ExprConstant.cpp:    Result = Val.getComplexIntReal().getBoolValue() ||
+lib/AST/ExprConstant.cpp:             Val.getComplexIntImag().getBoolValue();
+lib/AST/ExprConstant.cpp:  case APValue::ComplexFloat:
+lib/AST/ExprConstant.cpp:    Result = !Val.getComplexFloatReal().isZero() ||
+lib/AST/ExprConstant.cpp:             !Val.getComplexFloatImag().isZero();
+lib/AST/ExprConstant.cpp:static bool HandleLValueComplexElement(EvalInfo &Info, const Expr *E,
+lib/AST/ExprConstant.cpp:  LVal.addComplex(Info, E, EltTy, Imag);
+lib/AST/ExprConstant.cpp:    } else if (ObjType->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:      if (O->isComplexInt()) {
+lib/AST/ExprConstant.cpp:        Obj = APValue(Index ? O->getComplexIntImag()
+lib/AST/ExprConstant.cpp:                            : O->getComplexIntReal());
+lib/AST/ExprConstant.cpp:        assert(O->isComplexFloat());
+lib/AST/ExprConstant.cpp:        Obj = APValue(Index ? O->getComplexFloatImag()
+lib/AST/ExprConstant.cpp:                            : O->getComplexFloatReal());
+lib/AST/ExprConstant.cpp:        (ObjType->isArrayType() || ObjType->isAnyComplexType())) {
+lib/AST/ExprConstant.cpp:      if (ObjType->isAnyComplexType())
+lib/AST/ExprConstant.cpp:        ObjType = ObjType->castAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:  if (E->getSubExpr()->getType()->isAnyComplexType())
+lib/AST/ExprConstant.cpp:    HandleLValueComplexElement(Info, E, Result, E->getType(), false);
+lib/AST/ExprConstant.cpp:  assert(E->getSubExpr()->getType()->isAnyComplexType() &&
+lib/AST/ExprConstant.cpp:  HandleLValueComplexElement(Info, E, Result, E->getType(), true);
+lib/AST/ExprConstant.cpp:  else if (ArgTy->isComplexType())
+lib/AST/ExprConstant.cpp:  } else if (ArgType->isFloatingType() || ArgType->isAnyComplexType() || ArgType->isNanType()) {
+lib/AST/ExprConstant.cpp:  if (LHSTy->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:    assert(RHSTy->isAnyComplexType() && "Invalid comparison");
+lib/AST/ExprConstant.cpp:    ComplexValue LHS, RHS;
+lib/AST/ExprConstant.cpp:    bool LHSOK = EvaluateComplex(E->getLHS(), LHS, Info);
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E->getRHS(), RHS, Info) || !LHSOK)
+lib/AST/ExprConstant.cpp:    if (LHS.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:        LHS.getComplexFloatReal().compare(RHS.getComplexFloatReal());
+lib/AST/ExprConstant.cpp:        LHS.getComplexFloatImag().compare(RHS.getComplexFloatImag());
+lib/AST/ExprConstant.cpp:        return Success((LHS.getComplexIntReal() == RHS.getComplexIntReal() &&
+lib/AST/ExprConstant.cpp:                        LHS.getComplexIntImag() == RHS.getComplexIntImag()), E);
+lib/AST/ExprConstant.cpp:        return Success((LHS.getComplexIntReal() != RHS.getComplexIntReal() ||
+lib/AST/ExprConstant.cpp:                        LHS.getComplexIntImag() != RHS.getComplexIntImag()), E);
+lib/AST/ExprConstant.cpp:  case CK_FloatingRealToComplex:
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToReal:
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexCast:
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/AST/ExprConstant.cpp:  case CK_IntegralRealToComplex:
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexCast:
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToBoolean:
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToBoolean: {
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToReal: {
+lib/AST/ExprConstant.cpp:    ComplexValue C;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(SubExpr, C, Info))
+lib/AST/ExprConstant.cpp:    return Success(C.getComplexIntReal(), E);
+lib/AST/ExprConstant.cpp:  if (E->getSubExpr()->getType()->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:    ComplexValue LV;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E->getSubExpr(), LV, Info))
+lib/AST/ExprConstant.cpp:    if (!LV.isComplexInt())
+lib/AST/ExprConstant.cpp:    return Success(LV.getComplexIntReal(), E);
+lib/AST/ExprConstant.cpp:  if (E->getSubExpr()->getType()->isComplexIntegerType()) {
+lib/AST/ExprConstant.cpp:    ComplexValue LV;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E->getSubExpr(), LV, Info))
+lib/AST/ExprConstant.cpp:    if (!LV.isComplexInt())
+lib/AST/ExprConstant.cpp:    return Success(LV.getComplexIntImag(), E);
+lib/AST/ExprConstant.cpp:  if (E->getSubExpr()->getType()->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:    ComplexValue CV;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E->getSubExpr(), CV, Info))
+lib/AST/ExprConstant.cpp:  if (E->getSubExpr()->getType()->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:    ComplexValue CV;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E->getSubExpr(), CV, Info))
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToReal: {
+lib/AST/ExprConstant.cpp:    ComplexValue V;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(SubExpr, V, Info))
+lib/AST/ExprConstant.cpp:    Result = V.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:// Complex Evaluation (for float and integer)
+lib/AST/ExprConstant.cpp:class ComplexExprEvaluator
+lib/AST/ExprConstant.cpp:  : public ExprEvaluatorBase<ComplexExprEvaluator, bool> {
+lib/AST/ExprConstant.cpp:  ComplexValue &Result;
+lib/AST/ExprConstant.cpp:  ComplexExprEvaluator(EvalInfo &info, ComplexValue &Result)
+lib/AST/ExprConstant.cpp:static bool EvaluateComplex(const Expr *E, ComplexValue &Result,
+lib/AST/ExprConstant.cpp:  assert(E->isRValue() && E->getType()->isAnyComplexType());
+lib/AST/ExprConstant.cpp:  return ComplexExprEvaluator(Info, Result).Visit(E);
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::ZeroInitialization(const Expr *E) {
+lib/AST/ExprConstant.cpp:  QualType ElemTy = E->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:    Result.makeComplexFloat();
+lib/AST/ExprConstant.cpp:    Result.makeComplexInt();
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::VisitImaginaryLiteral(const ImaginaryLiteral *E) {
+lib/AST/ExprConstant.cpp:    Result.makeComplexFloat();
+lib/AST/ExprConstant.cpp:    Result.makeComplexInt();
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToReal:
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToBoolean:
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToReal:
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToBoolean:
+lib/AST/ExprConstant.cpp:  case CK_FloatingRealToComplex: {
+lib/AST/ExprConstant.cpp:    Result.makeComplexFloat();
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexCast: {
+lib/AST/ExprConstant.cpp:    QualType To = E->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:      = E->getSubExpr()->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:  case CK_FloatingComplexToIntegralComplex: {
+lib/AST/ExprConstant.cpp:    QualType To = E->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:      = E->getSubExpr()->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:    Result.makeComplexInt();
+lib/AST/ExprConstant.cpp:  case CK_IntegralRealToComplex: {
+lib/AST/ExprConstant.cpp:    Result.makeComplexInt();
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexCast: {
+lib/AST/ExprConstant.cpp:    QualType To = E->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:      = E->getSubExpr()->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:  case CK_IntegralComplexToFloatingComplex: {
+lib/AST/ExprConstant.cpp:    QualType To = E->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:      = E->getSubExpr()->getType()->getAs<ComplexType>()->getElementType();
+lib/AST/ExprConstant.cpp:    Result.makeComplexFloat();
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
+lib/AST/ExprConstant.cpp:  ComplexValue RHS;
+lib/AST/ExprConstant.cpp:  if (!EvaluateComplex(E->getRHS(), RHS, Info) || !LHSOK)
+lib/AST/ExprConstant.cpp:  assert(Result.isComplexFloat() == RHS.isComplexFloat() &&
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatReal().add(RHS.getComplexFloatReal(),
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag().add(RHS.getComplexFloatImag(),
+lib/AST/ExprConstant.cpp:      Result.getComplexIntReal() += RHS.getComplexIntReal();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() += RHS.getComplexIntImag();
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatReal().subtract(RHS.getComplexFloatReal(),
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag().subtract(RHS.getComplexFloatImag(),
+lib/AST/ExprConstant.cpp:      Result.getComplexIntReal() -= RHS.getComplexIntReal();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() -= RHS.getComplexIntImag();
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:      ComplexValue LHS = Result;
+lib/AST/ExprConstant.cpp:      APFloat &LHS_r = LHS.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:      APFloat &LHS_i = LHS.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:      APFloat &RHS_r = RHS.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:      APFloat &RHS_i = RHS.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatReal() = Tmp;
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatReal().subtract(Tmp, APFloat::rmNearestTiesToEven);
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag() = Tmp;
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag().add(Tmp, APFloat::rmNearestTiesToEven);
+lib/AST/ExprConstant.cpp:      ComplexValue LHS = Result;
+lib/AST/ExprConstant.cpp:      Result.getComplexIntReal() =
+lib/AST/ExprConstant.cpp:        (LHS.getComplexIntReal() * RHS.getComplexIntReal() -
+lib/AST/ExprConstant.cpp:         LHS.getComplexIntImag() * RHS.getComplexIntImag());
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() =
+lib/AST/ExprConstant.cpp:        (LHS.getComplexIntReal() * RHS.getComplexIntImag() +
+lib/AST/ExprConstant.cpp:         LHS.getComplexIntImag() * RHS.getComplexIntReal());
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:      ComplexValue LHS = Result;
+lib/AST/ExprConstant.cpp:      APFloat &LHS_r = LHS.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:      APFloat &LHS_i = LHS.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:      APFloat &RHS_r = RHS.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:      APFloat &RHS_i = RHS.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:      APFloat &Res_r = Result.getComplexFloatReal();
+lib/AST/ExprConstant.cpp:      APFloat &Res_i = Result.getComplexFloatImag();
+lib/AST/ExprConstant.cpp:      if (RHS.getComplexIntReal() == 0 && RHS.getComplexIntImag() == 0)
+lib/AST/ExprConstant.cpp:      ComplexValue LHS = Result;
+lib/AST/ExprConstant.cpp:      APSInt Den = RHS.getComplexIntReal() * RHS.getComplexIntReal() +
+lib/AST/ExprConstant.cpp:        RHS.getComplexIntImag() * RHS.getComplexIntImag();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntReal() =
+lib/AST/ExprConstant.cpp:        (LHS.getComplexIntReal() * RHS.getComplexIntReal() +
+lib/AST/ExprConstant.cpp:         LHS.getComplexIntImag() * RHS.getComplexIntImag()) / Den;
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() =
+lib/AST/ExprConstant.cpp:        (LHS.getComplexIntImag() * RHS.getComplexIntReal() -
+lib/AST/ExprConstant.cpp:         LHS.getComplexIntReal() * RHS.getComplexIntImag()) / Den;
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::VisitUnaryOperator(const UnaryOperator *E) {
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat()) {
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatReal().changeSign();
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag().changeSign();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntReal() = -Result.getComplexIntReal();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() = -Result.getComplexIntImag();
+lib/AST/ExprConstant.cpp:    if (Result.isComplexFloat())
+lib/AST/ExprConstant.cpp:      Result.getComplexFloatImag().changeSign();
+lib/AST/ExprConstant.cpp:      Result.getComplexIntImag() = -Result.getComplexIntImag();
+lib/AST/ExprConstant.cpp:bool ComplexExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
+lib/AST/ExprConstant.cpp:    if (E->getType()->isComplexType()) {
+lib/AST/ExprConstant.cpp:      Result.makeComplexFloat();
+lib/AST/ExprConstant.cpp:      Result.makeComplexInt();
+lib/AST/ExprConstant.cpp:    case CK_FloatingComplexToReal:
+lib/AST/ExprConstant.cpp:    case CK_FloatingComplexToBoolean:
+lib/AST/ExprConstant.cpp:    case CK_IntegralComplexToReal:
+lib/AST/ExprConstant.cpp:    case CK_IntegralComplexToBoolean:
+lib/AST/ExprConstant.cpp:    case CK_FloatingRealToComplex:
+lib/AST/ExprConstant.cpp:    case CK_FloatingComplexCast:
+lib/AST/ExprConstant.cpp:    case CK_FloatingComplexToIntegralComplex:
+lib/AST/ExprConstant.cpp:    case CK_IntegralRealToComplex:
+lib/AST/ExprConstant.cpp:    case CK_IntegralComplexCast:
+lib/AST/ExprConstant.cpp:    case CK_IntegralComplexToFloatingComplex: 
+lib/AST/ExprConstant.cpp:  } else if (E->getType()->isAnyComplexType()) {
+lib/AST/ExprConstant.cpp:    ComplexValue C;
+lib/AST/ExprConstant.cpp:    if (!EvaluateComplex(E, C, Info))
+lib/AST/ItaniumMangle.cpp:    case Type::Complex:
+lib/AST/ItaniumMangle.cpp:void CXXNameMangler::mangleType(const ComplexType *T) {
+lib/AST/MicrosoftMangle.cpp:void MicrosoftCXXNameMangler::mangleType(const ComplexType *T) {
+lib/AST/MicrosoftMangle.cpp:  llvm_unreachable("Don't know how to mangle ComplexTypes yet!");
+lib/AST/Type.cpp:bool Type::isComplexType() const {
+lib/AST/Type.cpp:  if (const ComplexType *CT = dyn_cast<ComplexType>(CanonicalType))
+lib/AST/Type.cpp:bool Type::isComplexIntegerType() const {
+lib/AST/Type.cpp:  return getAsComplexIntegerType();
+lib/AST/Type.cpp:const ComplexType *Type::getAsComplexIntegerType() const {
+lib/AST/Type.cpp:  if (const ComplexType *Complex = getAs<ComplexType>())
+lib/AST/Type.cpp:    if (Complex->getElementType()->isIntegerType())
+lib/AST/Type.cpp:      return Complex;
+lib/AST/Type.cpp:  if (const ComplexType *CT = dyn_cast<ComplexType>(CanonicalType))
+lib/AST/Type.cpp:  return isa<ComplexType>(CanonicalType) || isa<NanType>(CanonicalType);
+lib/AST/Type.cpp:  } else if (const ComplexType *CT = dyn_cast<ComplexType>(T)) {
+lib/AST/Type.cpp:      return STK_FloatingComplex;
+lib/AST/Type.cpp:    return STK_IntegralComplex;
+lib/AST/Type.cpp:  case Type::Complex:
+lib/AST/Type.cpp:      BaseTy->isAnyComplexType() || BaseTy->isNanType())
+lib/AST/Type.cpp:  case Complex:
+lib/AST/Type.cpp:  case Type::Complex:
+lib/AST/Type.cpp:    return Cache::get(cast<ComplexType>(T)->getElementType());
+lib/AST/TypePrinter.cpp:    case Type::Complex:
+lib/AST/TypePrinter.cpp:void TypePrinter::printComplex(const ComplexType *T, std::string &S) {
+lib/AST/TypePrinter.cpp:  S = "_Complex " + S;
+lib/Basic/TargetInfo.cpp:  // Default to not using fp2ret for __Complex long double
+lib/Basic/TargetInfo.cpp:  ComplexLongDoubleUsesFP2Ret = false;
+lib/Basic/Targets.cpp:    // Use fp2ret for _Complex long double.
+lib/Basic/Targets.cpp:    ComplexLongDoubleUsesFP2Ret = true;
+lib/CodeGen/CGCall.cpp:  } else if (const ComplexType *CT = type->getAs<ComplexType>()) {
+lib/CodeGen/CGCall.cpp:  } else if (const ComplexType *CT = Ty->getAs<ComplexType>()) {
+lib/CodeGen/CGCall.cpp:  if (const ComplexType *CT = ResultType->getAs<ComplexType>()) {
+lib/CodeGen/CGCall.cpp:        return getContext().getTargetInfo().useObjCFP2RetForComplexLongDouble();
+lib/CodeGen/CGCall.cpp:    if (RetTy->isAnyComplexType()) {
+lib/CodeGen/CGCall.cpp:      ComplexPairTy RT = LoadComplexFromAddr(ReturnValue, false);
+lib/CodeGen/CGCall.cpp:      StoreComplexToAddr(RT, CurFn->arg_begin(), false);
+lib/CodeGen/CGCall.cpp:  if (type->isAnyComplexType()) {
+lib/CodeGen/CGCall.cpp:    ComplexPairTy complex = LoadComplexFromAddr(local, /*volatile*/ false);
+lib/CodeGen/CGCall.cpp:    return args.add(RValue::getComplex(complex), type);
+lib/CodeGen/CGCall.cpp:  if (hasAggregateLLVMType(type) && !E->getType()->isAnyComplexType() &&
+lib/CodeGen/CGCall.cpp:      if (EltTy->isAnyComplexType())
+lib/CodeGen/CGCall.cpp:        EltRV = RValue::getComplex(LoadComplexFromAddr(LV.getAddress(), false));
+lib/CodeGen/CGCall.cpp:      if (FT->isAnyComplexType())
+lib/CodeGen/CGCall.cpp:        FldRV = RValue::getComplex(LoadComplexFromAddr(LV.getAddress(), false));
+lib/CodeGen/CGCall.cpp:  } else if (Ty->isAnyComplexType()) {
+lib/CodeGen/CGCall.cpp:    ComplexPairTy CV = RV.getComplexVal();
+lib/CodeGen/CGCall.cpp:      if (RV.isScalar() || RV.isComplex()) {
+lib/CodeGen/CGCall.cpp:          StoreComplexToAddr(RV.getComplexVal(), Args.back(), false);
+lib/CodeGen/CGCall.cpp:      } else if (RV.isComplex()) {
+lib/CodeGen/CGCall.cpp:        StoreComplexToAddr(RV.getComplexVal(), SrcPtr, false);
+lib/CodeGen/CGCall.cpp:    if (RetTy->isAnyComplexType())
+lib/CodeGen/CGCall.cpp:      return RValue::getComplex(LoadComplexFromAddr(Args[0], false));
+lib/CodeGen/CGCall.cpp:      if (RetTy->isAnyComplexType()) {
+lib/CodeGen/CGCall.cpp:        return RValue::getComplex(std::make_pair(Real, Imag));
+lib/CodeGen/CGCall.cpp:    if (RetTy->isAnyComplexType())
+lib/CodeGen/CGCall.cpp:      return RValue::getComplex(LoadComplexFromAddr(DestPtr, false));
+lib/CodeGen/CGClass.cpp:      } else if (T->isAnyComplexType()) {
+lib/CodeGen/CGClass.cpp:        CGF.EmitComplexExprIntoAddr(Init, LV.getAddress(),
+lib/CodeGen/CGClass.cpp:  } else if (FieldType->isAnyComplexType()) {
+lib/CodeGen/CGClass.cpp:    EmitComplexExprIntoAddr(Init, LHS.getAddress(), LHS.isVolatileQualified());
+lib/CodeGen/CGCleanup.cpp:  if (rv.isComplex()) {
+lib/CodeGen/CGCleanup.cpp:    CodeGenFunction::ComplexPairTy V = rv.getComplexVal();
+lib/CodeGen/CGCleanup.cpp:    llvm::Type *ComplexTy =
+lib/CodeGen/CGCleanup.cpp:    llvm::Value *addr = CGF.CreateTempAlloca(ComplexTy, "saved-complex");
+lib/CodeGen/CGCleanup.cpp:    CGF.StoreComplexToAddr(V, addr, /*volatile*/ false);
+lib/CodeGen/CGCleanup.cpp:    return saved_type(addr, ComplexAddress);
+lib/CodeGen/CGCleanup.cpp:  case ComplexAddress:
+lib/CodeGen/CGCleanup.cpp:    return RValue::getComplex(CGF.LoadComplexFromAddr(Value, false));
+lib/CodeGen/CGDebugInfo.cpp:llvm::DIType CGDebugInfo::CreateType(const ComplexType *Ty) {
+lib/CodeGen/CGDebugInfo.cpp:  if (Ty->isComplexIntegerType())
+lib/CodeGen/CGDebugInfo.cpp:  case Type::Complex:
+lib/CodeGen/CGDebugInfo.cpp:    return CreateType(cast<ComplexType>(Ty));
+lib/CodeGen/CGDebugInfo.cpp:        DBuilder.createComplexVariable(Tag, 
+lib/CodeGen/CGDebugInfo.cpp:    DBuilder.createComplexVariable(llvm::dwarf::DW_TAG_auto_variable, 
+lib/CodeGen/CGDebugInfo.h:  llvm::DIType CreateType(const ComplexType *Ty);
+lib/CodeGen/CGDecl.cpp:  } else if (type->isAnyComplexType()) {
+lib/CodeGen/CGDecl.cpp:    ComplexPairTy complex = EmitComplexExpr(init);
+lib/CodeGen/CGDecl.cpp:    StoreComplexToAddr(complex, lvalue.getAddress(), lvalue.isVolatile());
+lib/CodeGen/CGDeclCXX.cpp:  } else if (type->isAnyComplexType()) {
+lib/CodeGen/CGDeclCXX.cpp:    CGF.EmitComplexExprIntoAddr(Init, DeclPtr, lv.isVolatile());
+lib/CodeGen/CGException.cpp:  bool IsComplex = false;
+lib/CodeGen/CGException.cpp:      (IsComplex = CatchType->isAnyComplexType())) {
+lib/CodeGen/CGException.cpp:    if (IsComplex) {
+lib/CodeGen/CGException.cpp:      CGF.StoreComplexToAddr(CGF.LoadComplexFromAddr(Cast, /*volatile*/ false),
+lib/CodeGen/CGExpr.cpp:  if (!E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:  return EmitComplexToScalarConversion(EmitComplexExpr(E), E->getType(),BoolTy);
+lib/CodeGen/CGExpr.cpp:  else if (E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:    return RValue::getComplex(EmitComplexExpr(E, IgnoreResult, IgnoreResult));
+lib/CodeGen/CGExpr.cpp:      !E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:  if (E->getType()->isAnyComplexType()) {
+lib/CodeGen/CGExpr.cpp:    EmitComplexExprIntoAddr(E, Location, Quals.hasVolatile());
+lib/CodeGen/CGExpr.cpp:        !E->getType()->isAnyComplexType()) {
+lib/CodeGen/CGExpr.cpp:    CGF.StoreComplexToAddr(RV.getComplexVal(), ReferenceTemporary,
+lib/CodeGen/CGExpr.cpp:CodeGenFunction::ComplexPairTy CodeGenFunction::
+lib/CodeGen/CGExpr.cpp:EmitComplexPrePostIncDec(const UnaryOperator *E, LValue LV,
+lib/CodeGen/CGExpr.cpp:  ComplexPairTy InVal = LoadComplexFromAddr(LV.getAddress(),
+lib/CodeGen/CGExpr.cpp:    QualType ElemTy = E->getType()->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExpr.cpp:  ComplexPairTy IncVal(NextVal, InVal.second);
+lib/CodeGen/CGExpr.cpp:  StoreComplexToAddr(IncVal, LV.getAddress(), LV.isVolatileQualified());
+lib/CodeGen/CGExpr.cpp:  if (const ComplexType *CTy = Ty->getAs<ComplexType>()) {
+lib/CodeGen/CGExpr.cpp:    return RValue::getComplex(std::make_pair(U, U));
+lib/CodeGen/CGExpr.cpp:    if (!E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:    return EmitComplexCompoundAssignmentLValue(cast<CompoundAssignOperator>(E));
+lib/CodeGen/CGExpr.cpp:    assert(E->getSubExpr()->getType()->isAnyComplexType());
+lib/CodeGen/CGExpr.cpp:    if (E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:      EmitComplexPrePostIncDec(E, LV, isInc, true/*isPre*/);
+lib/CodeGen/CGExpr.cpp:            !expr->getType()->isAnyComplexType()) &&
+lib/CodeGen/CGExpr.cpp:  case CK_FloatingRealToComplex:
+lib/CodeGen/CGExpr.cpp:  case CK_FloatingComplexToReal:
+lib/CodeGen/CGExpr.cpp:  case CK_FloatingComplexToBoolean:
+lib/CodeGen/CGExpr.cpp:  case CK_FloatingComplexCast:
+lib/CodeGen/CGExpr.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/CodeGen/CGExpr.cpp:  case CK_IntegralRealToComplex:
+lib/CodeGen/CGExpr.cpp:  case CK_IntegralComplexToReal:
+lib/CodeGen/CGExpr.cpp:  case CK_IntegralComplexToBoolean:
+lib/CodeGen/CGExpr.cpp:  case CK_IntegralComplexCast:
+lib/CodeGen/CGExpr.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/CodeGen/CGExpr.cpp:  if (E->getType()->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:    return EmitComplexAssignmentLValue(E);
+lib/CodeGen/CGExpr.cpp:  if (Ty->isAnyComplexType())
+lib/CodeGen/CGExpr.cpp:    return RValue::getComplex(CGF.LoadComplexFromAddr(Dest, false));
+lib/CodeGen/CGExpr.cpp:          !ov->getType()->isAnyComplexType()) {
+lib/CodeGen/CGExprAgg.cpp:  case CK_FloatingRealToComplex:
+lib/CodeGen/CGExprAgg.cpp:  case CK_FloatingComplexToReal:
+lib/CodeGen/CGExprAgg.cpp:  case CK_FloatingComplexToBoolean:
+lib/CodeGen/CGExprAgg.cpp:  case CK_FloatingComplexCast:
+lib/CodeGen/CGExprAgg.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/CodeGen/CGExprAgg.cpp:  case CK_IntegralRealToComplex:
+lib/CodeGen/CGExprAgg.cpp:  case CK_IntegralComplexToReal:
+lib/CodeGen/CGExprAgg.cpp:  case CK_IntegralComplexToBoolean:
+lib/CodeGen/CGExprAgg.cpp:  case CK_IntegralComplexCast:
+lib/CodeGen/CGExprAgg.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/CodeGen/CGExprAgg.cpp:  } else if (type->isAnyComplexType()) {
+lib/CodeGen/CGExprAgg.cpp:    CGF.EmitComplexExprIntoAddr(E, LV.getAddress(), false);
+lib/CodeGen/CGExprAgg.cpp:  assert(!Ty->isAnyComplexType() && "Shouldn't happen for complex");
+lib/CodeGen/CGExprCXX.cpp:  else if (AllocType->isAnyComplexType())
+lib/CodeGen/CGExprCXX.cpp:    CGF.EmitComplexExprIntoAddr(Init, NewPtr, 
+lib/CodeGen/CGExprComplex.cpp://===--- CGExprComplex.cpp - Emit LLVM Code for Complex Exprs -------------===//
+lib/CodeGen/CGExprComplex.cpp://                        Complex Expression Emitter
+lib/CodeGen/CGExprComplex.cpp:typedef CodeGenFunction::ComplexPairTy ComplexPairTy;
+lib/CodeGen/CGExprComplex.cpp:class ComplexExprEmitter
+lib/CodeGen/CGExprComplex.cpp:  : public StmtVisitor<ComplexExprEmitter, ComplexPairTy> {
+lib/CodeGen/CGExprComplex.cpp:  ComplexExprEmitter(CodeGenFunction &cgf, bool ir=false, bool ii=false)
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitLoadOfLValue(const Expr *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitLoadOfLValue(LValue LV) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitLoadOfComplex(LV.getAddress(), LV.isVolatileQualified());
+lib/CodeGen/CGExprComplex.cpp:  /// EmitLoadOfComplex - Given a pointer to a complex value, emit code to load
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitLoadOfComplex(llvm::Value *SrcPtr, bool isVolatile);
+lib/CodeGen/CGExprComplex.cpp:  void EmitStoreThroughLValue(ComplexPairTy Val, LValue LV) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitStoreOfComplex(Val, LV.getAddress(), LV.isVolatileQualified());
+lib/CodeGen/CGExprComplex.cpp:  /// EmitStoreOfComplex - Store the specified real/imag parts into the
+lib/CodeGen/CGExprComplex.cpp:  void EmitStoreOfComplex(ComplexPairTy Val, llvm::Value *ResPtr, bool isVol);
+lib/CodeGen/CGExprComplex.cpp:  /// EmitComplexToComplexCast - Emit a cast from complex value Val to DestType.
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitComplexToComplexCast(ComplexPairTy Val, QualType SrcType,
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Visit(Expr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return StmtVisitor<ComplexExprEmitter, ComplexPairTy>::Visit(E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitStmt(Stmt *S) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitExpr(Expr *S);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitParenExpr(ParenExpr *PE) { return Visit(PE->getSubExpr());}
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitGenericSelectionExpr(GenericSelectionExpr *GE) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitImaginaryLiteral(const ImaginaryLiteral *IL);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitDeclRefExpr(DeclRefExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:      return ComplexPairTy(pair->getOperand(0), pair->getOperand(1));
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitObjCIvarRefExpr(ObjCIvarRefExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitObjCMessageExpr(ObjCMessageExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return CGF.EmitObjCMessageExpr(E).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitArraySubscriptExpr(Expr *E) { return EmitLoadOfLValue(E); }
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitMemberExpr(const Expr *E) { return EmitLoadOfLValue(E); }
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitOpaqueValueExpr(OpaqueValueExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return CGF.getOpaqueRValueMapping(E).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitPseudoObjectExpr(PseudoObjectExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return CGF.EmitPseudoObjectRValue(E).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitCast(CastExpr::CastKind CK, Expr *Op, QualType DestTy);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitImplicitCastExpr(ImplicitCastExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitCastExpr(CastExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitCallExpr(const CallExpr *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitStmtExpr(const StmtExpr *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitPrePostIncDec(const UnaryOperator *E,
+lib/CodeGen/CGExprComplex.cpp:    return CGF.EmitComplexPrePostIncDec(E, LV, isInc, isPre);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryPostDec(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryPostInc(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryPreDec(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryPreInc(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryDeref(const Expr *E) { return EmitLoadOfLValue(E); }
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryPlus     (const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryMinus    (const UnaryOperator *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryNot      (const UnaryOperator *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitUnaryExtension(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitCXXDefaultArgExpr(CXXDefaultArgExpr *DAE) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitExprWithCleanups(ExprWithCleanups *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    assert(E->getType()->isAnyComplexType() && "Expected complex type!");
+lib/CodeGen/CGExprComplex.cpp:    QualType Elem = E->getType()->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:    return ComplexPairTy(Null, Null);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitImplicitValueInitExpr(ImplicitValueInitExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    assert(E->getType()->isAnyComplexType() && "Expected complex type!");
+lib/CodeGen/CGExprComplex.cpp:    QualType Elem = E->getType()->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:    return ComplexPairTy(Null, Null);
+lib/CodeGen/CGExprComplex.cpp:    ComplexPairTy LHS;
+lib/CodeGen/CGExprComplex.cpp:    ComplexPairTy RHS;
+lib/CodeGen/CGExprComplex.cpp:                                  ComplexPairTy (ComplexExprEmitter::*Func)
+lib/CodeGen/CGExprComplex.cpp:                                  ComplexPairTy &Val);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitCompoundAssign(const CompoundAssignOperator *E,
+lib/CodeGen/CGExprComplex.cpp:                                   ComplexPairTy (ComplexExprEmitter::*Func)
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitBinAdd(const BinOpInfo &Op);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitBinSub(const BinOpInfo &Op);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitBinMul(const BinOpInfo &Op);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy EmitBinDiv(const BinOpInfo &Op);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinAdd(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinSub(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinMul(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinDiv(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinAddAssign(const CompoundAssignOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitCompoundAssign(E, &ComplexExprEmitter::EmitBinAdd);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinSubAssign(const CompoundAssignOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitCompoundAssign(E, &ComplexExprEmitter::EmitBinSub);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinMulAssign(const CompoundAssignOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitCompoundAssign(E, &ComplexExprEmitter::EmitBinMul);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinDivAssign(const CompoundAssignOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:    return EmitCompoundAssign(E, &ComplexExprEmitter::EmitBinDiv);
+lib/CodeGen/CGExprComplex.cpp:                             ComplexPairTy &Val);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinAssign     (const BinaryOperator *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitBinComma      (const BinaryOperator *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitChooseExpr(ChooseExpr *CE);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitInitListExpr(InitListExpr *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitVAArgExpr(VAArgExpr *E);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy VisitAtomicExpr(AtomicExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return CGF.EmitAtomicExpr(E).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:/// EmitLoadOfComplex - Given an RValue reference for a complex, emit code to
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitLoadOfComplex(llvm::Value *SrcPtr,
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(Real, Imag);
+lib/CodeGen/CGExprComplex.cpp:/// EmitStoreOfComplex - Store the specified real/imag parts into the
+lib/CodeGen/CGExprComplex.cpp:void ComplexExprEmitter::EmitStoreOfComplex(ComplexPairTy Val, llvm::Value *Ptr,
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitExpr(Expr *E) {
+lib/CodeGen/CGExprComplex.cpp:  CGF.ConvertType(E->getType()->getAs<ComplexType>()->getElementType());
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(U, U);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(llvm::Constant::getNullValue(Imag->getType()), Imag);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitCallExpr(const CallExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  return CGF.EmitCallExpr(E).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitStmtExpr(const StmtExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:  return CGF.EmitCompoundStmt(*E->getSubStmt(), true).getComplexVal();
+lib/CodeGen/CGExprComplex.cpp:/// EmitComplexToComplexCast - Emit a cast from complex value Val to DestType.
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitComplexToComplexCast(ComplexPairTy Val,
+lib/CodeGen/CGExprComplex.cpp:  SrcType = SrcType->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:  DestType = DestType->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitCast(CastExpr::CastKind CK, Expr *Op, 
+lib/CodeGen/CGExprComplex.cpp:    return EmitLoadOfComplex(V, DestTy.isVolatileQualified());
+lib/CodeGen/CGExprComplex.cpp:  case CK_FloatingComplexToReal:
+lib/CodeGen/CGExprComplex.cpp:  case CK_FloatingComplexToBoolean:
+lib/CodeGen/CGExprComplex.cpp:  case CK_IntegralComplexToReal:
+lib/CodeGen/CGExprComplex.cpp:  case CK_IntegralComplexToBoolean:
+lib/CodeGen/CGExprComplex.cpp:  case CK_FloatingRealToComplex:
+lib/CodeGen/CGExprComplex.cpp:  case CK_IntegralRealToComplex: {
+lib/CodeGen/CGExprComplex.cpp:    DestTy = DestTy->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:    return ComplexPairTy(Elt, llvm::Constant::getNullValue(Elt->getType()));
+lib/CodeGen/CGExprComplex.cpp:  case CK_FloatingComplexCast:
+lib/CodeGen/CGExprComplex.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/CodeGen/CGExprComplex.cpp:  case CK_IntegralComplexCast:
+lib/CodeGen/CGExprComplex.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/CodeGen/CGExprComplex.cpp:    return EmitComplexToComplexCast(Visit(Op), Op->getType(), DestTy);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitUnaryMinus(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Op = Visit(E->getSubExpr());
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(ResR, ResI);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Op = Visit(E->getSubExpr());
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(Op.first, ResI);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitBinAdd(const BinOpInfo &Op) {
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(ResR, ResI);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitBinSub(const BinOpInfo &Op) {
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(ResR, ResI);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitBinMul(const BinOpInfo &Op) {
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(ResR, ResI);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::EmitBinDiv(const BinOpInfo &Op) {
+lib/CodeGen/CGExprComplex.cpp:    if (Op.Ty->getAs<ComplexType>()->getElementType()->isUnsignedIntegerType()) {
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(DSTr, DSTi);
+lib/CodeGen/CGExprComplex.cpp:ComplexExprEmitter::BinOpInfo
+lib/CodeGen/CGExprComplex.cpp:ComplexExprEmitter::EmitBinOps(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:LValue ComplexExprEmitter::
+lib/CodeGen/CGExprComplex.cpp:          ComplexPairTy (ComplexExprEmitter::*Func)(const BinOpInfo&),
+lib/CodeGen/CGExprComplex.cpp:                         ComplexPairTy &Val) {
+lib/CodeGen/CGExprComplex.cpp:  assert(OpInfo.Ty->isAnyComplexType());
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy LHSComplexPair = EmitLoadOfLValue(LHS);
+lib/CodeGen/CGExprComplex.cpp:  OpInfo.LHS = EmitComplexToComplexCast(LHSComplexPair, LHSTy, OpInfo.Ty);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Result = (this->*Func)(OpInfo);
+lib/CodeGen/CGExprComplex.cpp:  Result = EmitComplexToComplexCast(Result, OpInfo.Ty, LHSTy);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::
+lib/CodeGen/CGExprComplex.cpp:                   ComplexPairTy (ComplexExprEmitter::*Func)(const BinOpInfo&)){
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Val;
+lib/CodeGen/CGExprComplex.cpp:  return EmitLoadOfComplex(LV.getAddress(), LV.isVolatileQualified());
+lib/CodeGen/CGExprComplex.cpp:LValue ComplexExprEmitter::EmitBinAssignLValue(const BinaryOperator *E,
+lib/CodeGen/CGExprComplex.cpp:                                               ComplexPairTy &Val) {
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitBinAssign(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Val;
+lib/CodeGen/CGExprComplex.cpp:  return EmitLoadOfComplex(LV.getAddress(), LV.isVolatileQualified());
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitBinComma(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy LHS = Visit(E->getTrueExpr());
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy RHS = Visit(E->getFalseExpr());
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(RealPN, ImagPN);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitChooseExpr(ChooseExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitInitListExpr(InitListExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:    return ComplexPairTy(Real, Imag);
+lib/CodeGen/CGExprComplex.cpp:  QualType Ty = E->getType()->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprComplex.cpp:  return ComplexPairTy(zeroConstant, zeroConstant);
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy ComplexExprEmitter::VisitVAArgExpr(VAArgExpr *E) {
+lib/CodeGen/CGExprComplex.cpp:      CGF.ConvertType(E->getType()->getAs<ComplexType>()->getElementType());
+lib/CodeGen/CGExprComplex.cpp:    return ComplexPairTy(U, U);
+lib/CodeGen/CGExprComplex.cpp:  return EmitLoadOfComplex(ArgPtr, false);
+lib/CodeGen/CGExprComplex.cpp:/// EmitComplexExpr - Emit the computation of the specified expression of
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy CodeGenFunction::EmitComplexExpr(const Expr *E, bool IgnoreReal,
+lib/CodeGen/CGExprComplex.cpp:  assert(E && E->getType()->isAnyComplexType() &&
+lib/CodeGen/CGExprComplex.cpp:  return ComplexExprEmitter(*this, IgnoreReal, IgnoreImag)
+lib/CodeGen/CGExprComplex.cpp:/// EmitComplexExprIntoAddr - Emit the computation of the specified expression
+lib/CodeGen/CGExprComplex.cpp:void CodeGenFunction::EmitComplexExprIntoAddr(const Expr *E,
+lib/CodeGen/CGExprComplex.cpp:  assert(E && E->getType()->isAnyComplexType() &&
+lib/CodeGen/CGExprComplex.cpp:  ComplexExprEmitter Emitter(*this);
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Val = Emitter.Visit(const_cast<Expr*>(E));
+lib/CodeGen/CGExprComplex.cpp:  Emitter.EmitStoreOfComplex(Val, DestAddr, DestIsVolatile);
+lib/CodeGen/CGExprComplex.cpp:/// StoreComplexToAddr - Store a complex number into the specified address.
+lib/CodeGen/CGExprComplex.cpp:void CodeGenFunction::StoreComplexToAddr(ComplexPairTy V,
+lib/CodeGen/CGExprComplex.cpp:  ComplexExprEmitter(*this).EmitStoreOfComplex(V, DestAddr, DestIsVolatile);
+lib/CodeGen/CGExprComplex.cpp:/// LoadComplexFromAddr - Load a complex number from the specified address.
+lib/CodeGen/CGExprComplex.cpp:ComplexPairTy CodeGenFunction::LoadComplexFromAddr(llvm::Value *SrcAddr,
+lib/CodeGen/CGExprComplex.cpp:  return ComplexExprEmitter(*this).EmitLoadOfComplex(SrcAddr, SrcIsVolatile);
+lib/CodeGen/CGExprComplex.cpp:LValue CodeGenFunction::EmitComplexAssignmentLValue(const BinaryOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Val; // ignored
+lib/CodeGen/CGExprComplex.cpp:  return ComplexExprEmitter(*this).EmitBinAssignLValue(E, Val);
+lib/CodeGen/CGExprComplex.cpp:EmitComplexCompoundAssignmentLValue(const CompoundAssignOperator *E) {
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy(ComplexExprEmitter::*Op)(const ComplexExprEmitter::BinOpInfo &);
+lib/CodeGen/CGExprComplex.cpp:  case BO_MulAssign: Op = &ComplexExprEmitter::EmitBinMul; break;
+lib/CodeGen/CGExprComplex.cpp:  case BO_DivAssign: Op = &ComplexExprEmitter::EmitBinDiv; break;
+lib/CodeGen/CGExprComplex.cpp:  case BO_SubAssign: Op = &ComplexExprEmitter::EmitBinSub; break;
+lib/CodeGen/CGExprComplex.cpp:  case BO_AddAssign: Op = &ComplexExprEmitter::EmitBinAdd; break;
+lib/CodeGen/CGExprComplex.cpp:  ComplexPairTy Val; // ignored
+lib/CodeGen/CGExprComplex.cpp:  return ComplexExprEmitter(*this).EmitCompoundAssignLValue(E, Op, Val);
+lib/CodeGen/CGExprConstant.cpp:    case CK_FloatingRealToComplex:
+lib/CodeGen/CGExprConstant.cpp:    case CK_FloatingComplexToReal:
+lib/CodeGen/CGExprConstant.cpp:    case CK_FloatingComplexToBoolean:
+lib/CodeGen/CGExprConstant.cpp:    case CK_FloatingComplexCast:
+lib/CodeGen/CGExprConstant.cpp:    case CK_FloatingComplexToIntegralComplex:
+lib/CodeGen/CGExprConstant.cpp:    case CK_IntegralRealToComplex:
+lib/CodeGen/CGExprConstant.cpp:    case CK_IntegralComplexToReal:
+lib/CodeGen/CGExprConstant.cpp:    case CK_IntegralComplexToBoolean:
+lib/CodeGen/CGExprConstant.cpp:    case CK_IntegralComplexCast:
+lib/CodeGen/CGExprConstant.cpp:    case CK_IntegralComplexToFloatingComplex:
+lib/CodeGen/CGExprConstant.cpp:  case APValue::ComplexInt: {
+lib/CodeGen/CGExprConstant.cpp:    llvm::Constant *Complex[2];
+lib/CodeGen/CGExprConstant.cpp:    Complex[0] = llvm::ConstantInt::get(VMContext,
+lib/CodeGen/CGExprConstant.cpp:                                        Value.getComplexIntReal());
+lib/CodeGen/CGExprConstant.cpp:    Complex[1] = llvm::ConstantInt::get(VMContext,
+lib/CodeGen/CGExprConstant.cpp:                                        Value.getComplexIntImag());
+lib/CodeGen/CGExprConstant.cpp:    llvm::StructType *STy = llvm::StructType::get(Complex[0]->getType(),
+lib/CodeGen/CGExprConstant.cpp:                                                  Complex[1]->getType(),
+lib/CodeGen/CGExprConstant.cpp:    return llvm::ConstantStruct::get(STy, Complex);
+lib/CodeGen/CGExprConstant.cpp:  case APValue::ComplexFloat: {
+lib/CodeGen/CGExprConstant.cpp:    llvm::Constant *Complex[2];
+lib/CodeGen/CGExprConstant.cpp:    Complex[0] = llvm::ConstantFP::get(VMContext,
+lib/CodeGen/CGExprConstant.cpp:                                       Value.getComplexFloatReal());
+lib/CodeGen/CGExprConstant.cpp:    Complex[1] = llvm::ConstantFP::get(VMContext,
+lib/CodeGen/CGExprConstant.cpp:                                       Value.getComplexFloatImag());
+lib/CodeGen/CGExprConstant.cpp:    llvm::StructType *STy = llvm::StructType::get(Complex[0]->getType(),
+lib/CodeGen/CGExprConstant.cpp:                                                  Complex[1]->getType(),
+lib/CodeGen/CGExprConstant.cpp:    return llvm::ConstantStruct::get(STy, Complex);
+lib/CodeGen/CGExprScalar.cpp:  /// EmitComplexToScalarConversion - Emit a conversion from the specified
+lib/CodeGen/CGExprScalar.cpp:  Value *EmitComplexToScalarConversion(CodeGenFunction::ComplexPairTy Src,
+lib/CodeGen/CGExprScalar.cpp:/// EmitComplexToScalarConversion - Emit a conversion from the specified complex
+lib/CodeGen/CGExprScalar.cpp:EmitComplexToScalarConversion(CodeGenFunction::ComplexPairTy Src,
+lib/CodeGen/CGExprScalar.cpp:  SrcTy = SrcTy->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprScalar.cpp:    //  Complex != 0  -> (Real != 0) | (Imag != 0)
+lib/CodeGen/CGExprScalar.cpp:  case CK_FloatingRealToComplex:
+lib/CodeGen/CGExprScalar.cpp:  case CK_FloatingComplexCast:
+lib/CodeGen/CGExprScalar.cpp:  case CK_IntegralRealToComplex:
+lib/CodeGen/CGExprScalar.cpp:  case CK_IntegralComplexCast:
+lib/CodeGen/CGExprScalar.cpp:  case CK_IntegralComplexToFloatingComplex:
+lib/CodeGen/CGExprScalar.cpp:  case CK_FloatingComplexToIntegralComplex:
+lib/CodeGen/CGExprScalar.cpp:  case CK_FloatingComplexToReal:
+lib/CodeGen/CGExprScalar.cpp:  case CK_IntegralComplexToReal:
+lib/CodeGen/CGExprScalar.cpp:    return CGF.EmitComplexExpr(E, false, true).first;
+lib/CodeGen/CGExprScalar.cpp:  case CK_FloatingComplexToBoolean:
+lib/CodeGen/CGExprScalar.cpp:  case CK_IntegralComplexToBoolean: {
+lib/CodeGen/CGExprScalar.cpp:    CodeGenFunction::ComplexPairTy V = CGF.EmitComplexExpr(E);
+lib/CodeGen/CGExprScalar.cpp:    return EmitComplexToScalarConversion(V, E->getType(), DestTy);
+lib/CodeGen/CGExprScalar.cpp:  if (Op->getType()->isAnyComplexType()) {
+lib/CodeGen/CGExprScalar.cpp:    return CGF.EmitComplexExpr(Op, false, true).first;
+lib/CodeGen/CGExprScalar.cpp:  if (Op->getType()->isAnyComplexType()) {
+lib/CodeGen/CGExprScalar.cpp:    return CGF.EmitComplexExpr(Op, true, false).second;
+lib/CodeGen/CGExprScalar.cpp:  if (E->getComputationResultType()->isAnyComplexType()) {
+lib/CodeGen/CGExprScalar.cpp:  } else if (!LHSTy->isAnyComplexType()) {
+lib/CodeGen/CGExprScalar.cpp:    // Complex Comparison: can only be an equality comparison.
+lib/CodeGen/CGExprScalar.cpp:    CodeGenFunction::ComplexPairTy LHS = CGF.EmitComplexExpr(E->getLHS());
+lib/CodeGen/CGExprScalar.cpp:    CodeGenFunction::ComplexPairTy RHS = CGF.EmitComplexExpr(E->getRHS());
+lib/CodeGen/CGExprScalar.cpp:    QualType CETy = LHSTy->getAs<ComplexType>()->getElementType();
+lib/CodeGen/CGExprScalar.cpp:      // Complex comparisons can only be equality comparisons.  As such, signed
+lib/CodeGen/CGExprScalar.cpp:             "Complex comparison other than == or != ?");
+lib/CodeGen/CGExprScalar.cpp:/// EmitComplexToScalarConversion - Emit a conversion from the specified complex
+lib/CodeGen/CGExprScalar.cpp:Value *CodeGenFunction::EmitComplexToScalarConversion(ComplexPairTy Src,
+lib/CodeGen/CGExprScalar.cpp:  assert(SrcTy->isAnyComplexType() && !hasAggregateLLVMType(DstTy) &&
+lib/CodeGen/CGExprScalar.cpp:  return ScalarExprEmitter(*this).EmitComplexToScalarConversion(Src, SrcTy,
+lib/CodeGen/CGObjC.cpp:    if (ivarType->isAnyComplexType()) {
+lib/CodeGen/CGObjC.cpp:      ComplexPairTy pair = LoadComplexFromAddr(LV.getAddress(),
+lib/CodeGen/CGObjC.cpp:      StoreComplexToAddr(pair, ReturnValue, LV.isVolatileQualified());
+lib/CodeGen/CGObjCGNU.cpp:    } else /* isComplex() */ {
+lib/CodeGen/CGObjCGNU.cpp:      std::pair<llvm::Value*,llvm::Value*> v = msgRet.getComplexVal();
+lib/CodeGen/CGObjCGNU.cpp:      msgRet = RValue::getComplex(phi, phi2);
+lib/CodeGen/CGObjCMac.cpp:  /// _Complex long double objc_msgSend_fp2ret(id self, SEL op, ...)
+lib/CodeGen/CGObjCMac.cpp:    if (!resultType->isAnyComplexType()) {
+lib/CodeGen/CGObjCMac.cpp:    // _Complex type
+lib/CodeGen/CGObjCMac.cpp:    CodeGenFunction::ComplexPairTy CallCV = result.getComplexVal();
+lib/CodeGen/CGObjCMac.cpp:    return RValue::getComplex(PHIReal, PHIImag);
+lib/CodeGen/CGRTTI.cpp:  case Type::Complex:
+lib/CodeGen/CGRTTI.cpp:  case Type::Complex:
+lib/CodeGen/CGStmt.cpp:    StoreComplexToAddr(RV.getComplexVal(), ReturnValue, false);
+lib/CodeGen/CGStmt.cpp:  } else if (RV->getType()->isAnyComplexType()) {
+lib/CodeGen/CGStmt.cpp:    EmitComplexExprIntoAddr(RV, ReturnValue, false);
+lib/CodeGen/CGValue.h:  enum Flavor { Scalar, Complex, Aggregate };
+lib/CodeGen/CGValue.h:  bool isComplex() const { return V1.getInt() == Complex; }
+lib/CodeGen/CGValue.h:  /// getComplexVal - Return the real/imag components of this complex value.
+lib/CodeGen/CGValue.h:  std::pair<llvm::Value *, llvm::Value *> getComplexVal() const {
+lib/CodeGen/CGValue.h:  static RValue getComplex(llvm::Value *V1, llvm::Value *V2) {
+lib/CodeGen/CGValue.h:    ER.V1.setInt(Complex);
+lib/CodeGen/CGValue.h:  static RValue getComplex(const std::pair<llvm::Value *, llvm::Value *> &C) {
+lib/CodeGen/CGValue.h:    return getComplex(C.first, C.second);
+lib/CodeGen/CMakeLists.txt:  CGExprComplex.cpp
+lib/CodeGen/CodeGenFunction.cpp:  // Complexes, arrays, records, and Objective-C objects.
+lib/CodeGen/CodeGenFunction.cpp:  case Type::Complex:
+lib/CodeGen/CodeGenFunction.cpp:    case Type::Complex:
+lib/CodeGen/CodeGenFunction.h:  typedef std::pair<llvm::Value *, llvm::Value *> ComplexPairTy;
+lib/CodeGen/CodeGenFunction.h:  ComplexPairTy EmitComplexPrePostIncDec(const UnaryOperator *E, LValue LV,
+lib/CodeGen/CodeGenFunction.h:  LValue EmitComplexAssignmentLValue(const BinaryOperator *E);
+lib/CodeGen/CodeGenFunction.h:  LValue EmitComplexCompoundAssignmentLValue(const CompoundAssignOperator *E);
+lib/CodeGen/CodeGenFunction.h:  /// EmitComplexToScalarConversion - Emit a conversion from the specified
+lib/CodeGen/CodeGenFunction.h:  llvm::Value *EmitComplexToScalarConversion(ComplexPairTy Src, QualType SrcTy,
+lib/CodeGen/CodeGenFunction.h:  /// EmitComplexExpr - Emit the computation of the specified expression of
+lib/CodeGen/CodeGenFunction.h:  ComplexPairTy EmitComplexExpr(const Expr *E,
+lib/CodeGen/CodeGenFunction.h:  /// EmitComplexExprIntoAddr - Emit the computation of the specified expression
+lib/CodeGen/CodeGenFunction.h:  void EmitComplexExprIntoAddr(const Expr *E, llvm::Value *DestAddr,
+lib/CodeGen/CodeGenFunction.h:  /// StoreComplexToAddr - Store a complex number into the specified address.
+lib/CodeGen/CodeGenFunction.h:  void StoreComplexToAddr(ComplexPairTy V, llvm::Value *DestAddr,
+lib/CodeGen/CodeGenFunction.h:  /// LoadComplexFromAddr - Load a complex number from the specified address.
+lib/CodeGen/CodeGenFunction.h:  ComplexPairTy LoadComplexFromAddr(llvm::Value *SrcAddr, bool SrcIsVolatile);
+lib/CodeGen/CodeGenFunction.h:                AggregateAddress, ComplexAddress };
+lib/CodeGen/CodeGenTypes.cpp:  case Type::Complex: {
+lib/CodeGen/CodeGenTypes.cpp:    llvm::Type *EltTy = ConvertType(cast<ComplexType>(Ty)->getElementType());
+lib/CodeGen/TargetInfo.cpp:      !Ty->isAnyComplexType() && !Ty->isEnumeralType() &&
+lib/CodeGen/TargetInfo.cpp:      Ty->isAnyComplexType() || Ty->isEnumeralType() ||
+lib/CodeGen/TargetInfo.cpp:    if (!IsSmallStructInRegABI && !RetTy->isAnyComplexType())
+lib/CodeGen/TargetInfo.cpp:    ComplexX87,
+lib/CodeGen/TargetInfo.cpp:  /// If the \arg Lo class is ComplexX87, then the \arg Hi class will
+lib/CodeGen/TargetInfo.cpp:  /// also be ComplexX87.
+lib/CodeGen/TargetInfo.cpp:  //   union { _Complex double; unsigned; }
+lib/CodeGen/TargetInfo.cpp:  // ComplexX87 (because this cannot be passed in a structure).
+lib/CodeGen/TargetInfo.cpp:  assert((Accum != Memory && Accum != ComplexX87) &&
+lib/CodeGen/TargetInfo.cpp:  if (Field == X87 || Field == X87Up || Field == ComplexX87 ||
+lib/CodeGen/TargetInfo.cpp:  if (const ComplexType *CT = Ty->getAs<ComplexType>()) {
+lib/CodeGen/TargetInfo.cpp:      Current = ComplexX87;
+lib/CodeGen/TargetInfo.cpp:  case ComplexX87:
+lib/CodeGen/TargetInfo.cpp:    assert(Hi == ComplexX87 && "Unexpected ComplexX87 classification.");
+lib/CodeGen/TargetInfo.cpp:  case ComplexX87: // Previously handled.
+lib/CodeGen/TargetInfo.cpp:  case ComplexX87:
+lib/CodeGen/TargetInfo.cpp:    // Memory was handled previously, ComplexX87 and X87 should
+lib/CodeGen/TargetInfo.cpp:  case ComplexX87:
+lib/CodeGen/TargetInfo.cpp:    if (const ComplexType *CT = Ty->getAs<ComplexType>()) {
+lib/CodeGen/TargetInfo.cpp:  if (const ComplexType *CT = Ty->getAs<ComplexType>())
+lib/CodeGen/TargetInfo.cpp:    // Complex types are all returned as packed integers.
+lib/CodeGen/TargetInfo.cpp:    if (RetTy->isAnyComplexType())
+lib/CodeGen/TargetInfo.cpp:  if (Ty->isComplexType())
+lib/CodeGen/TargetInfo.cpp:      if (RetTy->isAnyComplexType())
+lib/Headers/tgmath.h:static float _Complex       _TG_ATTRSp __tg_promote(float _Complex);
+lib/Headers/tgmath.h:static double _Complex      _TG_ATTRSp __tg_promote(double _Complex);
+lib/Headers/tgmath.h:static long double _Complex _TG_ATTRSp __tg_promote(long double _Complex);
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_acos(float _Complex __x) {return cacosf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_acos(double _Complex __x) {return cacos(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_acos(long double _Complex __x) {return cacosl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_asin(float _Complex __x) {return casinf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_asin(double _Complex __x) {return casin(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_asin(long double _Complex __x) {return casinl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_atan(float _Complex __x) {return catanf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_atan(double _Complex __x) {return catan(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_atan(long double _Complex __x) {return catanl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_acosh(float _Complex __x) {return cacoshf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_acosh(double _Complex __x) {return cacosh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_acosh(long double _Complex __x) {return cacoshl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_asinh(float _Complex __x) {return casinhf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_asinh(double _Complex __x) {return casinh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_asinh(long double _Complex __x) {return casinhl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_atanh(float _Complex __x) {return catanhf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_atanh(double _Complex __x) {return catanh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_atanh(long double _Complex __x) {return catanhl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_cos(float _Complex __x) {return ccosf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_cos(double _Complex __x) {return ccos(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_cos(long double _Complex __x) {return ccosl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_sin(float _Complex __x) {return csinf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_sin(double _Complex __x) {return csin(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_sin(long double _Complex __x) {return csinl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_tan(float _Complex __x) {return ctanf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_tan(double _Complex __x) {return ctan(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_tan(long double _Complex __x) {return ctanl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_cosh(float _Complex __x) {return ccoshf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_cosh(double _Complex __x) {return ccosh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_cosh(long double _Complex __x) {return ccoshl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_sinh(float _Complex __x) {return csinhf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_sinh(double _Complex __x) {return csinh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_sinh(long double _Complex __x) {return csinhl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_tanh(float _Complex __x) {return ctanhf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_tanh(double _Complex __x) {return ctanh(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_tanh(long double _Complex __x) {return ctanhl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_exp(float _Complex __x) {return cexpf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_exp(double _Complex __x) {return cexp(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_exp(long double _Complex __x) {return cexpl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_log(float _Complex __x) {return clogf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_log(double _Complex __x) {return clog(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_log(long double _Complex __x) {return clogl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_pow(float _Complex __x, float _Complex __y) {return cpowf(__x, __y);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_pow(double _Complex __x, double _Complex __y) {return cpow(__x, __y);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_pow(long double _Complex __x, long double _Complex __y) 
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_sqrt(float _Complex __x) {return csqrtf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_sqrt(double _Complex __x) {return csqrt(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_sqrt(long double _Complex __x) {return csqrtl(__x);}
+lib/Headers/tgmath.h:    __tg_fabs(float _Complex __x) {return cabsf(__x);}
+lib/Headers/tgmath.h:    __tg_fabs(double _Complex __x) {return cabs(__x);}
+lib/Headers/tgmath.h:    __tg_fabs(long double _Complex __x) {return cabsl(__x);}
+lib/Headers/tgmath.h:    __tg_carg(float _Complex __x) {return cargf(__x);}
+lib/Headers/tgmath.h:    __tg_carg(double _Complex __x) {return carg(__x);}
+lib/Headers/tgmath.h:    __tg_carg(long double _Complex __x) {return cargl(__x);}
+lib/Headers/tgmath.h:    __tg_cimag(float _Complex __x) {return cimagf(__x);}
+lib/Headers/tgmath.h:    __tg_cimag(double _Complex __x) {return cimag(__x);}
+lib/Headers/tgmath.h:    __tg_cimag(long double _Complex __x) {return cimagl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_conj(float _Complex __x) {return conjf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_conj(double _Complex __x) {return conj(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_conj(long double _Complex __x) {return conjl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:    __tg_cproj(float _Complex __x) {return cprojf(__x);}
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:    __tg_cproj(double _Complex __x) {return cproj(__x);}
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_cproj(long double _Complex __x) {return cprojl(__x);}
+lib/Headers/tgmath.h:static float _Complex
+lib/Headers/tgmath.h:static double _Complex
+lib/Headers/tgmath.h:static long double _Complex
+lib/Headers/tgmath.h:    __tg_creal(float _Complex __x) {return crealf(__x);}
+lib/Headers/tgmath.h:    __tg_creal(double _Complex __x) {return creal(__x);}
+lib/Headers/tgmath.h:    __tg_creal(long double _Complex __x) {return creall(__x);}
+lib/Parse/ParseDecl.cpp:    case tok::kw__Complex:
+lib/Parse/ParseDecl.cpp:      isInvalid = DS.SetTypeSpecComplex(DeclSpec::TSC_complex, Loc, PrevSpec,
+lib/Parse/ParseDecl.cpp:      isInvalid = DS.SetTypeSpecComplex(DeclSpec::TSC_imaginary, Loc, PrevSpec,
+lib/Parse/ParseDecl.cpp:  case tok::kw__Complex:
+lib/Parse/ParseDecl.cpp:  case tok::kw__Complex:
+lib/Parse/ParseDecl.cpp:  case tok::kw__Complex:
+lib/Parse/ParseObjc.cpp:///       unsigned long const short volatile signed restrict _Complex
+lib/Parse/ParseObjc.cpp:  case tok::kw__Complex:
+lib/Parse/ParseTentative.cpp:  case tok::kw__Complex:
+lib/Parse/ParseTentative.cpp:/// [GNU]     '_Complex'
+lib/Parse/ParseTentative.cpp:  case tok::kw__Complex:
+lib/Sema/DeclSpec.cpp:bool DeclSpec::SetTypeSpecComplex(TSC C, SourceLocation Loc,
+lib/Sema/DeclSpec.cpp:  if (TypeSpecComplex != TSC_unspecified)
+lib/Sema/DeclSpec.cpp:    return BadSpecifier(C, (TSC)TypeSpecComplex, PrevSpec, DiagID);
+lib/Sema/DeclSpec.cpp:  TypeSpecComplex = C;
+lib/Sema/DeclSpec.cpp:  // TODO: if the implementation does not implement _Complex or _Imaginary,
+lib/Sema/DeclSpec.cpp:  if (TypeSpecComplex != TSC_unspecified) {
+lib/Sema/DeclSpec.cpp:                              PP.getLocForEndOfToken(getTypeSpecComplexLoc()),
+lib/Sema/DeclSpec.cpp:      TypeSpecType = TST_double;   // _Complex -> _Complex double.
+lib/Sema/DeclSpec.cpp:      // Note that this intentionally doesn't include _Complex _Bool.
+lib/Sema/DeclSpec.cpp:      TypeSpecComplex = TSC_unspecified;
+lib/Sema/Sema.cpp:  case Type::STK_IntegralComplex: return CK_IntegralComplexToBoolean;
+lib/Sema/Sema.cpp:  case Type::STK_FloatingComplex: return CK_FloatingComplexToBoolean;
+lib/Sema/SemaChecking.cpp:  // This operation requires a non-_Complex floating-point number.
+lib/Sema/SemaChecking.cpp:    if (const ComplexType *CT = dyn_cast<ComplexType>(T))
+lib/Sema/SemaChecking.cpp:    if (const ComplexType *CT = dyn_cast<ComplexType>(T))
+lib/Sema/SemaChecking.cpp:  if (result.isComplexInt()) {
+lib/Sema/SemaChecking.cpp:    IntRange R = GetValueRange(C, result.getComplexIntReal(), MaxWidth);
+lib/Sema/SemaChecking.cpp:    IntRange I = GetValueRange(C, result.getComplexIntImag(), MaxWidth);
+lib/Sema/SemaChecking.cpp:  assert(value.isComplexFloat());
+lib/Sema/SemaChecking.cpp:  return (IsSameFloatAfterCast(value.getComplexFloatReal(), Src, Tgt) &&
+lib/Sema/SemaChecking.cpp:          IsSameFloatAfterCast(value.getComplexFloatImag(), Src, Tgt));
+lib/Sema/SemaChecking.cpp:  if (isa<ComplexType>(Source)) {
+lib/Sema/SemaChecking.cpp:    if (!isa<ComplexType>(Target)) {
+lib/Sema/SemaChecking.cpp:    Source = cast<ComplexType>(Source)->getElementType().getTypePtr();
+lib/Sema/SemaChecking.cpp:    Target = cast<ComplexType>(Target)->getElementType().getTypePtr();
+lib/Sema/SemaCodeComplete.cpp:  case Type::Complex:
+lib/Sema/SemaCodeComplete.cpp:    Results.AddResult(Result("_Complex", CCP_Type));
+lib/Sema/SemaCodeComplete.cpp:      DS.getTypeSpecComplex() == DeclSpec::TSC_unspecified &&
+lib/Sema/SemaDeclAttr.cpp:  bool ComplexMode = false;
+lib/Sema/SemaDeclAttr.cpp:      ComplexMode = true;
+lib/Sema/SemaDeclAttr.cpp:  if (!OldTy->getAs<BuiltinType>() && !OldTy->isComplexType())
+lib/Sema/SemaDeclAttr.cpp:  } else if (ComplexMode) {
+lib/Sema/SemaDeclAttr.cpp:    if (!OldTy->isComplexType())
+lib/Sema/SemaDeclAttr.cpp:  if (ComplexMode) {
+lib/Sema/SemaDeclAttr.cpp:    NewTy = S.Context.getComplexType(NewTy);
+lib/Sema/SemaExpr.cpp:static bool handleIntegerToComplexFloatConversion(Sema &S, ExprResult &IntExpr,
+lib/Sema/SemaExpr.cpp:                                                  ExprResult &ComplexExpr,
+lib/Sema/SemaExpr.cpp:                                                  QualType ComplexTy,
+lib/Sema/SemaExpr.cpp:  if (IntTy->isComplexType() || IntTy->isRealFloatingType()) return true;
+lib/Sema/SemaExpr.cpp:    QualType fpTy = cast<ComplexType>(ComplexTy)->getElementType();
+lib/Sema/SemaExpr.cpp:    IntExpr = S.ImpCastExprToType(IntExpr.take(), ComplexTy,
+lib/Sema/SemaExpr.cpp:                                  CK_FloatingRealToComplex);
+lib/Sema/SemaExpr.cpp:    assert(IntTy->isComplexIntegerType());
+lib/Sema/SemaExpr.cpp:    IntExpr = S.ImpCastExprToType(IntExpr.take(), ComplexTy,
+lib/Sema/SemaExpr.cpp:                                  CK_IntegralComplexToFloatingComplex);
+lib/Sema/SemaExpr.cpp:handleComplexFloatToComplexFloatConverstion(Sema &S, ExprResult &LHS,
+lib/Sema/SemaExpr.cpp:    // _Complex float -> _Complex double
+lib/Sema/SemaExpr.cpp:      LHS = S.ImpCastExprToType(LHS.take(), RHSType, CK_FloatingComplexCast);
+lib/Sema/SemaExpr.cpp:    // _Complex float -> _Complex double
+lib/Sema/SemaExpr.cpp:    RHS = S.ImpCastExprToType(RHS.take(), LHSType, CK_FloatingComplexCast);
+lib/Sema/SemaExpr.cpp:static QualType handleOtherComplexFloatConversion(Sema &S,
+lib/Sema/SemaExpr.cpp:                                                  ExprResult &ComplexExpr,
+lib/Sema/SemaExpr.cpp:                                                  QualType ComplexTy,
+lib/Sema/SemaExpr.cpp:                                                  bool ConvertComplexExpr,
+lib/Sema/SemaExpr.cpp:  int order = S.Context.getFloatingTypeOrder(ComplexTy, OtherTy);
+lib/Sema/SemaExpr.cpp:    // float -> _Complex double
+lib/Sema/SemaExpr.cpp:      QualType fp = cast<ComplexType>(ComplexTy)->getElementType();
+lib/Sema/SemaExpr.cpp:      OtherExpr = S.ImpCastExprToType(OtherExpr.take(), ComplexTy,
+lib/Sema/SemaExpr.cpp:                                      CK_FloatingRealToComplex);
+lib/Sema/SemaExpr.cpp:    return ComplexTy;
+lib/Sema/SemaExpr.cpp:  QualType result = (order == 0 ? ComplexTy :
+lib/Sema/SemaExpr.cpp:                                  S.Context.getComplexType(OtherTy));
+lib/Sema/SemaExpr.cpp:  // double -> _Complex double
+lib/Sema/SemaExpr.cpp:                                    CK_FloatingRealToComplex);
+lib/Sema/SemaExpr.cpp:  // _Complex float -> _Complex double
+lib/Sema/SemaExpr.cpp:  if (ConvertComplexExpr && order < 0)
+lib/Sema/SemaExpr.cpp:    ComplexExpr = S.ImpCastExprToType(ComplexExpr.take(), result,
+lib/Sema/SemaExpr.cpp:                                      CK_FloatingComplexCast);
+lib/Sema/SemaExpr.cpp:static QualType handleComplexFloatConversion(Sema &S, ExprResult &LHS,
+lib/Sema/SemaExpr.cpp:  if (!handleIntegerToComplexFloatConversion(S, RHS, LHS, RHSType, LHSType,
+lib/Sema/SemaExpr.cpp:  if (!handleIntegerToComplexFloatConversion(S, LHS, RHS, LHSType, RHSType,
+lib/Sema/SemaExpr.cpp:  // when combining a "long double" with a "double _Complex", the
+lib/Sema/SemaExpr.cpp:  // "double _Complex" is promoted to "long double _Complex".
+lib/Sema/SemaExpr.cpp:  bool LHSComplexFloat = LHSType->isComplexType();
+lib/Sema/SemaExpr.cpp:  bool RHSComplexFloat = RHSType->isComplexType();
+lib/Sema/SemaExpr.cpp:  if (LHSComplexFloat && RHSComplexFloat)
+lib/Sema/SemaExpr.cpp:    return handleComplexFloatToComplexFloatConverstion(S, LHS, RHS,
+lib/Sema/SemaExpr.cpp:  if (LHSComplexFloat)
+lib/Sema/SemaExpr.cpp:    return handleOtherComplexFloatConversion(
+lib/Sema/SemaExpr.cpp:        S, LHS, RHS, LHSType, RHSType, /*convertComplexExpr*/!IsCompAssign,
+lib/Sema/SemaExpr.cpp:  assert(RHSComplexFloat);
+lib/Sema/SemaExpr.cpp:  return handleOtherComplexFloatConversion(
+lib/Sema/SemaExpr.cpp:      S, RHS, LHS, RHSType, LHSType, /*convertComplexExpr*/true,
+lib/Sema/SemaExpr.cpp:  assert(IntTy->isComplexIntegerType());
+lib/Sema/SemaExpr.cpp:  QualType result = S.Context.getComplexType(FloatTy);
+lib/Sema/SemaExpr.cpp:  // _Complex int -> _Complex float
+lib/Sema/SemaExpr.cpp:                                  CK_IntegralComplexToFloatingComplex);
+lib/Sema/SemaExpr.cpp:  // float -> _Complex float
+lib/Sema/SemaExpr.cpp:                                    CK_FloatingRealToComplex);
+lib/Sema/SemaExpr.cpp:// FIXME: if the operands are (int, _Complex long), we currently
+lib/Sema/SemaExpr.cpp:static QualType handleComplexIntConversion(Sema &S, ExprResult &LHS,
+lib/Sema/SemaExpr.cpp:  const ComplexType *LHSComplexInt = LHSType->getAsComplexIntegerType();
+lib/Sema/SemaExpr.cpp:  const ComplexType *RHSComplexInt = RHSType->getAsComplexIntegerType();
+lib/Sema/SemaExpr.cpp:  if (LHSComplexInt && RHSComplexInt) {
+lib/Sema/SemaExpr.cpp:    int order = S.Context.getIntegerTypeOrder(LHSComplexInt->getElementType(),
+lib/Sema/SemaExpr.cpp:                                              RHSComplexInt->getElementType());
+lib/Sema/SemaExpr.cpp:      // _Complex int -> _Complex long
+lib/Sema/SemaExpr.cpp:      RHS = S.ImpCastExprToType(RHS.take(), LHSType, CK_IntegralComplexCast);
+lib/Sema/SemaExpr.cpp:      LHS = S.ImpCastExprToType(LHS.take(), RHSType, CK_IntegralComplexCast);
+lib/Sema/SemaExpr.cpp:  if (LHSComplexInt) {
+lib/Sema/SemaExpr.cpp:    // int -> _Complex int
+lib/Sema/SemaExpr.cpp:    RHS = S.ImpCastExprToType(RHS.take(), LHSComplexInt->getElementType(),
+lib/Sema/SemaExpr.cpp:    RHS = S.ImpCastExprToType(RHS.take(), LHSType, CK_IntegralRealToComplex);
+lib/Sema/SemaExpr.cpp:  assert(RHSComplexInt);
+lib/Sema/SemaExpr.cpp:  // int -> _Complex int
+lib/Sema/SemaExpr.cpp:    LHS = S.ImpCastExprToType(LHS.take(), RHSComplexInt->getElementType(),
+lib/Sema/SemaExpr.cpp:    LHS = S.ImpCastExprToType(LHS.take(), RHSType, CK_IntegralRealToComplex);
+lib/Sema/SemaExpr.cpp:  if (LHSType->isComplexType() || RHSType->isComplexType())
+lib/Sema/SemaExpr.cpp:    return handleComplexFloatConversion(*this, LHS, RHS, LHSType, RHSType,
+lib/Sema/SemaExpr.cpp:  if (LHSType->isComplexIntegerType() || RHSType->isComplexIntegerType())
+lib/Sema/SemaExpr.cpp:    return handleComplexIntConversion(*this, LHS, RHS, LHSType, RHSType,
+lib/Sema/SemaExpr.cpp:                                        Context.getComplexType(Res->getType()));
+lib/Sema/SemaExpr.cpp:  if (const ComplexType *CT = V.get()->getType()->getAs<ComplexType>())
+lib/Sema/SemaExpr.cpp:    case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:    case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:    case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:                              DestTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:      return CK_IntegralRealToComplex;
+lib/Sema/SemaExpr.cpp:    case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:                              DestTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:      return CK_FloatingRealToComplex;
+lib/Sema/SemaExpr.cpp:    case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:                              DestTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:      return CK_FloatingRealToComplex;
+lib/Sema/SemaExpr.cpp:    case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:                              DestTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:      return CK_IntegralRealToComplex;
+lib/Sema/SemaExpr.cpp:  case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:    case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:      return CK_FloatingComplexCast;
+lib/Sema/SemaExpr.cpp:    case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:      return CK_FloatingComplexToIntegralComplex;
+lib/Sema/SemaExpr.cpp:      QualType ET = SrcTy->castAs<ComplexType>()->getElementType();
+lib/Sema/SemaExpr.cpp:        return CK_FloatingComplexToReal;
+lib/Sema/SemaExpr.cpp:      Src = ImpCastExprToType(Src.take(), ET, CK_FloatingComplexToReal);
+lib/Sema/SemaExpr.cpp:      return CK_FloatingComplexToBoolean;
+lib/Sema/SemaExpr.cpp:                              SrcTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:                              CK_FloatingComplexToReal);
+lib/Sema/SemaExpr.cpp:  case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:    case Type::STK_FloatingComplex:
+lib/Sema/SemaExpr.cpp:      return CK_IntegralComplexToFloatingComplex;
+lib/Sema/SemaExpr.cpp:    case Type::STK_IntegralComplex:
+lib/Sema/SemaExpr.cpp:      return CK_IntegralComplexCast;
+lib/Sema/SemaExpr.cpp:      QualType ET = SrcTy->castAs<ComplexType>()->getElementType();
+lib/Sema/SemaExpr.cpp:        return CK_IntegralComplexToReal;
+lib/Sema/SemaExpr.cpp:      Src = ImpCastExprToType(Src.take(), ET, CK_IntegralComplexToReal);
+lib/Sema/SemaExpr.cpp:      return CK_IntegralComplexToBoolean;
+lib/Sema/SemaExpr.cpp:                              SrcTy->castAs<ComplexType>()->getElementType(),
+lib/Sema/SemaExpr.cpp:                              CK_IntegralComplexToReal);
+lib/Sema/SemaExpr.cpp:  } else if (ResType->isAnyComplexType()) {
+lib/Sema/SemaExpr.cpp:    if (resultType->isComplexType() || resultType->isComplexIntegerType())
+lib/Sema/SemaExpr.cpp:    if (Opc == UO_Real || Input.get()->getType()->isAnyComplexType()) {
+lib/Sema/SemaExprCXX.cpp:  case ICK_Complex_Promotion:
+lib/Sema/SemaExprCXX.cpp:  case ICK_Complex_Conversion: {
+lib/Sema/SemaExprCXX.cpp:    QualType FromEl = From->getType()->getAs<ComplexType>()->getElementType();
+lib/Sema/SemaExprCXX.cpp:    QualType ToEl = ToType->getAs<ComplexType>()->getElementType();
+lib/Sema/SemaExprCXX.cpp:        CK = CK_FloatingComplexCast;
+lib/Sema/SemaExprCXX.cpp:        CK = CK_FloatingComplexToIntegralComplex;
+lib/Sema/SemaExprCXX.cpp:      CK = CK_IntegralComplexToFloatingComplex;
+lib/Sema/SemaExprCXX.cpp:      CK = CK_IntegralComplexCast;
+lib/Sema/SemaExprCXX.cpp:      CK = CK_IntegralComplexCast;
+lib/Sema/SemaExprCXX.cpp:  case ICK_Complex_Real:
+lib/Sema/SemaExprCXX.cpp:    // Case 1.  x -> _Complex y
+lib/Sema/SemaExprCXX.cpp:    if (const ComplexType *ToComplex = ToType->getAs<ComplexType>()) {
+lib/Sema/SemaExprCXX.cpp:      QualType ElType = ToComplex->getElementType();
+lib/Sema/SemaExprCXX.cpp:      bool isFloatingComplex = ElType->isRealFloatingType();
+lib/Sema/SemaExprCXX.cpp:                isFloatingComplex ? CK_FloatingCast : CK_FloatingToIntegral).take();
+lib/Sema/SemaExprCXX.cpp:                isFloatingComplex ? CK_IntegralToFloating : CK_IntegralCast).take();
+lib/Sema/SemaExprCXX.cpp:      // y -> _Complex y
+lib/Sema/SemaExprCXX.cpp:                   isFloatingComplex ? CK_FloatingRealToComplex
+lib/Sema/SemaExprCXX.cpp:                                     : CK_IntegralRealToComplex).take();
+lib/Sema/SemaExprCXX.cpp:    // Case 2.  _Complex x -> y
+lib/Sema/SemaExprCXX.cpp:      const ComplexType *FromComplex = From->getType()->getAs<ComplexType>();
+lib/Sema/SemaExprCXX.cpp:      assert(FromComplex);
+lib/Sema/SemaExprCXX.cpp:      QualType ElType = FromComplex->getElementType();
+lib/Sema/SemaExprCXX.cpp:      bool isFloatingComplex = ElType->isRealFloatingType();
+lib/Sema/SemaExprCXX.cpp:      // _Complex x -> x
+lib/Sema/SemaExprCXX.cpp:                   isFloatingComplex ? CK_FloatingComplexToReal
+lib/Sema/SemaExprCXX.cpp:                                     : CK_IntegralComplexToReal, 
+lib/Sema/SemaExprCXX.cpp:                   isFloatingComplex ? CK_FloatingCast : CK_IntegralToFloating, 
+lib/Sema/SemaExprCXX.cpp:                   isFloatingComplex ? CK_FloatingToIntegral : CK_IntegralCast, 
+lib/Sema/SemaInit.cpp:  void CheckComplexType(const InitializedEntity &Entity,
+lib/Sema/SemaInit.cpp:  if (DeclType->isAnyComplexType() && SubobjectIsDesignatorContext) {
+lib/Sema/SemaInit.cpp:    CheckComplexType(Entity, IList, DeclType, Index,
+lib/Sema/SemaInit.cpp:void InitListChecker::CheckComplexType(const InitializedEntity &Entity,
+lib/Sema/SemaInit.cpp:  // This is an extension in C.  (The builtin _Complex type does not exist
+lib/Sema/SemaInit.cpp:  QualType elementType = DeclType->getAs<ComplexType>()->getElementType();
+lib/Sema/SemaInit.cpp:    const ComplexType *CT = Parent.getType()->getAs<ComplexType>();
+lib/Sema/SemaInit.cpp:    Kind = EK_ComplexElement;
+lib/Sema/SemaInit.cpp:  case EK_ComplexElement:
+lib/Sema/SemaInit.cpp:  case EK_ComplexElement:
+lib/Sema/SemaInit.cpp:  case EK_ComplexElement:
+lib/Sema/SemaInit.cpp:      !DestType->isAnyComplexType() && InitList->getNumInits() > 1) {
+lib/Sema/SemaInit.cpp:  case InitializedEntity::EK_ComplexElement:
+lib/Sema/SemaInit.cpp:  case InitializedEntity::EK_ComplexElement:
+lib/Sema/SemaInit.cpp:    case InitializedEntity::EK_ComplexElement:
+lib/Sema/SemaInit.cpp:  case InitializedEntity::EK_ComplexElement:
+lib/Sema/SemaLookup.cpp:    case Type::Complex:
+lib/Sema/SemaLookup.cpp:      "_Complex", "_Imaginary", "nan"
+lib/Sema/SemaOverload.cpp:    ICR_Complex_Real_Conversion,
+lib/Sema/SemaOverload.cpp:    "Complex promotion",
+lib/Sema/SemaOverload.cpp:    "Complex conversion",
+lib/Sema/SemaOverload.cpp:    "Complex-real conversion",
+lib/Sema/SemaOverload.cpp:  } else if (S.IsComplexPromotion(FromType, ToType)) {
+lib/Sema/SemaOverload.cpp:    // Complex promotion (Clang extension)
+lib/Sema/SemaOverload.cpp:    SCS.Second = ICK_Complex_Promotion;
+lib/Sema/SemaOverload.cpp:  } else if (FromType->isAnyComplexType() && ToType->isComplexType()) {
+lib/Sema/SemaOverload.cpp:    // Complex conversions (C99 6.3.1.6)
+lib/Sema/SemaOverload.cpp:    SCS.Second = ICK_Complex_Conversion;
+lib/Sema/SemaOverload.cpp:  } else if ((FromType->isAnyComplexType() && ToType->isArithmeticType()) ||
+lib/Sema/SemaOverload.cpp:             (ToType->isAnyComplexType() && FromType->isArithmeticType())) {
+lib/Sema/SemaOverload.cpp:    // Complex-real conversions (C99 6.3.1.7)
+lib/Sema/SemaOverload.cpp:    SCS.Second = ICK_Complex_Real;
+lib/Sema/SemaOverload.cpp:bool Sema::IsComplexPromotion(QualType FromType, QualType ToType) {
+lib/Sema/SemaOverload.cpp:  const ComplexType *FromComplex = FromType->getAs<ComplexType>();
+lib/Sema/SemaOverload.cpp:  if (!FromComplex)
+lib/Sema/SemaOverload.cpp:  const ComplexType *ToComplex = ToType->getAs<ComplexType>();
+lib/Sema/SemaOverload.cpp:  if (!ToComplex)
+lib/Sema/SemaOverload.cpp:  return IsFloatingPointPromotion(FromComplex->getElementType(),
+lib/Sema/SemaOverload.cpp:                                  ToComplex->getElementType()) ||
+lib/Sema/SemaOverload.cpp:    IsIntegralPromotion(0, FromComplex->getElementType(),
+lib/Sema/SemaOverload.cpp:                        ToComplex->getElementType());
+lib/Sema/SemaOverload.cpp:  case ICK_Complex_Real:
+lib/Sema/SemaOverload.cpp:  case ICK_Complex_Promotion:
+lib/Sema/SemaOverload.cpp:  case ICK_Complex_Conversion:
+lib/Sema/SemaTemplate.cpp:bool UnnamedLocalNoLinkageFinder::VisitComplexType(const ComplexType* T) {
+lib/Sema/SemaTemplateDeduction.cpp:    //     _Complex T   [placeholder extension]  
+lib/Sema/SemaTemplateDeduction.cpp:    case Type::Complex:
+lib/Sema/SemaTemplateDeduction.cpp:      if (const ComplexType *ComplexArg = Arg->getAs<ComplexType>())
+lib/Sema/SemaTemplateDeduction.cpp:                                    cast<ComplexType>(Param)->getElementType(), 
+lib/Sema/SemaTemplateDeduction.cpp:                                    ComplexArg->getElementType(),
+lib/Sema/SemaTemplateDeduction.cpp:  case Type::Complex:
+lib/Sema/SemaTemplateDeduction.cpp:                                 cast<ComplexType>(T)->getElementType(),
+lib/Sema/SemaType.cpp:    assert(DS.getTypeSpecWidth() == 0 && DS.getTypeSpecComplex() == 0 &&
+lib/Sema/SemaType.cpp:    assert(DS.getTypeSpecWidth() == 0 && DS.getTypeSpecComplex() == 0 &&
+lib/Sema/SemaType.cpp:  if (DS.getTypeSpecComplex() == DeclSpec::TSC_complex) {
+lib/Sema/SemaType.cpp:      S.Diag(DS.getTypeSpecComplexLoc(), diag::ext_freestanding_complex);
+lib/Sema/SemaType.cpp:    Result = Context.getComplexType(Result);
+lib/Sema/SemaType.cpp:  if (DS.getTypeSpecComplex() == DeclSpec::TSC_imaginary)
+lib/Sema/SemaType.cpp:    S.Diag(DS.getTypeSpecComplexLoc(), diag::err_imaginary_not_supported);
+lib/Sema/TreeTransform.h:QualType TreeTransform<Derived>::TransformComplexType(TypeLocBuilder &TLB,
+lib/Sema/TreeTransform.h:                                                      ComplexTypeLoc T) {
+lib/Serialization/ASTReader.cpp:    return Context.getComplexType(ElemType);
+lib/Serialization/ASTReader.cpp:void TypeLocReader::VisitComplexTypeLoc(ComplexTypeLoc TL) {
+lib/Serialization/ASTWriter.cpp:void ASTTypeWriter::VisitComplexType(const ComplexType *T) {
+lib/Serialization/ASTWriter.cpp:void TypeLocWriter::VisitComplexTypeLoc(ComplexTypeLoc TL) {
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_FloatingRealToComplex:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_FloatingComplexToReal:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_FloatingComplexToBoolean:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_FloatingComplexCast:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_FloatingComplexToIntegralComplex:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_IntegralRealToComplex:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_IntegralComplexToReal:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_IntegralComplexToBoolean:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_IntegralComplexCast:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      case CK_IntegralComplexToFloatingComplex:
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      if (Ex->getType()->isAnyComplexType()) {
+lib/StaticAnalyzer/Core/ExprEngineC.cpp:      if (Ex->getType()->isAnyComplexType()) {
+test/Analysis/misc-ps-region-store.cpp:void pr7675_i(const _Complex double &a);
+test/Analysis/misc-ps.m:float f0(_Complex float x) {
+test/CXX/temp/temp.decls/temp.variadic/p5.cpp:  // FIXME: ComplexType is uninteresting?
+test/CodeGen/2005-09-20-ComplexConstants.c:const double _Complex x[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}; 
+test/CodeGen/2007-08-21-ComplexCst.c:void f(_Complex float z);
+test/CodeGen/2007-09-27-ComplexIntCompare.c:struct s { _Complex unsigned short x; };
+test/CodeGen/arm-arguments.c:_Complex char       f22(void) {}
+test/CodeGen/arm-arguments.c:_Complex short      f23(void) {}
+test/CodeGen/arm-arguments.c:_Complex int        f24(void) {}
+test/CodeGen/arm-arguments.c:_Complex long long  f25(void) {}
+test/CodeGen/arm-arguments.c:_Complex float      f26(void) {}
+test/CodeGen/arm-arguments.c:_Complex double     f27(void) {}
+test/CodeGen/arm-arguments.c:struct s28 { _Complex char f0; };
+test/CodeGen/arm-arguments.c:struct s29 { _Complex short f0; };
+test/CodeGen/arm-arguments.c:struct s30 { _Complex int f0; };
+test/CodeGen/atomic-ops.c:_Complex float fc(_Atomic(_Complex float) *c) {
+test/CodeGen/capture-complex-expr-in-block.c:    _Complex double c;
+test/CodeGen/capture-complex-expr-in-block.c:      _Complex double z;
+test/CodeGen/complex-init-list.c:_Complex float x = { 1.0f, 1.0f/0.0f };
+test/CodeGen/complex-init-list.c:_Complex float f(float x, float y) { _Complex float z = { x, y }; return z; }
+test/CodeGen/complex-init-list.c:_Complex float f2(float x, float y) { return (_Complex float){ x, y }; }
+test/CodeGen/complex.c:  double _Complex a = 5;
+test/CodeGen/complex.c:  double _Complex b = 42;
+test/CodeGen/complex.c:_Complex double bar(int);
+test/CodeGen/complex.c:void test(_Complex double*);
+test/CodeGen/complex.c:void takecomplex(_Complex double);
+test/CodeGen/complex.c:  _Complex double X;
+test/CodeGen/complex.c:_Complex double g1, g2;
+test/CodeGen/complex.c:_Complex float cf;
+test/CodeGen/complex.c:float _Complex t4();
+test/CodeGen/complex.c:  float _Complex x = t4();
+test/CodeGen/complex.c:double t7(double _Complex c) {
+test/CodeGen/compound-literal.c:_Complex double * x = &(_Complex double){1.0f};
+test/CodeGen/compound-literal.c:_Complex double * x = &(_Complex double){1.0f};
+test/CodeGen/conditional-gnu-ext.c:_Complex int getComplex(_Complex int val) {
+test/CodeGen/conditional-gnu-ext.c:_Complex int complx() {
+test/CodeGen/conditional-gnu-ext.c:    _Complex int cond;
+test/CodeGen/conditional-gnu-ext.c:    _Complex int rhs;
+test/CodeGen/conditional-gnu-ext.c:    return getComplex(1+2i) ? : rhs;
+test/CodeGen/const-init.c:_Complex double g1x = 1.0f;
+test/CodeGen/const-init.c:_Complex double g1y = 1.0fi;
+test/CodeGen/const-init.c:_Complex char g1 = (char) 1 + (char) 10 * 1i;
+test/CodeGen/const-init.c:_Complex int g2 = 1 + 10i;
+test/CodeGen/const-init.c:_Complex float g3 = 1.0 + 10.0i;
+test/CodeGen/const-init.c:_Complex double g4 = 1.0 + 10.0i;
+test/CodeGen/const-init.c:_Complex int g5 = (2 + 3i) == (5 + 7i);
+test/CodeGen/const-init.c:_Complex double g6 = (2.0 + 3.0i) * (5.0 + 7.0i);
+test/CodeGen/cxx-default-arg.cpp:double _Complex c;
+test/CodeGen/cxx-default-arg.cpp:void f(int i = 0, int j = 1, int k = x, struct S t = s, double _Complex d = c);
+test/CodeGen/cxx-value-init.cpp:  _Complex int v4 = typeof(_Complex int)();
+test/CodeGen/cxx-value-init.cpp:  _Complex float v5 = typeof(_Complex float)();
+test/CodeGen/exprs.c:union f4_y {int x; _Complex float y;};
+test/CodeGen/exprs.c:_Complex float f4() {return ((union f4_y)(_Complex float)2.0).y;}
+test/CodeGen/func-return-member.c:struct frk { float _Complex c; int x; };
+test/CodeGen/func-return-member.c:float _Complex C;
+test/CodeGen/overloadable.c:double _Complex __attribute__((overloadable)) f(double _Complex x) { return x; }
+test/CodeGen/overloadable.c:  double _Complex cdv;
+test/CodeGen/parameter-passing.c:typedef _Complex int ComplexTy;
+test/CodeGen/parameter-passing.c:static ComplexTy complex_id(ComplexTy a) { return a; }
+test/CodeGen/parameter-passing.c:static void complex_mul(ComplexTy a) { result *= __real a * __imag a; }
+test/CodeGen/struct.c:// Complex forward reference of struct.
+test/CodeGen/volatile-1.c:volatile _Complex int ci;
+test/CodeGen/volatile-2.c:  extern volatile _Complex float test0_v;
+test/CodeGen/volatile-2.c:  extern volatile _Complex float test1_v;
+test/CodeGen/x86_32-arguments-darwin.c:struct s57 { _Complex int x; };
+test/CodeGen/x86_64-arguments.c:_Complex float f32(_Complex float A, _Complex float B) {
+test/CodeGenCXX/blocks-cxx11.cpp:    constexpr _Complex int x = 500;
+test/CodeGenCXX/blocks-cxx11.cpp:    const _Complex int y = 100;
+test/CodeGenCXX/blocks-cxx11.cpp:    const _Complex int &x = y;
+test/CodeGenCXX/blocks-cxx11.cpp:  _Complex int y = 100;
+test/CodeGenCXX/blocks-cxx11.cpp:    const _Complex int &x = y;
+test/CodeGenCXX/conditional-gnu-ext.cpp:_Complex int getComplex(_Complex int val) {
+test/CodeGenCXX/conditional-gnu-ext.cpp:_Complex int cmplx() {
+test/CodeGenCXX/conditional-gnu-ext.cpp:    _Complex int cond;
+test/CodeGenCXX/conditional-gnu-ext.cpp:    _Complex int rhs;
+test/CodeGenCXX/conditional-gnu-ext.cpp:    return getComplex(1+2i) ? : rhs;
+test/CodeGenCXX/copy-assign-synthesis-3.cpp:  _Complex float e;
+test/CodeGenCXX/copy-constructor-synthesis.cpp:  _Complex float complex;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float cf;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float &cfr = cf;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = reinterpret_cast<_Complex float&>(ir);
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = reinterpret_cast<_Complex float&>(fr);
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = reinterpret_cast<_Complex float&>(xr);
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float cf;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float &cfr = cf;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = (_Complex float&)ir;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = (_Complex float&)fr;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  cfr = (_Complex float&)xr;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  typedef _Complex float &complex_float_ref;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float cf;
+test/CodeGenCXX/lvalue-bitcasts.cpp:  _Complex float &cfr = cf;
+test/CodeGenCXX/member-init-struct.cpp:  _Complex float c;
+test/CodeGenCXX/new.cpp:  _Complex int* b = new _Complex int(10i);
+test/CodeGenCXX/reference-cast.cpp:_Complex double get_complex_double();
+test/CodeGenCXX/reference-cast.cpp:const _Complex float &f1() {
+test/CodeGenCXX/reference-cast.cpp:    return (const _Complex float&)get_complex_double();
+test/CodeGenCXX/reference-cast.cpp:    return static_cast<const _Complex float&>(get_complex_double());
+test/CodeGenCXX/references.cpp:void f(const _Complex int&);
+test/CodeGenCXX/references.cpp:_Complex int& complex_int_reference_return();
+test/CodeGenCXX/references.cpp:  _Complex int a = 10i;
+test/CodeGenCXX/references.cpp:  struct { const _Complex int &a; } agg = { 10i };
+test/CodeGenCXX/thunks.cpp:    virtual void baz(X, X&, _Complex float, Small, Small&, Large) = 0;
+test/CodeGenCXX/thunks.cpp:    void baz(X, X&, _Complex float, Small, Small&, Large);
+test/CodeGenCXX/thunks.cpp:  void D::baz(X, X&, _Complex float, Small, Small&, Large) { }
+test/CodeGenCXX/volatile-1.cpp:volatile _Complex int ci;
+test/CodeGenObjC/assign.m:@property _Complex int x1;
+test/CodeGenObjC/assign.m:  _Complex int l1 = (a.x1 = 1);
+test/CodeGenObjC/assign.m:  _Complex int l4 = (a.x1 += 1);
+test/CodeGenObjC/complex-double-abi.m:- (double _Complex)sum;
+test/CodeGenObjC/complex-double-abi.m:double _Complex foo(CNumber *x) {
+test/CodeGenObjC/complex-property.m:  _Complex int a1 = 25 + 10i;
+test/CodeGenObjC/complex-property.m:@property (assign) _Complex float f_complex_ivar;
+test/CodeGenObjC/complex-property.m:-(void) unary_f_complex: (_Complex float) a0 {
+test/CodeGenObjC/encode-test-5.m:char *a = @encode(_Complex int);
+test/CodeGenObjC/encode-test-5.m:char *b = @encode(_Complex float);
+test/CodeGenObjC/encode-test-5.m:char *c = @encode(_Complex double);
+test/CodeGenObjC/fp2ret.m:-(_Complex long double) complexLongDoubleValue;
+test/CodeGenObjC/property-complex.m:  _Complex float iv0;
+test/CodeGenObjC/property-complex.m:@property(assign) _Complex float p0;
+test/CodeGenObjC/property-complex.m:-(_Complex float) im0;
+test/CodeGenObjC/property-complex.m:-(void) setIm0: (_Complex float) a0;
+test/CodeGenObjC/property-complex.m:-(_Complex float) im0 {
+test/CodeGenObjC/property-complex.m:-(void) setIm0: (_Complex float) a0 {
+test/CodeGenObjC/property-complex.m:-(_Complex float) p0 {
+test/CodeGenObjC/property-complex.m:-(void) setP0: (_Complex float) a0 {
+test/CodeGenObjC/property-complex.m:    _Complex float l2 = (a0.im0 = a0.im0);
+test/CodeGenObjC/property-complex.m:    _Complex float l3 = a0->iv0;
+test/CodeGenObjC/property-complex.m:    _Complex float l4 = (a0->iv0 = a0->iv0);
+test/CodeGenObjC/property-complex.m:    _Complex float l5 = a0->iv0;
+test/CodeGenObjC/property-complex.m:    _Complex float l6 = (a0.p0 = a0.p0);
+test/CodeGenObjC/property-complex.m:    _Complex float l7 = a0->iv0;
+test/CodeGenObjC/property-complex.m:    _Complex float l8 = [a0 im0];
+test/Coverage/c-language-features.inc:  // FIXME: Add _Complex and aggregate cases.
+test/Coverage/c-language-features.inc:  _Complex float t32_a, t32_b;
+test/FixIt/fixit-recompile.c:_Complex cd;
+test/FixIt/fixit-recompile.c:// CHECK: _Complex double cd;
+test/FixIt/fixit-suffix.c:_Complex cd;
+test/FixIt/fixit.c:// CHECK: _Complex double cd;
+test/FixIt/fixit.c:_Complex cd; // expected-warning {{assuming '_Complex double'}}
+test/Index/complete-declarators.m:// CHECK-CC5: NotImplemented:{TypedText _Complex} (50)
+test/PCH/exprs.c:_Complex double floating_complex;
+test/PCH/types.c:_Complex float Cfloat_val;
+test/PCH/types.h:typedef _Complex float Cfloat;
+test/Parser/implicit-casts.c:_Complex double X;
+test/Parser/implicit-casts.c:  double _Complex a = 5;
+test/Parser/method-prototype-1.m:- (void) _Complex  : (int) woodo, ... ;
+test/Sema/align-x86.c:_Complex double g3;
+test/Sema/align-x86.c:short chk2[__alignof__(_Complex double) == 8 ? 1 : -1];
+test/Sema/attr-mode.c:typedef _Complex double c32 __attribute((mode(SC)));
+test/Sema/attr-mode.c:typedef _Complex float c64 __attribute((mode(DC)));
+test/Sema/attr-mode.c:typedef _Complex float c80 __attribute((mode(XC)));
+test/Sema/cast.c:typedef _Complex int CInt;
+test/Sema/cast.c:typedef _Complex long CLong;
+test/Sema/cast.c:typedef _Complex float CFloat;
+test/Sema/cast.c:typedef _Complex double CDouble;
+test/Sema/complex-imag.c:  _Complex int a = 1;
+test/Sema/complex-imag.c:  _Complex double a = 1;
+test/Sema/complex-init-list.c:_Complex float valid1 = { 1.0f, 2.0f }; // expected-warning {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:struct teststruct { _Complex float x; };
+test/Sema/complex-init-list.c:_Complex int valid2 = { 1, 2 }; // expected-warning {{complex integer}} expected-warning {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:_Complex float valid4[2] = { {1.0f, 1.0f}, {1.0f, 1.0f} }; // expected-warning 2 {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:_Complex float valid5 = {1.0f, 1.0fi}; // expected-warning {{imaginary constants}} expected-warning {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:_Complex float invalid2 = { 1, 2, 3 }; // expected-warning {{excess elements}}
+test/Sema/complex-init-list.c:_Complex float invalid3 = {}; // expected-error {{scalar initializer cannot be empty}} expected-warning {{GNU empty initializer}}
+test/Sema/complex-init-list.c:_Complex float sizetest1[] = { {1.0f, 1.0f}, {1.0f, 1.0f} }; // expected-warning 2 {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:_Complex float sizecheck1[(sizeof(sizetest1) == sizeof(*sizetest1)*2) ? 1 : -1];
+test/Sema/complex-init-list.c:_Complex float sizetest2[] = { 1.0f, 1.0f, {1.0f, 1.0f} };  // expected-warning {{specifying real and imaginary components is an extension}}
+test/Sema/complex-init-list.c:_Complex float sizecheck2[(sizeof(sizetest2) == sizeof(*sizetest2)*3) ? 1 : -1];
+test/Sema/complex-init-list.c:_Complex float x = 2 + (_Complex float) { 1, 2 };  // expected-warning {{specifying real and imaginary components is an extension}}
+test/Sema/complex-int.c:switch (arr) { // expected-error{{statement requires expression of integer type ('_Complex int' invalid)}}
+test/Sema/complex-int.c:void test3(_Complex int *x) {
+test/Sema/complex-int.c:void test4(_Complex float *x) {
+test/Sema/complex-int.c:void test5(_Complex int *x) {
+test/Sema/const-eval.c:_Complex float g16 = (1.0f + 1.0fi);
+test/Sema/const-eval.c:EVAL_EXPR(26, (_Complex double)0 ? -1 : 1)
+test/Sema/const-eval.c:EVAL_EXPR(27, (_Complex int)0 ? -1 : 1)
+test/Sema/const-eval.c:EVAL_EXPR(28, (_Complex double)1 ? 1 : -1)
+test/Sema/const-eval.c:EVAL_EXPR(29, (_Complex int)1 ? 1 : -1)
+test/Sema/const-eval.c:EVAL_EXPR(30, (int)(_Complex float)((1<<30)-1) == (1<<30) ? 1 : -1)
+test/Sema/const-eval.c:EVAL_EXPR(41, (int)(1+(_Complex unsigned)2))
+test/Sema/const-eval.c:  double _Complex  P;
+test/Sema/const-eval.c:  float _Complex  P2 = 3.3f + P;
+test/Sema/const-eval.c:struct PR11391 { _Complex float f; } pr11391;
+test/Sema/expr-address-of.c:  register _Complex int x;
+test/Sema/exprs.c:_Complex double test1() {
+test/Sema/exprs.c:_Complex double test2() {
+test/Sema/exprs.c:void test7(int *P, _Complex float Gamma) {
+test/Sema/exprs.c:   P = (P-42) + Gamma*4;  // expected-error {{invalid operands to binary expression ('int *' and '_Complex float')}}
+test/Sema/merge-decls.c:_Complex int g1; // expected-note {{previous definition is here}}
+test/Sema/merge-decls.c:_Complex float g1; // expected-error {{redefinition of 'g1'}}
+test/Sema/overloadable-complex.c:void test_foo_1(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/Sema/overloadable-complex.c:int *foo(float _Complex) __attribute__((__overloadable__));
+test/Sema/overloadable-complex.c:void test_foo_2(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/Sema/overloadable-complex.c:long *foo(double _Complex) __attribute__((__overloadable__));
+test/Sema/overloadable-complex.c:void test_foo_3(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/Sema/overloadable-complex.c:char *promote_or_convert(double _Complex) __attribute__((__overloadable__));  // expected-note 2 {{candidate function}}
+test/Sema/overloadable-complex.c:int *promote_or_convert(long double _Complex) __attribute__((__overloadable__)); // expected-note 2 {{candidate function}} 
+test/Sema/overloadable-complex.c:void test_promote_or_convert(float f, float _Complex fc) {
+test/Sema/overloadable-complex.c:int *promote_or_convert2(double _Complex) __attribute__((__overloadable__));
+test/Sema/overloadable-complex.c:void test_promote_or_convert2(float _Complex fc) {
+test/Sema/overloadable-complex.c:char *promote_or_convert3(int _Complex) __attribute__((__overloadable__));
+test/Sema/overloadable-complex.c:int *promote_or_convert3(long _Complex) __attribute__((__overloadable__));
+test/Sema/overloadable-complex.c:void test_promote_or_convert3(short _Complex sc) {
+test/Sema/unused-expr.c:         _Complex double C, volatile _Complex double VC) {
+test/Sema/warn-freestanding-complex.c:void foo(float _Complex c) { // expected-warning{{complex numbers are an extension in a freestanding C99 implementation}}
+test/SemaCXX/complex-init-list.cpp:// (No pedantic warning is necessary because _Complex is not part of C++.)
+test/SemaCXX/complex-init-list.cpp:_Complex float valid1 = { 1.0f, 2.0f };
+test/SemaCXX/complex-overload.cpp:void test_foo_1(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/SemaCXX/complex-overload.cpp:int *foo(float _Complex);
+test/SemaCXX/complex-overload.cpp:void test_foo_2(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/SemaCXX/complex-overload.cpp:long *foo(double _Complex);
+test/SemaCXX/complex-overload.cpp:void test_foo_3(float fv, double dv, float _Complex fc, double _Complex dc) {
+test/SemaCXX/complex-overload.cpp:char *promote_or_convert(double _Complex);  // expected-note{{candidate function}}
+test/SemaCXX/complex-overload.cpp:int *promote_or_convert(long double _Complex); // expected-note{{candidate function}} 
+test/SemaCXX/complex-overload.cpp:void test_promote_or_convert(float f, float _Complex fc) {
+test/SemaCXX/complex-overload.cpp:int *promote_or_convert2(double _Complex);
+test/SemaCXX/complex-overload.cpp:void test_promote_or_convert2(float _Complex fc) {
+test/SemaCXX/complex-overload.cpp:char *promote_or_convert3(int _Complex);
+test/SemaCXX/complex-overload.cpp:int *promote_or_convert3(long _Complex);
+test/SemaCXX/complex-overload.cpp:void test_promote_or_convert3(short _Complex sc) {
+test/SemaCXX/constant-expression-cxx11.cpp:namespace Complex {
+test/SemaCXX/constant-expression-cxx11.cpp:constexpr complex makeComplex(int re, int im) { return complex(re, im); }
+test/SemaCXX/constant-expression-cxx11.cpp:static_assert(makeComplex(1,0) == complex(1), "");
+test/SemaCXX/constant-expression-cxx11.cpp:static_assert(makeComplex(1,0) != complex(0, 1), "");
+test/SemaCXX/constant-expression-cxx11.cpp:constexpr complex_wrap makeComplexWrap(int re, int im) {
+test/SemaCXX/constant-expression-cxx11.cpp:static_assert(makeComplexWrap(1,0) == complex(1), "");
+test/SemaCXX/constant-expression-cxx11.cpp:static_assert(makeComplexWrap(1,0) != complex(0, 1), "");
+test/SemaCXX/constant-expression-cxx11.cpp:namespace ComplexConstexpr {
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex float test1 = {};
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex float test2 = {1};
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex double test3 = {1,2};
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex int test4 = {4};
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex int test5 = 4;
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex int test6 = {5,6};
+test/SemaCXX/constant-expression-cxx11.cpp:  typedef _Complex float fcomplex;
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr _Complex float *p = 0;
+test/SemaCXX/constant-expression-cxx11.cpp:  constexpr const _Complex double *q = &test3 + 1;
+test/SemaCXX/constexpr-printing.cpp:constexpr int test_printing(int a, float b, _Complex int c, _Complex float d,
+test/SemaTemplate/instantiate-expr-3.cpp:template struct ImaginaryLiteral0<_Complex float>;
+tools/libclang/CIndex.cpp:DEFAULT_TYPELOC_IMPL(Complex, Type)
+tools/libclang/CIndexUSRs.cpp:    if (const ComplexType *CT = T->getAs<ComplexType>()) {
+tools/libclang/CXType.cpp:    TKCASE(Complex);
+tools/libclang/CXType.cpp:    TKIND(Complex);
+tools/libclang/CXType.cpp:    case Type::Complex:
+tools/libclang/CXType.cpp:      ET = cast<ComplexType> (TP)->getElementType();
+utils/ABITest/ABITestGen.py:        elif isinstance(t, ComplexType):
+utils/ABITest/ABITestGen.py:        elif isinstance(t, ComplexType):
+utils/ABITest/ABITestGen.py:        elif isinstance(t, ComplexType):
+utils/ABITest/ABITestGen.py:    group.add_option("", "--no-complex", dest="useComplex",
+utils/ABITest/ABITestGen.py:        if opts.useComplex:
+utils/ABITest/ABITestGen.py:            atg.addGenerator(ComplexTypeGenerator(sbtg))
+utils/ABITest/TypeGen.py:class ComplexType(Type):
+utils/ABITest/TypeGen.py:        return '_Complex (%s)'%(self.elementType)
+utils/ABITest/TypeGen.py:        return 'typedef _Complex %s %s;'%(printer.getTypeName(self.elementType), name)
+utils/ABITest/TypeGen.py:class ComplexTypeGenerator(TypeGenerator):
+utils/ABITest/TypeGen.py:        return ComplexType(N, self.typeGen.get(N))
+utils/FindSpecRefs:('7.3 Complex arithmetic <complex.h>', '170'),
+utils/FindSpecRefs:('7.26.1 Complex arithmetic <complex.h>', '401'),
+utils/FindSpecRefs:('B.2 Complex <complex.h>', '418'),
+utils/FindSpecRefs:('G.6 Complex arithmetic <complex.h>', '471'),
+utils/FindSpecRefs:('26.3 Complex numbers', '833'),
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c://  Complex arithmetic
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:      float _Complex __mulsc3( float a,  float b,  float c,  float d);
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:     double _Complex __muldc3(double a, double b, double c, double d);
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:long double _Complex __mulxc3(long double a, long double b,
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:      float _Complex __divsc3( float a,  float b,  float c,  float d);
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:     double _Complex __divdc3(double a, double b, double c, double d);
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:long double _Complex __divxc3(long double a, long double b,
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:  // FIXME: Clang/LLVM seems to be miscompiling _Complex currently, probably an
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:    _Complex float a = __mulsc3(1.0, 2.0, 4.0, 8.0);
+utils/OptionalTests/Extra/Runtime/darwin-clang_rt.c:    _Complex float b = (-12.0 + 16.0j);

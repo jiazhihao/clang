@@ -492,18 +492,6 @@ public:
   }
   Value *EmitXor(const BinOpInfo &Ops) {
     if (Ops.Ty->isNanType()) {
-      QualType T = Ops.Ty;
-      llvm::IntegerType *IntType =
-      llvm::IntegerType::get(CGF.getLLVMContext(),
-                             CGF.getContext().getTypeSize(T));
-      Value *NaN;
-      if(T->isNanUnsignedIntegerType()) {
-        NaN = llvm::Constant::getAllOnesValue(IntType);
-      }
-      else {
-        NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
-      }
       Value *Result2 = Builder.CreateXor(Ops.LHS, Ops.RHS, "xor");
       // Cmp = y == NaN
       Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
@@ -518,18 +506,6 @@ public:
   }
   Value *EmitOr (const BinOpInfo &Ops) {
     if (Ops.Ty->isNanType()) {
-      QualType T = Ops.Ty;
-      llvm::IntegerType *IntType =
-      llvm::IntegerType::get(CGF.getLLVMContext(),
-                             CGF.getContext().getTypeSize(T));
-      Value *NaN;
-      if(T->isNanUnsignedIntegerType()) {
-        NaN = llvm::Constant::getAllOnesValue(IntType);
-      }
-      else {
-        NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
-      }
       Value *Result2 = Builder.CreateOr(Ops.LHS, Ops.RHS, "or");
       // Cmp = y == NaN
       Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
