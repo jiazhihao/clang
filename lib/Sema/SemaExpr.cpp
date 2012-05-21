@@ -7512,6 +7512,8 @@ static QualType CheckIncrementDecrementOperand(Sema &S, Expr *Op,
     // C99 does not support ++/-- on complex types, we allow as an extension.
     S.Diag(OpLoc, diag::ext_integer_increment_complex)
       << ResType << Op->getSourceRange();
+  } else if (ResType->isNanType()) {
+    return QualType();
   } else if (ResType->isPlaceholderType()) {
     ExprResult PR = S.CheckPlaceholderExpr(Op);
     if (PR.isInvalid()) return QualType();

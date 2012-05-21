@@ -1422,7 +1422,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       value = Builder.CreateAdd(value, amt, isInc ? "inc" : "dec");
   // Next is nan integer
   } else if (type->isNanType()) {
-    
     llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount);
     llvm::IntegerType *intType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
