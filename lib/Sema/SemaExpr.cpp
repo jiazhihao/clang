@@ -5493,7 +5493,13 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
     return Incompatible;
   }
-
+  
+  
+  if (LHSType->isNanType() && !RHSType->isNanType())
+  {
+    return Incompatible;
+  }
+  
   // Arithmetic conversions.
   if (LHSType->isArithmeticType() && RHSType->isArithmeticType() &&
       !(getLangOpts().CPlusPlus && LHSType->isEnumeralType())) {
