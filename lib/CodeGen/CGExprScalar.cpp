@@ -1422,6 +1422,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       value = Builder.CreateAdd(value, amt, isInc ? "inc" : "dec");
   // Next is nan integer
   } else if (type->isNanType()) {
+    llvm_unreachable("EmitScalarPrePostIncDec");
     llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount);
     llvm::IntegerType *intType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
@@ -1561,6 +1562,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
 
 Value *ScalarExprEmitter::VisitUnaryMinus(const UnaryOperator *E) {
+  printf("VisitUnaryMinus.\n");
   TestAndClearIgnoreResultAssign();
   // Emit unary minus with EmitSub so we handle overflow cases etc.
   BinOpInfo BinOp;
@@ -2946,7 +2948,7 @@ Value *ScalarExprEmitter::VisitAtomicExpr(AtomicExpr *E) {
 Value *CodeGenFunction::EmitScalarExpr(const Expr *E, bool IgnoreResultAssign) {
   assert(E && !hasAggregateLLVMType(E->getType()) &&
          "Invalid scalar expression to emit");
-
+  
   if (isa<CXXDefaultArgExpr>(E))
     disableDebugInfo();
   Value *V = ScalarExprEmitter(*this, IgnoreResultAssign)
