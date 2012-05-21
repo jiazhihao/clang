@@ -5495,7 +5495,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   }
   
   
-  if (LHSType->isNanType() && !RHSType->isNanType())
+  if (!LHSType->isNanType() && RHSType->isNanType())
   {
     return Incompatible;
   }
