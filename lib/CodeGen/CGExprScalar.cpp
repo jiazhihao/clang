@@ -1562,7 +1562,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
 
 Value *ScalarExprEmitter::VisitUnaryMinus(const UnaryOperator *E) {
-  printf("VisitUnaryMinus.\n");
   TestAndClearIgnoreResultAssign();
   // Emit unary minus with EmitSub so we handle overflow cases etc.
   BinOpInfo BinOp;
