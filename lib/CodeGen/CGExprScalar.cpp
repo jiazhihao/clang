@@ -1420,7 +1420,26 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       value = EmitAddConsiderOverflowBehavior(E, value, amt, isInc);
     else
       value = Builder.CreateAdd(value, amt, isInc ? "inc" : "dec");
-  
+  // Next is nan integer
+  } else if (type->isNanType()) {
+    
+    llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount);
+    llvm::IntegerType *intType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(type));
+    Value *NaN;
+    if(type->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(intType);
+    }
+    else {
+      NaN = llvm::ConstantInt::get(intType->getContext(),
+                                   llvm::APInt::getSignedMaxValue(intType->getBitWidth()));
+    }
+    
+    llvm::Value *result = Builder.CreateAdd(input, amt, isInc ? "inc" : "dec");
+    llvm::Value *cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, input, NaN, "cmp");
+    // return Cmp ? NaN : Result1
+    value = Builder.CreateSelect(cmp, NaN, result, "cond");
   // Next most common: pointer increment.
   } else if (const PointerType *ptr = type->getAs<PointerType>()) {
     QualType type = ptr->getPointeeType();
