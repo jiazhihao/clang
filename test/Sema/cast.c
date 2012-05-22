@@ -25,6 +25,9 @@ typedef _Complex int CInt;
 typedef _Complex long CLong;
 typedef _Complex float CFloat;
 typedef _Complex double CDouble;
+typedef _nan int NInt;
+typedef _nan long NLong;
+typedef _nan long long NLongLong;
 typedef void *VoidPtr;
 typedef char *CharPtr;
 
@@ -38,6 +41,8 @@ void testBool(Bool v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
   (void) (VoidPtr) v;
   (void) (CharPtr) v;
 }
@@ -52,6 +57,8 @@ void testInt(Int v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
   (void) (VoidPtr) v;
   (void) (CharPtr) v;
 }
@@ -66,6 +73,8 @@ void testLong(Long v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
   (void) (VoidPtr) v;
   (void) (CharPtr) v;
 }
@@ -80,6 +89,8 @@ void testFloat(Float v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testDouble(Double v) {
@@ -92,6 +103,8 @@ void testDouble(Double v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testCI(CInt v) {
@@ -104,6 +117,8 @@ void testCI(CInt v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testCLong(CLong v) {
@@ -116,6 +131,8 @@ void testCLong(CLong v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testCFloat(CFloat v) {
@@ -128,6 +145,8 @@ void testCFloat(CFloat v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testCDouble(CDouble v) {
@@ -140,6 +159,8 @@ void testCDouble(CDouble v) {
   (void) (CLong) v;
   (void) (CFloat) v;
   (void) (CDouble) v;
+  (void) (NInt) v;
+  (void) (NLong) v;
 }
 
 void testVoidPtr(VoidPtr v) {
