@@ -362,7 +362,7 @@ public:
 /// \brief Interface for classes constructing Stack hints.
 ///
 /// If a PathDiagnosticEvent occurs in a different frame than the final 
-/// diagnostic the hints can be used to summarise the effect of the call.
+/// diagnostic the hints can be used to summarize the effect of the call.
 class StackHintGenerator {
 public:
   virtual ~StackHintGenerator() = 0;
@@ -510,7 +510,7 @@ public:
   }
   
   static PathDiagnosticCallPiece *construct(const ExplodedNode *N,
-                                            const CallExit &CE,
+                                            const CallExitEnd &CE,
                                             const SourceManager &SM);
   
   static PathDiagnosticCallPiece *construct(PathPieces &pieces,
@@ -607,12 +607,15 @@ public:
 ///  diagnostic.  It represents an ordered-collection of PathDiagnosticPieces,
 ///  each which represent the pieces of the path.
 class PathDiagnostic : public llvm::FoldingSetNode {
+  const Decl *DeclWithIssue;
   std::string BugType;
   std::string Desc;
   std::string Category;
   std::deque<std::string> OtherDesc;
   PathPieces pathImpl;
   llvm::SmallVector<PathPieces *, 3> pathStack;
+  
+  PathDiagnostic(); // Do not implement.
 public:
   const PathPieces &path;
 
@@ -635,8 +638,10 @@ public:
   void pushActivePath(PathPieces *p) { pathStack.push_back(p); }
   void popActivePath() { if (!pathStack.empty()) pathStack.pop_back(); }
   
-  PathDiagnostic();
-  PathDiagnostic(StringRef bugtype, StringRef desc,
+  //  PathDiagnostic();
+  PathDiagnostic(const Decl *DeclWithIssue,
+                 StringRef bugtype,
+                 StringRef desc,
                  StringRef category);
 
   ~PathDiagnostic();
@@ -644,7 +649,11 @@ public:
   StringRef getDescription() const { return Desc; }
   StringRef getBugType() const { return BugType; }
   StringRef getCategory() const { return Category; }
-  
+
+  /// Return the semantic context where an issue occurred.  If the
+  /// issue occurs along a path, this represents the "central" area
+  /// where the bug manifests.
+  const Decl *getDeclWithIssue() const { return DeclWithIssue; }
 
   typedef std::deque<std::string>::const_iterator meta_iterator;
   meta_iterator meta_begin() const { return OtherDesc.begin(); }

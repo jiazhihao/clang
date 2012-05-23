@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wno-objc-root-class %s
 
 @interface MyClass1 @end
 
@@ -98,4 +98,13 @@
 // rdar://10968158
 @class I; // expected-note {{forward declaration}}
 @implementation I(cat) // expected-error{{cannot find interface declaration}}
+@end
+
+// <rdar://problem/11478173>
+@interface Unrelated
+- foo;
+@end
+
+@interface Blah (Blarg) // expected-error{{cannot find interface declaration for 'Blah'}}
+- foo;
 @end

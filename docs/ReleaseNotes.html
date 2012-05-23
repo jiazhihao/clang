@@ -31,6 +31,7 @@ td {
       <li><a href="#cxxchanges">C++ Language Changes</a></li>
       <li><a href="#objcchanges">Objective-C Language Changes</a></li>
       <li><a href="#apichanges">Internal API Changes</a></li>
+      <li><a href="#pythonchanges">Python Binding Changes</a></li>
     </ul>
   </li>
   <li><a href="#knownproblems">Known Problems</a></li>
@@ -89,7 +90,13 @@ Clang's support for those languages.</p>
 
 <p>New: <code>-Wdangling-else</code>, <code>-Wstrncat-size</code>, ...</p>
 
-<p>Improved: <code>-Wformat</code>, <code>-Wempty-body</code>, ...</p>
+<p>Improved: <code>-Wformat</code>, <code>-Wempty-body</code>,
+<code>-Wliteral-conversion</code>, ...</p>
+
+<h4 id="tooling">Tooling</h4>
+<!-- FIXME: add a link to the tooling documentation once that's written. -->
+<p>Added an API to enable clang-based standalone tools, including initial build
+system integration.</p>
 
 <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
 <h3 id="cchanges">C Language Changes in Clang</h3>
@@ -105,15 +112,20 @@ modes.</p>
 
 <p>All warning and language selection flags which previously accepted
 <code>c1x</code> have been updated to accept <code>c11</code>. The old
-<code>c1x</code> forms have been removed.
+<code>c1x</code> forms have been removed.</p>
+
+<p>Clang 3.1 adds a family of <code>__c11_atomic</code> builtins corresponding
+   directly to the <code>_explict</code> versions of the C11 atomic functions.
+   This means that C11's <code>&lt;stdatomic.h&gt;</code> can be implemented in
+   a small set of trivial macros.  </p>
 
 <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
 <h3 id="cxxchanges">C++ Language Changes in Clang</h3>
 <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
 
 <h4 id="cxx11changes">C++11 Feature Support</h4>
-<p>Clang 3.1 adds support for
-<a href="http://clang.llvm.org/cxx_status.html#cxx11">more of the language
+<p>Clang 3.1 supports
+<a href="http://clang.llvm.org/cxx_status.html#cxx11">most of the language
 features</a> added in the latest ISO C++ standard,
 <a href="http://www.iso.org/iso/iso_catalogue/catalogue_tc/catalogue_detail.htm?csnumber=50372">C++ 2011</a>.
 Use <code>-std=c++11</code> or <code>-std=gnu++11</code> to enable support for
@@ -125,6 +137,9 @@ following are now considered to be of production quality:
   <li>Generalized initializers</li>
   <li>Unrestricted unions</li>
   <li>User-defined literals</li>
+  <li>Forward-declared enumerations</li>
+  <li>Atomics (both libc++'s and libstdc++4.7's <tt>&lt;atomic&gt;</tt> are
+      supported)</li>
 </ul>
 
 <!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
@@ -146,6 +161,40 @@ should help get you past the largest hurdles of upgrading.
 
 <h4 id="api1">API change 1</h4>
 ...
+
+<!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
+<h3 id="pythonchanges">Python Binding Changes</h3>
+<!-- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = -->
+
+The following methods have been added:
+<ul>
+  <li>SourceLocation.from_position (static)</li>
+  <li>SourceLocation.__eq__ and SourceLocation.__ne__</li>
+  <li>SourceRange.__eq__ and SourceRange.__ne__</li>
+  <li>Diagnostic.category_number (property)</li>
+  <li>Diagnostic.category_name (property)</li>
+  <li>Diagnostic.option (property)</li>
+  <li>Diagnostic.disable_option (property)</li>
+  <li>CursorKind.is_translation_unit</li>
+  <li>CursorKind.is_preprocessing</li>
+  <li>CursorKind.is_unexposed</li>
+  <li>Cursor.from_location (static)</li>
+  <li>Cursor.underlying_typedef_type (property)</li>
+  <li>Cursor.enum_type (property)</li>
+  <li>Cursor.objc_type_encoding (property)</li>
+  <li>Cursor.hash</li>
+  <li>TypeKind.spelling</li>
+  <li>Type.argument_types</li>
+  <li>Type.element_type (property)</li>
+  <li>Type.element_count (property)</li>
+  <li>Type.is_function_variadic</li>
+  <li>Type.is_pod</li>
+  <li>Type.get_array_element_type</li>
+  <li>Type.get_array_size</li>
+  <li>Type.__eq__ and Type.__ne__</li>
+  <li>File.from_name (static)</li>
+  <li>File.__str__ and File.__repr__</li>
+</ul>
 
 <!-- ======================================================================= -->
 <h2 id="knownproblems">Significant Known Problems</h2>

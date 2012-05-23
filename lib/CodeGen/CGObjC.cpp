@@ -51,35 +51,36 @@ llvm::Value *CodeGenFunction::EmitObjCStringLiteral(const ObjCStringLiteral *E)
   return llvm::ConstantExpr::getBitCast(C, ConvertType(E->getType()));
 }
 
-/// EmitObjCNumericLiteral - This routine generates code for
-/// the appropriate +[NSNumber numberWith<Type>:] method.
+/// EmitObjCBoxedExpr - This routine generates code to call
+/// the appropriate expression boxing method. This will either be
+/// one of +[NSNumber numberWith<Type>:], or +[NSString stringWithUTF8String:].
 ///
-llvm::Value *CodeGenFunction::EmitObjCNumericLiteral(const ObjCNumericLiteral *E) {
+llvm::Value *
+CodeGenFunction::EmitObjCBoxedExpr(const ObjCBoxedExpr *E) {
   // Generate the correct selector for this literal's concrete type.
-  const Expr *NL = E->getNumber();
+  const Expr *SubExpr = E->getSubExpr();
   // Get the method.
-  const ObjCMethodDecl *Method = E->getObjCNumericLiteralMethod();
-  assert(Method && "NSNumber method is null");
-  Selector Sel = Method->getSelector();
+  const ObjCMethodDecl *BoxingMethod = E->getBoxingMethod();
+  assert(BoxingMethod && "BoxingMethod is null");
+  assert(BoxingMethod->isClassMethod() && "BoxingMethod must be a class method");
+  Selector Sel = BoxingMethod->getSelector();
   
   // Generate a reference to the class pointer, which will be the receiver.
-  QualType ResultType = E->getType(); // should be NSNumber *
-  const ObjCObjectPointerType *InterfacePointerType = 
-    ResultType->getAsObjCInterfacePointerType();
-  ObjCInterfaceDecl *NSNumberDecl = 
-    InterfacePointerType->getObjectType()->getInterface();
+  // Assumes that the method was introduced in the class that should be
+  // messaged (avoids pulling it out of the result type).
   CGObjCRuntime &Runtime = CGM.getObjCRuntime();
-  llvm::Value *Receiver = Runtime.GetClass(Builder, NSNumberDecl);
-
-  const ParmVarDecl *argDecl = *Method->param_begin();
+  const ObjCInterfaceDecl *ClassDecl = BoxingMethod->getClassInterface();
+  llvm::Value *Receiver = Runtime.GetClass(Builder, ClassDecl);
+  
+  const ParmVarDecl *argDecl = *BoxingMethod->param_begin();
   QualType ArgQT = argDecl->getType().getUnqualifiedType();
-  RValue RV = EmitAnyExpr(NL);
+  RValue RV = EmitAnyExpr(SubExpr);
   CallArgList Args;
   Args.add(RV, ArgQT);
-
+  
   RValue result = Runtime.GenerateMessageSend(*this, ReturnValueSlot(), 
-                                              ResultType, Sel, Receiver, Args, 
-                                              NSNumberDecl, Method);
+                                              BoxingMethod->getResultType(), Sel, Receiver, Args, 
+                                              ClassDecl, BoxingMethod);
   return Builder.CreateBitCast(result.getScalarVal(), 
                                ConvertType(E->getType()));
 }
@@ -165,11 +166,12 @@ llvm::Value *CodeGenFunction::EmitObjCCollectionLiteral(const Expr *E,
   llvm::Value *Receiver = Runtime.GetClass(Builder, Class);
 
   // Generate the message send.
-  RValue result = Runtime.GenerateMessageSend(*this, ReturnValueSlot(), 
-                                              MethodWithObjects->getResultType(),
-                                              Sel,
-                                              Receiver, Args, Class,
-                                              MethodWithObjects);
+  RValue result
+    = Runtime.GenerateMessageSend(*this, ReturnValueSlot(), 
+                                  MethodWithObjects->getResultType(),
+                                  Sel,
+                                  Receiver, Args, Class,
+                                  MethodWithObjects);
   return Builder.CreateBitCast(result.getScalarVal(), 
                                ConvertType(E->getType()));
 }
@@ -450,7 +452,7 @@ void CodeGenFunction::StartObjCMethod(const ObjCMethodDecl *OMD,
   args.push_back(OMD->getCmdDecl());
 
   for (ObjCMethodDecl::param_const_iterator PI = OMD->param_begin(),
-       E = OMD->param_end(); PI != E; ++PI)
+         E = OMD->param_end(); PI != E; ++PI)
     args.push_back(*PI);
 
   CurGD = OMD;
@@ -706,7 +708,7 @@ void CodeGenFunction::GenerateObjCGetter(ObjCImplementationDecl *IMP,
   const ObjCPropertyDecl *PD = PID->getPropertyDecl();
   ObjCMethodDecl *OMD = PD->getGetterMethodDecl();
   assert(OMD && "Invalid call to generate getter (empty method)");
-  StartObjCMethod(OMD, IMP->getClassInterface(), PID->getLocStart());
+  StartObjCMethod(OMD, IMP->getClassInterface(), OMD->getLocStart());
 
   generateObjCGetterBody(IMP, PID, AtomicHelperFn);
 
@@ -857,7 +859,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
     // always objects so we don't need to worry about complex or
     // aggregates.
     RV = RValue::get(Builder.CreateBitCast(RV.getScalarVal(),
-                                           getTypes().ConvertType(propType)));
+           getTypes().ConvertType(getterMethod->getResultType())));
 
     EmitReturnOfRValue(RV, propType);
 
@@ -1090,8 +1092,9 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
     if (UseOptimizedSetter(CGM)) {
       // 10.8 code and GC is off
       setOptimizedPropertyFn = 
-        CGM.getObjCRuntime().GetOptimizedPropertySetFunction(strategy.isAtomic(),
-                                                             strategy.isCopy());
+        CGM.getObjCRuntime()
+           .GetOptimizedPropertySetFunction(strategy.isAtomic(),
+                                            strategy.isCopy());
       if (!setOptimizedPropertyFn) {
         CGM.ErrorUnsupported(propImpl, "Obj-C optimized setter - NYI");
         return;
@@ -1213,7 +1216,7 @@ void CodeGenFunction::GenerateObjCSetter(ObjCImplementationDecl *IMP,
   const ObjCPropertyDecl *PD = PID->getPropertyDecl();
   ObjCMethodDecl *OMD = PD->getSetterMethodDecl();
   assert(OMD && "Invalid call to generate setter (empty method)");
-  StartObjCMethod(OMD, IMP->getClassInterface(), PID->getLocStart());
+  StartObjCMethod(OMD, IMP->getClassInterface(), OMD->getLocStart());
 
   generateObjCSetterBody(IMP, PID, AtomicHelperFn);
 
@@ -2704,7 +2707,7 @@ CodeGenFunction::EmitARCStoreAutoreleasing(const BinaryOperator *e) {
 }
 
 void CodeGenFunction::EmitObjCAutoreleasePoolStmt(
-                                             const ObjCAutoreleasePoolStmt &ARPS) {
+                                          const ObjCAutoreleasePoolStmt &ARPS) {
   const Stmt *subStmt = ARPS.getSubStmt();
   const CompoundStmt &S = cast<CompoundStmt>(*subStmt);
 
@@ -2779,7 +2782,7 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
                                           SC_Static,
                                           SC_None,
                                           false,
-                                          true);
+                                          false);
   
   QualType DestTy = C.getPointerType(Ty);
   QualType SrcTy = Ty;
@@ -2801,7 +2804,8 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   
   llvm::Function *Fn =
     llvm::Function::Create(LTy, llvm::GlobalValue::InternalLinkage,
-                           "__assign_helper_atomic_property_", &CGM.getModule());
+                           "__assign_helper_atomic_property_",
+                           &CGM.getModule());
   
   if (CGM.getModuleDebugInfo())
     DebugInfo = CGM.getModuleDebugInfo();
@@ -2864,7 +2868,7 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
                                           SC_Static,
                                           SC_None,
                                           false,
-                                          true);
+                                          false);
   
   QualType DestTy = C.getPointerType(Ty);
   QualType SrcTy = Ty;
@@ -2920,13 +2924,15 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
                              CXXConstExpr->hadMultipleCandidates(),
                              CXXConstExpr->isListInitialization(),
                              CXXConstExpr->requiresZeroInitialization(),
-                             CXXConstExpr->getConstructionKind(), SourceRange());
+                             CXXConstExpr->getConstructionKind(),
+                             SourceRange());
   
   DeclRefExpr DstExpr(&dstDecl, false, DestTy,
                       VK_RValue, SourceLocation());
   
   RValue DV = EmitAnyExpr(&DstExpr);
-  CharUnits Alignment = getContext().getTypeAlignInChars(TheCXXConstructExpr->getType());
+  CharUnits Alignment
+    = getContext().getTypeAlignInChars(TheCXXConstructExpr->getType());
   EmitAggExpr(TheCXXConstructExpr, 
               AggValueSlot::forAddr(DV.getScalarVal(), Alignment, Qualifiers(),
                                     AggValueSlot::IsDestructed,

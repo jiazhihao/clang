@@ -16,6 +16,7 @@
 namespace clang {
   class ASTContext;
   class QualType;
+  class Expr;
 
 // \brief Provides info and caches identifiers/selectors for NSFoundation API.
 class NSAPI {
@@ -25,6 +26,7 @@ public:
   ASTContext &getASTContext() const { return Ctx; }
 
   enum NSClassIdKindKind {
+    ClassId_NSObject,
     ClassId_NSString,
     ClassId_NSArray,
     ClassId_NSMutableArray,
@@ -32,18 +34,36 @@ public:
     ClassId_NSMutableDictionary,
     ClassId_NSNumber
   };
-  static const unsigned NumClassIds = 6;
+  static const unsigned NumClassIds = 7;
 
   enum NSStringMethodKind {
     NSStr_stringWithString,
+    NSStr_stringWithUTF8String,
+    NSStr_stringWithCStringEncoding,
+    NSStr_stringWithCString,
     NSStr_initWithString
   };
-  static const unsigned NumNSStringMethods = 2;
+  static const unsigned NumNSStringMethods = 5;
 
   IdentifierInfo *getNSClassId(NSClassIdKindKind K) const;
 
   /// \brief The Objective-C NSString selectors.
   Selector getNSStringSelector(NSStringMethodKind MK) const;
+
+  /// \brief Return NSStringMethodKind if \param Sel is such a selector.
+  llvm::Optional<NSStringMethodKind> getNSStringMethodKind(Selector Sel) const;
+
+  /// \brief Returns true if the expression \param E is a reference of
+  /// "NSUTF8StringEncoding" enum constant.
+  bool isNSUTF8StringEncodingConstant(const Expr *E) const {
+    return isObjCEnumerator(E, "NSUTF8StringEncoding", NSUTF8StringEncodingId);
+  }
+
+  /// \brief Returns true if the expression \param E is a reference of
+  /// "NSASCIIStringEncoding" enum constant.
+  bool isNSASCIIStringEncodingConstant(const Expr *E) const {
+    return isObjCEnumerator(E, "NSASCIIStringEncoding",NSASCIIStringEncodingId);
+  }
 
   /// \brief Enumerates the NSArray methods used to generate literals.
   enum NSArrayMethodKind {
@@ -125,10 +145,21 @@ public:
 
   /// \brief Determine the appropriate NSNumber factory method kind for a
   /// literal of the given type.
-  static llvm::Optional<NSNumberLiteralMethodKind>
-      getNSNumberFactoryMethodKind(QualType T);
+  llvm::Optional<NSNumberLiteralMethodKind>
+      getNSNumberFactoryMethodKind(QualType T) const;
+
+  /// \brief Returns true if \param T is a typedef of "BOOL" in objective-c.
+  bool isObjCBOOLType(QualType T) const;
+  /// \brief Returns true if \param T is a typedef of "NSInteger" in objective-c.
+  bool isObjCNSIntegerType(QualType T) const;
+  /// \brief Returns true if \param T is a typedef of "NSUInteger" in objective-c.
+  bool isObjCNSUIntegerType(QualType T) const;
 
 private:
+  bool isObjCTypedef(QualType T, StringRef name, IdentifierInfo *&II) const;
+  bool isObjCEnumerator(const Expr *E,
+                        StringRef name, IdentifierInfo *&II) const;
+
   ASTContext &Ctx;
 
   mutable IdentifierInfo *ClassIds[NumClassIds];
@@ -144,6 +175,9 @@ private:
   /// \brief The Objective-C NSNumber selectors used to create NSNumber literals.
   mutable Selector NSNumberClassSelectors[NumNSNumberLiteralMethods];
   mutable Selector NSNumberInstanceSelectors[NumNSNumberLiteralMethods];
+
+  mutable IdentifierInfo *BOOLId, *NSIntegerId, *NSUIntegerId;
+  mutable IdentifierInfo *NSASCIIStringEncodingId, *NSUTF8StringEncodingId;
 };
 
 }  // end namespace clang

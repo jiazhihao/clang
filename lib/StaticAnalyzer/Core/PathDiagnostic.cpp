@@ -55,13 +55,16 @@ PathDiagnosticEventPiece::~PathDiagnosticEventPiece() {}
 PathDiagnosticCallPiece::~PathDiagnosticCallPiece() {}
 PathDiagnosticControlFlowPiece::~PathDiagnosticControlFlowPiece() {}
 PathDiagnosticMacroPiece::~PathDiagnosticMacroPiece() {}
-PathDiagnostic::PathDiagnostic() : path(pathImpl) {}
+
+
 PathPieces::~PathPieces() {}
 PathDiagnostic::~PathDiagnostic() {}
 
-PathDiagnostic::PathDiagnostic(StringRef bugtype, StringRef desc,
+PathDiagnostic::PathDiagnostic(const Decl *declWithIssue,
+                               StringRef bugtype, StringRef desc,
                                StringRef category)
-  : BugType(StripTrailingDots(bugtype)),
+  : DeclWithIssue(declWithIssue),
+    BugType(StripTrailingDots(bugtype)),
     Desc(StripTrailingDots(desc)),
     Category(StripTrailingDots(category)),
     path(pathImpl) {}
@@ -507,9 +510,9 @@ static PathDiagnosticLocation getLastStmtLoc(const ExplodedNode *N,
 
 PathDiagnosticCallPiece *
 PathDiagnosticCallPiece::construct(const ExplodedNode *N,
-                                   const CallExit &CE,
+                                   const CallExitEnd &CE,
                                    const SourceManager &SM) {
-  const Decl *caller = CE.getLocationContext()->getParent()->getDecl();
+  const Decl *caller = CE.getLocationContext()->getDecl();
   PathDiagnosticLocation pos = getLastStmtLoc(N, SM);
   return new PathDiagnosticCallPiece(caller, pos);
 }
@@ -664,16 +667,13 @@ StackHintGenerator::~StackHintGenerator() {}
 
 std::string StackHintGeneratorForSymbol::getMessage(const ExplodedNode *N){
   ProgramPoint P = N->getLocation();
-  const CallExit *CExit = dyn_cast<CallExit>(&P);
-  assert(CExit && "Stack Hints should be constructed at CallExit points.");
+  const CallExitEnd *CExit = dyn_cast<CallExitEnd>(&P);
+  assert(CExit && "Stack Hints should be constructed at CallExitEnd points.");
 
   const CallExpr *CE = dyn_cast_or_null<CallExpr>(CExit->getStmt());
   if (!CE)
     return "";
 
-  // Get the successor node to make sure the return statement is evaluated and
-  // CE is set to the result value.
-  N = *N->succ_begin();
   if (!N)
     return getMessageForSymbolNotFound();
 

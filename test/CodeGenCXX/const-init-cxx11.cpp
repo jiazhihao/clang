@@ -49,6 +49,17 @@ namespace StructUnion {
 
   // CHECK: @_ZN11StructUnion1fE = global {{.*}} { i32 5 }
   D f;
+
+  union E {
+    int a;
+    void *b = &f;
+  };
+
+  // CHECK: @_ZN11StructUnion1gE = global {{.*}} @_ZN11StructUnion1fE
+  E g;
+
+  // CHECK: @_ZN11StructUnion1hE = global {{.*}} @_ZN11StructUnion1fE
+  E h = E();
 }
 
 namespace BaseClass {
@@ -78,6 +89,11 @@ namespace BaseClass {
   struct Test2 : X<E,0>, X<E,1>, X<E,2>, X<E,3> {};
   // CHECK: @_ZN9BaseClass2t2E = constant {{.*}} undef
   extern constexpr Test2 t2 = Test2();
+
+  struct __attribute((packed)) PackedD { double y = 2; };
+  struct Test3 : C, PackedD { constexpr Test3() {} };
+  // CHECK: @_ZN9BaseClass2t3E = constant <{ i8, double }> <{ i8 1, double 2.000000e+00 }>
+  extern constexpr Test3 t3 = Test3();
 }
 
 namespace Array {
@@ -86,6 +102,9 @@ namespace Array {
 
   // CHECK: @_ZN5Array1cE = constant [6 x [4 x i8]] [{{.*}} c"foo\00", [4 x i8] c"a\00\00\00", [4 x i8] c"bar\00", [4 x i8] c"xyz\00", [4 x i8] c"b\00\00\00", [4 x i8] c"123\00"]
   extern constexpr char c[6][4] = { "foo", "a", { "bar" }, { 'x', 'y', 'z' }, { "b" }, '1', '2', '3' };
+
+  // CHECK: @_ZN5Array2ucE = constant [4 x i8] c"foo\00"
+  extern constexpr unsigned char uc[] = { "foo" };
 
   struct C { constexpr C() : n(5) {} int n, m = 3 * n + 1; };
   // CHECK: @_ZN5Array5ctorsE = constant [3 x {{.*}}] [{{.*}} { i32 5, i32 16 }, {{.*}} { i32 5, i32 16 }, {{.*}} { i32 5, i32 16 }]
@@ -408,4 +427,13 @@ namespace InitFromConst {
     // CHECK: call void @_ZN13InitFromConst7consumeIPKiEEvT_(i32* getelementptr inbounds ([3 x i32]* @_ZN13InitFromConstL1aE, i32 0, i32 0))
     consume(a);
   }
+}
+
+namespace Null {
+  decltype(nullptr) null();
+  // CHECK: call {{.*}} @_ZN4Null4nullEv(
+  int *p = null();
+  struct S {};
+  // CHECK: call {{.*}} @_ZN4Null4nullEv(
+  int S::*q = null();
 }

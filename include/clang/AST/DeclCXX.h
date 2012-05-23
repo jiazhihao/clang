@@ -357,6 +357,9 @@ class CXXRecordDecl : public RecordDecl {
     /// \brief True if there no non-field members declared by the user.
     bool HasOnlyCMembers : 1;
 
+    /// \brief True if any field has an in-class initializer.
+    bool HasInClassInitializer : 1;
+
     /// HasTrivialDefaultConstructor - True when, if this class has a default
     /// constructor, this default constructor is trivial.
     ///
@@ -621,7 +624,7 @@ class CXXRecordDecl : public RecordDecl {
            "queried lambda property of non-lambda class");
     return static_cast<LambdaDefinitionData &>(*DefinitionData);
   }
-
+  
   /// \brief The template or declaration that this declaration
   /// describes or was instantiated from, respectively.
   ///
@@ -1040,6 +1043,10 @@ public:
   /// no base classes, and no virtual functions (C++ [dcl.init.aggr]p1).
   bool isAggregate() const { return data().Aggregate; }
 
+  /// hasInClassInitializer - Whether this class has any in-class initializers
+  /// for non-static data members.
+  bool hasInClassInitializer() const { return data().HasInClassInitializer; }
+
   /// isPOD - Whether this class is a POD-type (C++ [class]p4), which is a class
   /// that is an aggregate that has no non-static non-POD data members, no
   /// reference data members, no user-defined copy assignment operator and no
@@ -1091,7 +1098,8 @@ public:
   /// defaultedDefaultConstructorIsConstexpr - Whether a defaulted default
   /// constructor for this class would be constexpr.
   bool defaultedDefaultConstructorIsConstexpr() const {
-    return data().DefaultedDefaultConstructorIsConstexpr;
+    return data().DefaultedDefaultConstructorIsConstexpr &&
+           (!isUnion() || hasInClassInitializer());
   }
 
   /// defaultedCopyConstructorIsConstexpr - Whether a defaulted copy
@@ -1111,7 +1119,7 @@ public:
   bool hasConstexprDefaultConstructor() const {
     return data().HasConstexprDefaultConstructor ||
            (!data().UserDeclaredConstructor &&
-            data().DefaultedDefaultConstructorIsConstexpr && isLiteral());
+            defaultedDefaultConstructorIsConstexpr() && isLiteral());
   }
 
   /// hasConstexprCopyConstructor - Whether this class has a constexpr copy
@@ -1503,6 +1511,13 @@ public:
     return getLambdaData().ContextDecl;    
   }
   
+  /// \brief Set the mangling number and context declaration for a lambda
+  /// class.
+  void setLambdaMangling(unsigned ManglingNumber, Decl *ContextDecl) {
+    getLambdaData().ManglingNumber = ManglingNumber;
+    getLambdaData().ContextDecl = ContextDecl;
+  }
+
   /// \brief Determine whether this lambda expression was known to be dependent
   /// at the time it was created, even if its context does not appear to be
   /// dependent.
@@ -1595,8 +1610,8 @@ public:
     return cast<CXXMethodDecl>(FunctionDecl::getCanonicalDecl());
   }
 
-  /// isUserProvided - True if it is either an implicit constructor or
-  /// if it was defaulted or deleted on first declaration.
+  /// isUserProvided - True if this method is user-declared and was not
+  /// deleted or defaulted on its first declaration.
   bool isUserProvided() const {
     return !(isDeleted() || getCanonicalDecl()->isDefaulted());
   }

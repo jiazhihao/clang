@@ -150,6 +150,15 @@ private:
   /// "standard" position, a enum SelectorLocationsKind.
   unsigned SelLocsKind : 2;
 
+  /// \brief Whether this method overrides any other in the class hierarchy.
+  ///
+  /// A method is said to override any method in the class's
+  /// base classes, its protocols, or its categories' protocols, that has
+  /// the same selector and is of the same kind (class or instance).
+  /// A method in an implementation is not considered as overriding the same
+  /// method in the interface or its categories.
+  unsigned IsOverriding : 1;
+
   // Result type of this method.
   QualType MethodDeclType;
 
@@ -230,7 +239,7 @@ private:
     IsDefined(isDefined), IsRedeclaration(0), HasRedeclaration(0),
     DeclImplementation(impControl), objcDeclQualifier(OBJC_TQ_None),
     RelatedResultType(HasRelatedResultType),
-    SelLocsKind(SelLoc_StandardNoSpace),
+    SelLocsKind(SelLoc_StandardNoSpace), IsOverriding(0),
     MethodDeclType(T), ResultTInfo(ResultTInfo),
     ParamsAndSelLocs(0), NumParams(0),
     EndLoc(endLoc), Body(0), SelfDecl(0), CmdDecl(0) {
@@ -396,6 +405,16 @@ public:
   bool isDefined() const { return IsDefined; }
   void setDefined(bool isDefined) { IsDefined = isDefined; }
 
+  /// \brief Whether this method overrides any other in the class hierarchy.
+  ///
+  /// A method is said to override any method in the class's
+  /// base classes, its protocols, or its categories' protocols, that has
+  /// the same selector and is of the same kind (class or instance).
+  /// A method in an implementation is not considered as overriding the same
+  /// method in the interface or its categories.
+  bool isOverriding() const { return IsOverriding; }
+  void setOverriding(bool isOverriding) { IsOverriding = isOverriding; }
+  
   // Related to protocols declared in  @protocol
   void setDeclImplementation(ImplementationControl ic) {
     DeclImplementation = ic;
@@ -901,14 +920,14 @@ public:
   // Lookup a method. First, we search locally. If a method isn't
   // found, we search referenced protocols and class categories.
   ObjCMethodDecl *lookupMethod(Selector Sel, bool isInstance,
-                               bool noCategoryLookup= false) const;
+                               bool shallowCategoryLookup= false) const;
   ObjCMethodDecl *lookupInstanceMethod(Selector Sel,
-                                       bool noCategoryLookup = false) const {
-    return lookupMethod(Sel, true/*isInstance*/, noCategoryLookup);
+                            bool shallowCategoryLookup = false) const {
+    return lookupMethod(Sel, true/*isInstance*/, shallowCategoryLookup);
   }
   ObjCMethodDecl *lookupClassMethod(Selector Sel,
-                                    bool noCategoryLookup = false) const {
-    return lookupMethod(Sel, false/*isInstance*/, noCategoryLookup);
+                     bool shallowCategoryLookup = false) const {
+    return lookupMethod(Sel, false/*isInstance*/, shallowCategoryLookup);
   }
   ObjCInterfaceDecl *lookupInheritedClass(const IdentifierInfo *ICName);
 

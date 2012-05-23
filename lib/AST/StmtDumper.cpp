@@ -166,6 +166,7 @@ namespace  {
     void VisitObjCAtCatchStmt(ObjCAtCatchStmt *Node);
     void VisitObjCEncodeExpr(ObjCEncodeExpr *Node);
     void VisitObjCMessageExpr(ObjCMessageExpr* Node);
+    void VisitObjCBoxedExpr(ObjCBoxedExpr* Node);
     void VisitObjCSelectorExpr(ObjCSelectorExpr *Node);
     void VisitObjCProtocolExpr(ObjCProtocolExpr *Node);
     void VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *Node);
@@ -637,6 +638,11 @@ void StmtDumper::VisitObjCMessageExpr(ObjCMessageExpr* Node) {
   }
 }
 
+void StmtDumper::VisitObjCBoxedExpr(ObjCBoxedExpr* Node) {
+  DumpExpr(Node);
+  OS << " selector=" << Node->getBoxingMethod()->getSelector().getAsString();
+}
+
 void StmtDumper::VisitObjCAtCatchStmt(ObjCAtCatchStmt *Node) {
   DumpStmt(Node);
   if (VarDecl *CatchParam = Node->getCatchParamDecl()) {
@@ -686,6 +692,14 @@ void StmtDumper::VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *Node) {
 
   if (Node->isSuperReceiver())
     OS << " super";
+
+  OS << " Messaging=";
+  if (Node->isMessagingGetter() && Node->isMessagingSetter())
+    OS << "Getter&Setter";
+  else if (Node->isMessagingGetter())
+    OS << "Getter";
+  else if (Node->isMessagingSetter())
+    OS << "Setter";
 }
 
 void StmtDumper::VisitObjCSubscriptRefExpr(ObjCSubscriptRefExpr *Node) {

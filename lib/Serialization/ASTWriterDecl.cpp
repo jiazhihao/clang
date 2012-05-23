@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Serialization/ASTWriter.h"
+#include "clang/Serialization/ASTReader.h"
 #include "ASTCommon.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/AST/DeclCXX.h"
@@ -416,6 +417,7 @@ void ASTDeclWriter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
   Record.push_back(D->isVariadic());
   Record.push_back(D->isSynthesized());
   Record.push_back(D->isDefined());
+  Record.push_back(D->IsOverriding);
 
   Record.push_back(D->IsRedeclaration);
   Record.push_back(D->HasRedeclaration);
@@ -774,6 +776,9 @@ void ASTDeclWriter::VisitBlockDecl(BlockDecl *D) {
   for (FunctionDecl::param_iterator P = D->param_begin(), PEnd = D->param_end();
        P != PEnd; ++P)
     Writer.AddDeclRef(*P, Record);
+  Record.push_back(D->isVariadic());
+  Record.push_back(D->blockMissingReturnType());
+  Record.push_back(D->isConversionFromLambda());
   Record.push_back(D->capturesCXXThis());
   Record.push_back(D->getNumCaptures());
   for (BlockDecl::capture_iterator
@@ -1050,7 +1055,7 @@ void ASTDeclWriter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
   VisitRedeclarableTemplateDecl(D);
 
   if (D->isFirstDeclaration()) {
-    typedef llvm::FoldingSet<ClassTemplateSpecializationDecl> CTSDSetTy;
+    typedef llvm::FoldingSetVector<ClassTemplateSpecializationDecl> CTSDSetTy;
     CTSDSetTy &CTSDSet = D->getSpecializations();
     Record.push_back(CTSDSet.size());
     for (CTSDSetTy::iterator I=CTSDSet.begin(), E = CTSDSet.end(); I!=E; ++I) {
@@ -1058,7 +1063,8 @@ void ASTDeclWriter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
       Writer.AddDeclRef(&*I, Record);
     }
 
-    typedef llvm::FoldingSet<ClassTemplatePartialSpecializationDecl> CTPSDSetTy;
+    typedef llvm::FoldingSetVector<ClassTemplatePartialSpecializationDecl>
+      CTPSDSetTy;
     CTPSDSetTy &CTPSDSet = D->getPartialSpecializations();
     Record.push_back(CTPSDSet.size());
     for (CTPSDSetTy::iterator I=CTPSDSet.begin(), E=CTPSDSet.end(); I!=E; ++I) {
@@ -1142,7 +1148,7 @@ void ASTDeclWriter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
 
     // Write the function specialization declarations.
     Record.push_back(D->getSpecializations().size());
-    for (llvm::FoldingSet<FunctionTemplateSpecializationInfo>::iterator
+    for (llvm::FoldingSetVector<FunctionTemplateSpecializationInfo>::iterator
            I = D->getSpecializations().begin(),
            E = D->getSpecializations().end()   ; I != E; ++I) {
       assert(I->Function->isCanonicalDecl() &&
@@ -1640,19 +1646,6 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
   RecordData Record;
   ASTDeclWriter W(*this, Context, Record);
 
-  // If this declaration is also a DeclContext, write blocks for the
-  // declarations that lexically stored inside its context and those
-  // declarations that are visible from its context. These blocks
-  // are written before the declaration itself so that we can put
-  // their offsets into the record for the declaration.
-  uint64_t LexicalOffset = 0;
-  uint64_t VisibleOffset = 0;
-  DeclContext *DC = dyn_cast<DeclContext>(D);
-  if (DC) {
-    LexicalOffset = WriteDeclContextLexicalBlock(Context, DC);
-    VisibleOffset = WriteDeclContextVisibleBlock(Context, DC);
-  }
-
   // Determine the ID for this declaration.
   serialization::DeclID ID;
   if (D->isFromASTFile())
@@ -1664,8 +1657,31 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
     
     ID= IDR;
   }
+
+  bool isReplacingADecl = ID < FirstDeclID;
+
+  // If this declaration is also a DeclContext, write blocks for the
+  // declarations that lexically stored inside its context and those
+  // declarations that are visible from its context. These blocks
+  // are written before the declaration itself so that we can put
+  // their offsets into the record for the declaration.
+  uint64_t LexicalOffset = 0;
+  uint64_t VisibleOffset = 0;
+  DeclContext *DC = dyn_cast<DeclContext>(D);
+  if (DC) {
+    if (isReplacingADecl) {
+      // It is replacing a decl from a chained PCH; make sure that the
+      // DeclContext is fully loaded.
+      if (DC->hasExternalLexicalStorage())
+        DC->LoadLexicalDeclsFromExternalStorage();
+      if (DC->hasExternalVisibleStorage())
+        Chain->completeVisibleDeclsMap(DC);
+    }
+    LexicalOffset = WriteDeclContextLexicalBlock(Context, DC);
+    VisibleOffset = WriteDeclContextVisibleBlock(Context, DC);
+  }
   
-  if (ID < FirstDeclID) {
+  if (isReplacingADecl) {
     // We're replacing a decl in a previous file.
     ReplacedDecls.push_back(ReplacedDeclInfo(ID, Stream.GetCurrentBitNo(),
                                              D->getLocation()));

@@ -65,3 +65,12 @@ add_clang_unittest(Frontend
   Frontend/FrontendActionTest.cpp
   USED_LIBS gtest gtest_main clangFrontend
  )
+
+add_clang_unittest(Tooling
+  Tooling/CompilationDatabaseTest.cpp
+  Tooling/ToolingTest.cpp
+  Tooling/RecursiveASTVisitorTest.cpp
+  Tooling/RefactoringTest.cpp
+  Tooling/RewriterTest.cpp
+  USED_LIBS gtest gtest_main clangAST clangTooling clangRewrite
+ )

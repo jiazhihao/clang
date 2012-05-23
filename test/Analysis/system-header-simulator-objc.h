@@ -39,6 +39,7 @@ typedef struct _NSZone NSZone;
 @protocol NSObject
 - (BOOL)isEqual:(id)object;
 - (id)retain;
+- (id)copy;
 - (oneway void)release;
 - (id)autorelease;
 - (id)init;
@@ -111,3 +112,5 @@ extern void CFRelease(CFTypeRef cf);
 extern CFMutableStringRef CFStringCreateMutableWithExternalCharactersNoCopy(CFAllocatorRef alloc, UniChar *chars, CFIndex numChars, CFIndex capacity, CFAllocatorRef externalCharactersAllocator);
 extern CFStringRef CFStringCreateWithCStringNoCopy(CFAllocatorRef alloc, const char *cStr, CFStringEncoding encoding, CFAllocatorRef contentsDeallocator);
 extern void CFStringAppend(CFMutableStringRef theString, CFStringRef appendedString);
+
+void SystemHeaderFunctionWithBlockParam(void *, void (^block)(void *), unsigned);

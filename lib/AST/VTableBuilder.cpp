@@ -409,7 +409,7 @@ void FinalOverriders::dump(raw_ostream &Out, BaseSubobject Base,
   // Now dump the overriders for this base subobject.
   for (CXXRecordDecl::method_iterator I = RD->method_begin(), 
        E = RD->method_end(); I != E; ++I) {
-    const CXXMethodDecl *MD = *I;
+    const CXXMethodDecl *MD = &*I;
 
     if (!MD->isVirtual())
       continue;
@@ -466,10 +466,10 @@ public:
 
 static bool HasSameVirtualSignature(const CXXMethodDecl *LHS,
                                     const CXXMethodDecl *RHS) {
-  ASTContext &C = LHS->getASTContext(); // TODO: thread this down
-  CanQual<FunctionProtoType>
-    LT = C.getCanonicalType(LHS->getType()).getAs<FunctionProtoType>(),
-    RT = C.getCanonicalType(RHS->getType()).getAs<FunctionProtoType>();
+  const FunctionProtoType *LT =
+    cast<FunctionProtoType>(LHS->getType().getCanonicalType());
+  const FunctionProtoType *RT =
+    cast<FunctionProtoType>(RHS->getType().getCanonicalType());
 
   // Fast-path matches in the canonical types.
   if (LT == RT) return true;
@@ -477,7 +477,7 @@ static bool HasSameVirtualSignature(const CXXMethodDecl *LHS,
   // Force the signatures to match.  We can't rely on the overrides
   // list here because there isn't necessarily an inheritance
   // relationship between the two methods.
-  if (LT.getQualifiers() != RT.getQualifiers() ||
+  if (LT->getTypeQuals() != RT->getTypeQuals() ||
       LT->getNumArgs() != RT->getNumArgs())
     return false;
   for (unsigned I = 0, E = LT->getNumArgs(); I != E; ++I)
@@ -692,7 +692,7 @@ void VCallAndVBaseOffsetBuilder::AddVCallOffsets(BaseSubobject Base,
   // Add the vcall offsets.
   for (CXXRecordDecl::method_iterator I = RD->method_begin(),
        E = RD->method_end(); I != E; ++I) {
-    const CXXMethodDecl *MD = *I;
+    const CXXMethodDecl *MD = &*I;
     
     if (!MD->isVirtual())
       continue;
@@ -1469,7 +1469,7 @@ VTableBuilder::AddMethods(BaseSubobject Base, CharUnits BaseOffsetInLayoutClass,
   // Now go through all virtual member functions and add them.
   for (CXXRecordDecl::method_iterator I = RD->method_begin(),
        E = RD->method_end(); I != E; ++I) {
-    const CXXMethodDecl *MD = *I;
+    const CXXMethodDecl *MD = &*I;
   
     if (!MD->isVirtual())
       continue;
@@ -2105,7 +2105,7 @@ void VTableBuilder::dumpLayout(raw_ostream& Out) {
 
   for (CXXRecordDecl::method_iterator i = MostDerivedClass->method_begin(),
        e = MostDerivedClass->method_end(); i != e; ++i) {
-    const CXXMethodDecl *MD = *i;
+    const CXXMethodDecl *MD = &*i;
     
     // We only want virtual member functions.
     if (!MD->isVirtual())
@@ -2157,13 +2157,12 @@ VTableLayout::VTableLayout(uint64_t NumVTableComponents,
     VTableThunks(new VTableThunkTy[NumVTableThunks]),
     AddressPoints(AddressPoints) {
   std::copy(VTableComponents, VTableComponents+NumVTableComponents,
-            this->VTableComponents);
-  std::copy(VTableThunks, VTableThunks+NumVTableThunks, this->VTableThunks);
+            this->VTableComponents.get());
+  std::copy(VTableThunks, VTableThunks+NumVTableThunks,
+            this->VTableThunks.get());
 }
 
-VTableLayout::~VTableLayout() {
-  delete[] VTableComponents;
-}
+VTableLayout::~VTableLayout() { }
 
 VTableContext::~VTableContext() {
   llvm::DeleteContainerSeconds(VTableLayouts);
@@ -2218,7 +2217,7 @@ void VTableContext::ComputeMethodVTableIndices(const CXXRecordDecl *RD) {
   
   for (CXXRecordDecl::method_iterator i = RD->method_begin(),
        e = RD->method_end(); i != e; ++i) {
-    const CXXMethodDecl *MD = *i;
+    const CXXMethodDecl *MD = &*i;
 
     // We only want virtual methods.
     if (!MD->isVirtual())

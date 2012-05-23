@@ -273,11 +273,23 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   llvm::Value *&DMEntry = LocalDeclMap[&D];
   assert(DMEntry == 0 && "Decl already exists in localdeclmap!");
 
-  llvm::GlobalVariable *GV = CreateStaticVarDecl(D, ".", Linkage);
+  // Check to see if we already have a global variable for this
+  // declaration.  This can happen when double-emitting function
+  // bodies, e.g. with complete and base constructors.
+  llvm::Constant *addr =
+    CGM.getStaticLocalDeclAddress(&D);
+
+  llvm::GlobalVariable *var;
+  if (addr) {
+    var = cast<llvm::GlobalVariable>(addr->stripPointerCasts());
+  } else {
+    addr = var = CreateStaticVarDecl(D, ".", Linkage);
+  }
 
   // Store into LocalDeclMap before generating initializer to handle
   // circular references.
-  DMEntry = GV;
+  DMEntry = addr;
+  CGM.setStaticLocalDeclAddress(&D, addr);
 
   // We can't have a VLA here, but we can have a pointer to a VLA,
   // even though that doesn't really make any sense.
@@ -285,42 +297,39 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (D.getType()->isVariablyModifiedType())
     EmitVariablyModifiedType(D.getType());
 
-  // Local static block variables must be treated as globals as they may be
-  // referenced in their RHS initializer block-literal expresion.
-  CGM.setStaticLocalDeclAddress(&D, GV);
+  // Save the type in case adding the initializer forces a type change.
+  llvm::Type *expectedType = addr->getType();
 
   // If this value has an initializer, emit it.
   if (D.getInit())
-    GV = AddInitializerToStaticVarDecl(D, GV);
+    var = AddInitializerToStaticVarDecl(D, var);
 
-  GV->setAlignment(getContext().getDeclAlign(&D).getQuantity());
+  var->setAlignment(getContext().getDeclAlign(&D).getQuantity());
 
   if (D.hasAttr<AnnotateAttr>())
-    CGM.AddGlobalAnnotations(&D, GV);
+    CGM.AddGlobalAnnotations(&D, var);
 
   if (const SectionAttr *SA = D.getAttr<SectionAttr>())
-    GV->setSection(SA->getName());
+    var->setSection(SA->getName());
 
   if (D.hasAttr<UsedAttr>())
-    CGM.AddUsedGlobal(GV);
+    CGM.AddUsedGlobal(var);
 
   // We may have to cast the constant because of the initializer
   // mismatch above.
   //
   // FIXME: It is really dangerous to store this in the map; if anyone
   // RAUW's the GV uses of this constant will be invalid.
-  llvm::Type *LTy = CGM.getTypes().ConvertTypeForMem(D.getType());
-  llvm::Type *LPtrTy =
-    LTy->getPointerTo(CGM.getContext().getTargetAddressSpace(D.getType()));
-  llvm::Constant *CastedVal = llvm::ConstantExpr::getBitCast(GV, LPtrTy);
-  DMEntry = CastedVal;
-  CGM.setStaticLocalDeclAddress(&D, CastedVal);
+  llvm::Constant *castedAddr = llvm::ConstantExpr::getBitCast(var, expectedType);
+  DMEntry = castedAddr;
+  CGM.setStaticLocalDeclAddress(&D, castedAddr);
 
   // Emit global variable debug descriptor for static vars.
   CGDebugInfo *DI = getDebugInfo();
-  if (DI) {
+  if (DI &&
+      CGM.getCodeGenOpts().DebugInfo >= CodeGenOptions::LimitedDebugInfo) {
     DI->setLocation(D.getLocation());
-    DI->EmitGlobalVariable(static_cast<llvm::GlobalVariable *>(GV), &D);
+    DI->EmitGlobalVariable(var, &D);
   }
 }
 
@@ -889,11 +898,14 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
   // Emit debug info for local var declaration.
   if (HaveInsertPoint())
     if (CGDebugInfo *DI = getDebugInfo()) {
-      DI->setLocation(D.getLocation());
-      if (Target.useGlobalsForAutomaticVariables()) {
-        DI->EmitGlobalVariable(static_cast<llvm::GlobalVariable *>(DeclPtr), &D);
-      } else
-        DI->EmitDeclareOfAutoVariable(&D, DeclPtr, Builder);
+      if (CGM.getCodeGenOpts().DebugInfo >= CodeGenOptions::LimitedDebugInfo) {
+        DI->setLocation(D.getLocation());
+        if (Target.useGlobalsForAutomaticVariables()) {
+          DI->EmitGlobalVariable(static_cast<llvm::GlobalVariable *>(DeclPtr),
+                                 &D);
+        } else
+          DI->EmitDeclareOfAutoVariable(&D, DeclPtr, Builder);
+      }
     }
 
   if (D.hasAttr<AnnotateAttr>())
@@ -1162,6 +1174,10 @@ void CodeGenFunction::EmitAutoVarCleanups(const AutoVarEmission &emission) {
 
   // If this was emitted as a global constant, we're done.
   if (emission.wasEmittedAsGlobal()) return;
+
+  // If we don't have an insertion point, we're done.  Sema prevents
+  // us from jumping into any of these scopes anyway.
+  if (!HaveInsertPoint()) return;
 
   const VarDecl &D = *emission.Variable;
 
@@ -1465,8 +1481,11 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
       LocalDeclMap[&D] = Arg;
 
       if (CGDebugInfo *DI = getDebugInfo()) {
-        DI->setLocation(D.getLocation());
-        DI->EmitDeclareOfBlockLiteralArgVariable(*BlockInfo, Arg, Builder);
+        if (CGM.getCodeGenOpts().DebugInfo >=
+            CodeGenOptions::LimitedDebugInfo) {
+          DI->setLocation(D.getLocation());
+          DI->EmitDeclareOfBlockLiteralArgVariable(*BlockInfo, Arg, Builder);
+        }
       }
 
       return;
@@ -1544,8 +1563,11 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
   DMEntry = DeclPtr;
 
   // Emit debug info for param declaration.
-  if (CGDebugInfo *DI = getDebugInfo())
-    DI->EmitDeclareOfArgVariable(&D, DeclPtr, ArgNo, Builder);
+  if (CGDebugInfo *DI = getDebugInfo()) {
+    if (CGM.getCodeGenOpts().DebugInfo >= CodeGenOptions::LimitedDebugInfo) {
+      DI->EmitDeclareOfArgVariable(&D, DeclPtr, ArgNo, Builder);
+    }
+  }
 
   if (D.hasAttr<AnnotateAttr>())
       EmitVarAnnotations(&D, DeclPtr);

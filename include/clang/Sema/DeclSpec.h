@@ -250,6 +250,7 @@ public:
   static const TST TST_char16 = clang::TST_char16;
   static const TST TST_char32 = clang::TST_char32;
   static const TST TST_int = clang::TST_int;
+  static const TST TST_int128 = clang::TST_int128;
   static const TST TST_half = clang::TST_half;
   static const TST TST_float = clang::TST_float;
   static const TST TST_double = clang::TST_double;
@@ -865,12 +866,14 @@ public:
     assert(Other.Kind == IK_Identifier && "Cannot copy non-identifiers");
   }
 
-  /// \brief Destroy this unqualified-id.
-  ~UnqualifiedId() { clear(); }
-  
   /// \brief Clear out this unqualified-id, setting it to default (invalid) 
   /// state.
-  void clear();
+  void clear() {
+    Kind = IK_Identifier;
+    Identifier = 0;
+    StartLocation = SourceLocation();
+    EndLocation = SourceLocation();
+  }
   
   /// \brief Determine whether this unqualified-id refers to a valid name.
   bool isValid() const { return StartLocation.isValid(); }
@@ -1666,6 +1669,10 @@ public:
 
     if (getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_extern &&
         Context != FileContext)
+      return false;
+
+    // Special names can't have direct initializers.
+    if (Name.getKind() != UnqualifiedId::IK_Identifier)
       return false;
 
     switch (Context) {

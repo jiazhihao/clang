@@ -22,15 +22,8 @@
 
 namespace clang {
 
-namespace idx { 
-  class Indexer;
-  class TranslationUnit; 
-}
-
 namespace ento {
   class CheckerManager;
-
-typedef llvm::SmallPtrSet<const Decl*,24> SetOfDecls;
 
 class AnalysisManager : public BugReporterData {
   virtual void anchor();
@@ -47,11 +40,6 @@ class AnalysisManager : public BugReporterData {
   ConstraintManagerCreator CreateConstraintMgr;
 
   CheckerManager *CheckerMgr;
-
-  /// \brief Provide function definitions in other translation units. This is
-  /// NULL if we don't have multiple translation units. AnalysisManager does
-  /// not own the Indexer.
-  idx::Indexer *Idxer;
 
   enum AnalysisScope { ScopeTU, ScopeDecl } AScope;
 
@@ -91,13 +79,16 @@ public:
   /// \brief The mode of function selection used during inlining.
   AnalysisInliningMode InliningMode;
 
+  /// \brief Do not re-analyze paths leading to exhausted nodes with a different
+  /// strategy. We get better code coverage when retry is enabled.
+  bool NoRetryExhausted;
+
 public:
   AnalysisManager(ASTContext &ctx, DiagnosticsEngine &diags, 
                   const LangOptions &lang, PathDiagnosticConsumer *pd,
                   StoreManagerCreator storemgr,
                   ConstraintManagerCreator constraintmgr, 
                   CheckerManager *checkerMgr,
-                  idx::Indexer *idxer,
                   unsigned maxnodes, unsigned maxvisit,
                   bool vizdot, bool vizubi, AnalysisPurgeMode purge,
                   bool eager, bool trim,
@@ -107,7 +98,8 @@ public:
                   AnalysisIPAMode ipa,
                   unsigned inlineMaxStack,
                   unsigned inlineMaxFunctionSize,
-                  AnalysisInliningMode inliningMode);
+                  AnalysisInliningMode inliningMode,
+                  bool NoRetry);
 
   /// Construct a clone of the given AnalysisManager with the given ASTContext
   /// and DiagnosticsEngine.
@@ -133,8 +125,6 @@ public:
   }
 
   CheckerManager *getCheckerManager() const { return CheckerMgr; }
-
-  idx::Indexer *getIndexer() const { return Idxer; }
 
   virtual ASTContext &getASTContext() {
     return Ctx;
@@ -183,10 +173,6 @@ public:
 
   bool shouldInlineCall() const { return (IPAMode == Inlining); }
 
-  bool hasIndexer() const { return Idxer != 0; }
-
-  AnalysisDeclContext *getAnalysisDeclContextInAnotherTU(const Decl *D);
-
   CFG *getCFG(Decl const *D) {
     return AnaCtxMgr.getContext(D)->getCFG();
   }
@@ -202,10 +188,6 @@ public:
 
   AnalysisDeclContext *getAnalysisDeclContext(const Decl *D) {
     return AnaCtxMgr.getContext(D);
-  }
-
-  AnalysisDeclContext *getAnalysisDeclContext(const Decl *D, idx::TranslationUnit *TU) {
-    return AnaCtxMgr.getContext(D, TU);
   }
 
 };

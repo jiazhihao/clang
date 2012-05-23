@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -verify -Wthread-safety %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wthread-safety -std=c++11 -Wc++98-compat %s
 
 #define LOCKABLE            __attribute__ ((lockable))
 #define SCOPED_LOCKABLE     __attribute__ ((scoped_lockable))
@@ -1153,7 +1154,7 @@ class Foo {
 int Foo::foo()
 {
   int res;
-  w = 5.2;
+  w = 5;
   res = a_ + 5;
   return res;
 }
@@ -1167,7 +1168,7 @@ void Foo::bar()
   mu_.Unlock();
   if (x > 5) {
     mu1.Lock();
-    g = 2.3;
+    g = 2;
     mu1.Unlock();
   }
 }
@@ -1185,7 +1186,7 @@ void main()
   f2->bar(); // expected-warning {{cannot call function 'bar' while mutex 'mu_' is locked}}
   f2->mu_.Unlock();
   mu2.Lock();
-  w = 2.5;
+  w = 2;
   mu2.Unlock();
 }
 } // end namespace thread_annot_lock_13

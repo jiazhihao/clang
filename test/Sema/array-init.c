@@ -48,7 +48,9 @@ void func() {
   
   extern int blockScopeExtern[3] = { 1, 3, 5 }; // expected-error{{'extern' variable cannot have an initializer}}
   
-  static long x2[3] = { 1.0, "abc" , 5.8 }; // expected-warning{{incompatible pointer to integer conversion initializing 'long' with an expression of type 'char [4]'}}
+  static long x2[3] = { 1.0,
+                        "abc", // expected-warning{{incompatible pointer to integer conversion initializing 'long' with an expression of type 'char [4]'}}
+                         5.8 }; // expected-warning {{implicit conversion from 'double' to 'long' changes value from 5.8 to 5}}
 }
 
 void test() {

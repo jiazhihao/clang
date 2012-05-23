@@ -560,7 +560,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
 
   case Type::Atomic: {
-    ResultType = ConvertTypeForMem(cast<AtomicType>(Ty)->getValueType());
+    ResultType = ConvertType(cast<AtomicType>(Ty)->getValueType());
     break;
   }
   }

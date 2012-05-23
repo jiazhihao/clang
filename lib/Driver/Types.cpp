@@ -102,6 +102,7 @@ bool types::isOnlyAcceptedByClang(ID Id) {
   case TY_LLVM_IR:
   case TY_LLVM_BC:
   case TY_RewrittenObjC:
+  case TY_RewrittenLegacyObjC:
     return true;
   }
 }
@@ -128,6 +129,7 @@ bool types::isCXX(ID Id) {
   case TY_ObjCXX: case TY_PP_ObjCXX:
   case TY_CXXHeader: case TY_PP_CXXHeader:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
+  case TY_CUDA:
     return true;
   }
 }

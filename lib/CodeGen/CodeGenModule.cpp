@@ -102,14 +102,16 @@ CodeGenModule::CodeGenModule(ASTContext &C, const CodeGenOptions &CGO,
   if (LangOpts.CUDA)
     createCUDARuntime();
 
-  // Enable TBAA unless it's suppressed.
-  if (!CodeGenOpts.RelaxedAliasing && CodeGenOpts.OptimizationLevel > 0)
-    TBAA = new CodeGenTBAA(Context, VMContext, getLangOpts(),
+  // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0.
+  if (LangOpts.ThreadSanitizer ||
+      (!CodeGenOpts.RelaxedAliasing && CodeGenOpts.OptimizationLevel > 0))
+    TBAA = new CodeGenTBAA(Context, VMContext, CodeGenOpts, getLangOpts(),
                            ABI.getMangleContext());
 
   // If debug info or coverage generation is enabled, create the CGDebugInfo
   // object.
-  if (CodeGenOpts.DebugInfo || CodeGenOpts.EmitGcovArcs ||
+  if (CodeGenOpts.DebugInfo != CodeGenOptions::NoDebugInfo ||
+      CodeGenOpts.EmitGcovArcs ||
       CodeGenOpts.EmitGcovNotes)
     DebugInfo = new CGDebugInfo(*this);
 
@@ -180,6 +182,12 @@ llvm::MDNode *CodeGenModule::getTBAAInfo(QualType QTy) {
   if (!TBAA)
     return 0;
   return TBAA->getTBAAInfo(QTy);
+}
+
+llvm::MDNode *CodeGenModule::getTBAAInfoForVTablePtr() {
+  if (!TBAA)
+    return 0;
+  return TBAA->getTBAAInfoForVTablePtr();
 }
 
 void CodeGenModule::DecorateInstruction(llvm::Instruction *Inst,
@@ -515,6 +523,10 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
       !F->hasFnAttr(llvm::Attribute::NoInline))
     F->addFnAttr(llvm::Attribute::AlwaysInline);
 
+  // FIXME: Communicate hot and cold attributes to LLVM more directly.
+  if (D->hasAttr<ColdAttr>())
+    F->addFnAttr(llvm::Attribute::OptimizeForSize);
+
   if (isa<CXXConstructorDecl>(D) || isa<CXXDestructorDecl>(D))
     F->setUnnamedAddr(true);
 
@@ -823,10 +835,7 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       FD->getBody(InlineDefinition);
 
       StringRef MangledName = getMangledName(GD);
-      llvm::StringMap<GlobalDecl>::iterator DDI =
-          DeferredDecls.find(MangledName);
-      if (DDI != DeferredDecls.end())
-        DeferredDecls.erase(DDI);
+      DeferredDecls.erase(MangledName);
       EmitGlobalDefinition(InlineDefinition);
       return;
     }
@@ -1163,11 +1172,12 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
     DeferredDecls.erase(DDI);
   }
 
+  unsigned AddrSpace = GetGlobalVarAddressSpace(D, Ty->getAddressSpace());
   llvm::GlobalVariable *GV =
     new llvm::GlobalVariable(getModule(), Ty->getElementType(), false,
                              llvm::GlobalValue::ExternalLinkage,
                              0, MangledName, 0,
-                             false, Ty->getAddressSpace());
+                             false, AddrSpace);
 
   // Handle things which are present even on external declarations.
   if (D) {
@@ -1193,7 +1203,10 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
     GV->setThreadLocal(D->isThreadSpecified());
   }
 
-  return GV;
+  if (AddrSpace != Ty->getAddressSpace())
+    return llvm::ConstantExpr::getBitCast(GV, Ty);
+  else
+    return GV;
 }
 
 
@@ -1238,7 +1251,7 @@ CodeGenModule::CreateOrReplaceCXXRuntimeVariable(StringRef Name,
 
 /// GetAddrOfGlobalVar - Return the llvm::Constant for the address of the
 /// given global variable.  If Ty is non-null and if the global doesn't exist,
-/// then it will be greated with the specified type instead of whatever the
+/// then it will be created with the specified type instead of whatever the
 /// normal requested type would be.
 llvm::Constant *CodeGenModule::GetAddrOfGlobalVar(const VarDecl *D,
                                                   llvm::Type *Ty) {
@@ -1478,6 +1491,20 @@ CodeGenModule::MaybeEmitGlobalStdInitializerListInitializer(const VarDecl *D,
   return llvmInit;
 }
 
+unsigned CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D,
+                                                 unsigned AddrSpace) {
+  if (LangOpts.CUDA && CodeGenOpts.CUDAIsDevice) {
+    if (D->hasAttr<CUDAConstantAttr>())
+      AddrSpace = getContext().getTargetAddressSpace(LangAS::cuda_constant);
+    else if (D->hasAttr<CUDASharedAttr>())
+      AddrSpace = getContext().getTargetAddressSpace(LangAS::cuda_shared);
+    else
+      AddrSpace = getContext().getTargetAddressSpace(LangAS::cuda_device);
+  }
+
+  return AddrSpace;
+}
+
 void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D) {
   llvm::Constant *Init = 0;
   QualType ASTTy = D->getType();
@@ -1557,7 +1584,7 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D) {
   if (GV == 0 ||
       GV->getType()->getElementType() != InitType ||
       GV->getType()->getAddressSpace() !=
-        getContext().getTargetAddressSpace(ASTTy)) {
+       GetGlobalVarAddressSpace(D, getContext().getTargetAddressSpace(ASTTy))) {
 
     // Move the old entry aside so that we'll create a new one.
     Entry->setName(StringRef());
@@ -1601,7 +1628,8 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D) {
 
   // Emit global variable debug information.
   if (CGDebugInfo *DI = getModuleDebugInfo())
-    DI->EmitGlobalVariable(GV, D);
+    if (getCodeGenOpts().DebugInfo >= CodeGenOptions::LimitedDebugInfo)
+      DI->EmitGlobalVariable(GV, D);
 }
 
 llvm::GlobalValue::LinkageTypes
@@ -1900,8 +1928,10 @@ GetConstantCFStringEntry(llvm::StringMap<llvm::Constant*> &Map,
     return Map.GetOrCreateValue(String);
   }
 
-  // Otherwise, convert the UTF8 literals into a byte string.
-  SmallVector<UTF16, 128> ToBuf(NumBytes);
+  // Otherwise, convert the UTF8 literals into a string of shorts.
+  IsUTF16 = true;
+
+  SmallVector<UTF16, 128> ToBuf(NumBytes + 1); // +1 for ending nulls.
   const UTF8 *FromPtr = (UTF8 *)String.data();
   UTF16 *ToPtr = &ToBuf[0];
 
@@ -1912,38 +1942,20 @@ GetConstantCFStringEntry(llvm::StringMap<llvm::Constant*> &Map,
   // ConvertUTF8toUTF16 returns the length in ToPtr.
   StringLength = ToPtr - &ToBuf[0];
 
-  // Render the UTF-16 string into a byte array and convert to the target byte
-  // order.
-  //
-  // FIXME: This isn't something we should need to do here.
-  SmallString<128> AsBytes;
-  AsBytes.reserve(StringLength * 2);
-  for (unsigned i = 0; i != StringLength; ++i) {
-    unsigned short Val = ToBuf[i];
-    if (TargetIsLSB) {
-      AsBytes.push_back(Val & 0xFF);
-      AsBytes.push_back(Val >> 8);
-    } else {
-      AsBytes.push_back(Val >> 8);
-      AsBytes.push_back(Val & 0xFF);
-    }
-  }
-  // Append one extra null character, the second is automatically added by our
-  // caller.
-  AsBytes.push_back(0);
-
-  IsUTF16 = true;
-  return Map.GetOrCreateValue(StringRef(AsBytes.data(), AsBytes.size()));
+  // Add an explicit null.
+  *ToPtr = 0;
+  return Map.
+    GetOrCreateValue(StringRef(reinterpret_cast<const char *>(ToBuf.data()),
+                               (StringLength + 1) * 2));
 }
 
 static llvm::StringMapEntry<llvm::Constant*> &
 GetConstantStringEntry(llvm::StringMap<llvm::Constant*> &Map,
-		       const StringLiteral *Literal,
-		       unsigned &StringLength)
-{
-	StringRef String = Literal->getString();
-	StringLength = String.size();
-	return Map.GetOrCreateValue(String);
+                       const StringLiteral *Literal,
+                       unsigned &StringLength) {
+  StringRef String = Literal->getString();
+  StringLength = String.size();
+  return Map.GetOrCreateValue(String);
 }
 
 llvm::Constant *
@@ -1988,8 +2000,15 @@ CodeGenModule::GetAddrOfConstantCFString(const StringLiteral *Literal) {
     llvm::ConstantInt::get(Ty, 0x07C8);
 
   // String pointer.
-  llvm::Constant *C = llvm::ConstantDataArray::getString(VMContext,
-                                                         Entry.getKey());
+  llvm::Constant *C = 0;
+  if (isUTF16) {
+    ArrayRef<uint16_t> Arr =
+      llvm::makeArrayRef<uint16_t>((uint16_t*)Entry.getKey().data(),
+                                   Entry.getKey().size() / 2);
+    C = llvm::ConstantDataArray::get(VMContext, Arr);
+  } else {
+    C = llvm::ConstantDataArray::getString(VMContext, Entry.getKey());
+  }
 
   llvm::GlobalValue::LinkageTypes Linkage;
   if (isUTF16)
@@ -2014,7 +2033,13 @@ CodeGenModule::GetAddrOfConstantCFString(const StringLiteral *Literal) {
     CharUnits Align = getContext().getTypeAlignInChars(getContext().CharTy);
     GV->setAlignment(Align.getQuantity());
   }
+
+  // String.
   Fields[2] = llvm::ConstantExpr::getGetElementPtr(GV, Zeros);
+
+  if (isUTF16)
+    // Cast the UTF16 string to the correct type.
+    Fields[2] = llvm::ConstantExpr::getBitCast(Fields[2], Int8PtrTy);
 
   // String length.
   Ty = getTypes().ConvertType(getContext().LongTy);
@@ -2342,7 +2367,7 @@ void CodeGenModule::EmitObjCPropertyImplementations(const
                                                     ObjCImplementationDecl *D) {
   for (ObjCImplementationDecl::propimpl_iterator
          i = D->propimpl_begin(), e = D->propimpl_end(); i != e; ++i) {
-    ObjCPropertyImplDecl *PID = *i;
+    ObjCPropertyImplDecl *PID = &*i;
 
     // Dynamic is just for type-checking.
     if (PID->getPropertyImplementation() == ObjCPropertyImplDecl::Synthesize) {
@@ -2535,6 +2560,11 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     EmitObjCPropertyImplementations(OMD);
     EmitObjCIvarInitializations(OMD);
     ObjCRuntime->GenerateClass(OMD);
+    // Emit global variable debug information.
+    if (CGDebugInfo *DI = getModuleDebugInfo())
+      DI->getOrCreateInterfaceType(getContext().getObjCInterfaceType(OMD->getClassInterface()),
+				   OMD->getLocation());
+    
     break;
   }
   case Decl::ObjCMethod: {

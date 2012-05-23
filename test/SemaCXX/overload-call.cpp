@@ -233,7 +233,7 @@ float* intref(const int&);
 
 void intref_test() {
   float* ir1 = intref(5);
-  float* ir2 = intref(5.5);
+  float* ir2 = intref(5.5); // expected-warning{{implicit conversion from 'double' to 'int' changes value from 5.5 to 5}}
 }
 
 void derived5(C&); // expected-note{{candidate function not viable: cannot bind base class object of type 'A' to derived class reference 'C &' for 1st argument}}
@@ -319,14 +319,20 @@ namespace PR5756 {
 namespace test1 {
   template <class T> void foo(T t, unsigned N); // expected-note {{candidate function [with T = int] not viable: no known conversion from 'const char [6]' to 'unsigned int' for 2nd argument}}
   void foo(int n, char N); // expected-note {{candidate function not viable: no known conversion from 'const char [6]' to 'char' for 2nd argument}} 
-  void foo(int n); // expected-note {{candidate function not viable: requires 1 argument, but 2 were provided}}
-  void foo(unsigned n = 10); // expected-note {{candidate function not viable: requires at most 1 argument, but 2 were provided}}
   void foo(int n, const char *s, int t); // expected-note {{candidate function not viable: requires 3 arguments, but 2 were provided}}
   void foo(int n, const char *s, int t, ...); // expected-note {{candidate function not viable: requires at least 3 arguments, but 2 were provided}}
   void foo(int n, const char *s, int t, int u = 0); // expected-note {{candidate function not viable: requires at least 3 arguments, but 2 were provided}}
 
+  // PR 11857
+  void foo(int n); // expected-note {{candidate function not viable: requires single argument 'n', but 2 arguments were provided}}
+  void foo(unsigned n = 10); // expected-note {{candidate function not viable: allows at most single argument 'n', but 2 arguments were provided}}
+  void bar(int n, int u = 0); // expected-note {{candidate function not viable: requires at least argument 'n', but no arguments were provided}}
+  void baz(int n = 0, int u = 0); // expected-note {{candidate function not viable: requires at most 2 arguments, but 3 were provided}}
+
   void test() {
     foo(4, "hello"); //expected-error {{no matching function for call to 'foo'}}
+    bar(); //expected-error {{no matching function for call to 'bar'}}
+    baz(3, 4, 5); // expected-error {{no matching function for call to 'baz'}}
   }
 }
 
