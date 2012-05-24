@@ -17,7 +17,7 @@ int main(int argc, char** argv)
     _nan TYPE nresult = a * b + c * d;
     if (isnan(nresult)) printf("overflow!\n");
     else {
-      printf("result = %u\n", unnan(nresult, 0));
+      printf("result = %d\n", unnan(nresult, 0));
     }
   }
   return 0;

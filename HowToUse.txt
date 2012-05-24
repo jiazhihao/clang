@@ -1,0 +1,37 @@
+This branch implements NaN integers in Clang compiler. Programmers can declare an integer to be an NaN integer by adding a type qualifier "_nan" to an integer declaration. The type conversion rules for NaN integers are as follows.
+	- An integer of type T will be automatically promoted to _nan T when used with an integer of type _nan T
+	- The resulting type of an arithmetic or comparison operation with operands of type _nan T is also _nan T.
+
+Up to now, this branch has implements integer error checks for +, -, * and bit operations, i.e. if an integer error occurred during the above operations or any source operand is the NaN state, compiler will automatically set the result to the NaN state, otherwise the operation follows standard C rules. We choose the maximum value as the NaN state for unsigned integers, and the minimum for signed integers.
+
+This branch also implements two built-in functions to handle NaN integers.
+	- bool isnan(_nan T x)
+	returns true if and only if x is NaN state
+	- T unnan(_nan T x, T v) 
+	returns v if x is NaN state, or (T)x otherwise.
+
+We also give out two demos to show how our NaN integers works.
+
+1. Demo 1 (demo\test1.c) tries to simulate the behavior that programmers allocate memory for an array. It reads two integers (i.e. size, num) of type T, outputs the mathematical result of (size * num) if no integer errors happen, otherwise outputs 1.
+
+One possible run of Demo 1 looks like (set T to be unsigned long)
+demo jia$ ./a.out 4294967296 4294967296
+1
+demo jia$ ./a.out 4294967296 4294967295
+18446744069414584320
+demo jia$ ./a.out 4294967295 4294967297
+1
+
+The first case outputs 1 because the result (which is 2^64) exceeds unsigned long bounds. The last case outputs 1 because we select its result ( 2^64-1 which is the maximum value of unsigned int) as the NaN state.
+
+2. Demo 2 (demo\test2.c) is simplified from an overflow check in mq_attr_ok function in the Linux kernel. The original check in mq_attr_ok tries to make sure the addition of two multiplications will not overflow. Demo 2 reads four integers (i.e. a, b, c, d) of type T, outputs the mathematical result of (a * b + c * d) if no overflow happens, otherwise outputs "overflow!\n".
+
+One possible run of Demo 1 looks like (set T to be int)
+demo jia$ ./a.out 32768 32768 32768 32768
+overflow!
+demo jia$ ./a.out 32768 32768 32767 32765
+result = 2147352579
+demo jia$ ./a.out -32768 32768 -32768 32768
+overflow!
+
+The first case outputs "overflow!" because the result (which is 2^31) exceeds int bounds. The last case outputs "overflow!" because we select its result ( -2^31 which is the minimum value of signed int) as the NaN state.
