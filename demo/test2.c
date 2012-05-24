@@ -6,7 +6,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#define TYPE unsigned int
+#define TYPE int
 
 int main(int argc, char** argv)
 {

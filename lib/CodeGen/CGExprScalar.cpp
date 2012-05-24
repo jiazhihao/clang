@@ -403,7 +403,7 @@ public:
       }
       else {
         NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                     llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
         IID = llvm::Intrinsic::smul_with_overflow;
       }
       llvm::Function *F = CGF.CGM.getIntrinsic(IID, IntType);
@@ -476,7 +476,7 @@ public:
       }
       else {
         NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                     llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       }
       Value *Result2 = Builder.CreateAnd(Ops.LHS, Ops.RHS, "and");
       // Cmp = y == NaN
@@ -502,7 +502,7 @@ public:
       }
       else {
         NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                     llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       }
       Value *Result2 = Builder.CreateXor(Ops.LHS, Ops.RHS, "xor");
       // Cmp = y == NaN
@@ -528,7 +528,7 @@ public:
       }
       else {
         NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                     llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                     llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       }
       Value *Result2 = Builder.CreateOr(Ops.LHS, Ops.RHS, "or");
       // Cmp = y == NaN
@@ -1434,7 +1434,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     }
     else {
       NaN = llvm::ConstantInt::get(intType->getContext(),
-                                   llvm::APInt::getSignedMaxValue(intType->getBitWidth()));
+                                   llvm::APInt::getSignedMinValue(intType->getBitWidth()));
     }
     
     llvm::Value *result = Builder.CreateAdd(input, amt, isInc ? "inc" : "dec");
@@ -2147,7 +2147,7 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     }
     else {
       NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                   llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                   llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       IID = llvm::Intrinsic::sadd_with_overflow;
     }
     
@@ -2207,7 +2207,7 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
     }
     else {
       NaN = llvm::ConstantInt::get(IntType->getContext(),
-                                   llvm::APInt::getSignedMaxValue(IntType->getBitWidth()));
+                                   llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       IID = llvm::Intrinsic::ssub_with_overflow;
     }
     
