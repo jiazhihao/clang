@@ -1483,6 +1483,8 @@ def err_attribute_argument_outof_range : Error<
 def err_init_priority_object_attr : Error<
   "can only use 'init_priority' attribute on file-scope definitions "
   "of objects of class type">;
+def err_attribute_argument_duplicate: Error<
+  "'%0' attribute parameter %1 is duplicated">;
 def err_attribute_argument_n_not_int : Error<
   "'%0' attribute requires parameter %1 to be an integer constant">;
 def err_attribute_argument_n_not_string : Error<
@@ -4726,6 +4728,10 @@ def warn_unused_call : Warning<
 def warn_unused_result : Warning<
   "ignoring return value of function declared with warn_unused_result "
   "attribute">, InGroup<DiagGroup<"unused-result">>;
+def warn_unused_volatile : Warning<
+  "expression result unused; assign into a variable to force a volatile load">,
+  InGroup<DiagGroup<"unused-volatile-lvalue">>;
+
 def warn_unused_comparison : Warning<
   "%select{equality|inequality}0 comparison result unused">,
   InGroup<UnusedComparison>;
