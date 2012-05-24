@@ -302,16 +302,19 @@ void TypePrinter::printBuiltinBefore(const BuiltinType *T, raw_ostream &OS) {
 }
 void TypePrinter::printBuiltinAfter(const BuiltinType *T, raw_ostream &OS) { }
 
-void TypePrinter::printNan(const NanType *T, std::string &S) {
-  print(T->getElementType(), S);
-  S = "nan " + S;
-}
-
 void TypePrinter::printComplexBefore(const ComplexType *T, raw_ostream &OS) {
   OS << "_Complex ";
   printBefore(T->getElementType(), OS);
 }
 void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
+  printAfter(T->getElementType(), OS);
+}
+
+void TypePrinter::printNanBefore(const NanType *T, raw_ostream &OS) {
+  OS << "_nan ";
+  printBefore(T->getElementType(), OS);
+}
+void TypePrinter::printNanAfter(const NanType *T, raw_ostream &OS) {
   printAfter(T->getElementType(), OS);
 }
 

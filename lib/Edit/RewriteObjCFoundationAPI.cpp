@@ -791,6 +791,8 @@ static bool rewriteToNumericBoxedExpression(const ObjCMessageExpr *Msg,
     case CK_IntegralRealToComplex:
     case CK_IntegralComplexCast:
     case CK_IntegralComplexToFloatingComplex:
+    case CK_IntegralToNan:
+    case CK_NanCast:
     case CK_ARCProduceObject:
     case CK_ARCConsumeObject:
     case CK_ARCReclaimReturnedObject:
