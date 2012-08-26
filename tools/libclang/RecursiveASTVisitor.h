@@ -1761,7 +1761,7 @@ bool RecursiveASTVisitor<Derived>::Traverse##STMT (STMT *S) {           \
   return true;                                                          \
 }
 
-DEF_TRAVERSE_STMT(AsmStmt, {
+DEF_TRAVERSE_STMT(GCCAsmStmt, {
     StmtQueue.queue(S->getAsmString());
     for (unsigned I = 0, E = S->getNumInputs(); I < E; ++I) {
       StmtQueue.queue(S->getInputConstraintLiteral(I));
@@ -1773,6 +1773,11 @@ DEF_TRAVERSE_STMT(AsmStmt, {
       StmtQueue.queue(S->getClobber(I));
     }
     // children() iterates over inputExpr and outputExpr.
+  })
+
+DEF_TRAVERSE_STMT(MSAsmStmt, {
+    // FIXME: MS Asm doesn't currently parse Constraints, Clobbers, etc.  Once
+    // added this needs to be implemented.
   })
 
 DEF_TRAVERSE_STMT(CXXCatchStmt, {

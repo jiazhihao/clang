@@ -6,10 +6,10 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
-//  This file defines facilities for reading and writing on-disk hash
-//  tables.
-//
+///
+/// \file
+/// \brief Defines facilities for reading and writing on-disk hash tables.
+///
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_CLANG_BASIC_ON_DISK_HASH_TABLE_H
 #define LLVM_CLANG_BASIC_ON_DISK_HASH_TABLE_H
@@ -65,8 +65,7 @@ inline void Emit64(raw_ostream& Out, uint64_t V) {
 
 inline void Pad(raw_ostream& Out, unsigned A) {
   Offset off = (Offset) Out.tell();
-  uint32_t n = ((uintptr_t)(off+A-1) & ~(uintptr_t)(A-1)) - off;
-  for (; n ; --n)
+  for (uint32_t n = llvm::OffsetToAlignment(off, A); n; --n)
     Emit8(Out, 0);
 }
 

@@ -22,6 +22,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CallGraph.h"
+#include "clang/Analysis/Analyses/LiveVariables.h"
 #include "clang/StaticAnalyzer/Frontend/CheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Checkers/LocalCheckers.h"
@@ -57,18 +58,60 @@ STATISTIC(NumFunctionsAnalyzed, "The # of functions analysed (as top level).");
 STATISTIC(NumBlocksInAnalyzedFunctions,
                      "The # of basic blocks in the analyzed functions.");
 STATISTIC(PercentReachableBlocks, "The % of reachable basic blocks.");
+STATISTIC(MaxCFGSize, "The maximum number of basic blocks in a function.");
 
 //===----------------------------------------------------------------------===//
 // Special PathDiagnosticConsumers.
 //===----------------------------------------------------------------------===//
 
-static PathDiagnosticConsumer*
-createPlistHTMLDiagnosticConsumer(const std::string& prefix,
-                                const Preprocessor &PP) {
-  PathDiagnosticConsumer *PD =
-    createHTMLDiagnosticConsumer(llvm::sys::path::parent_path(prefix), PP);
-  return createPlistDiagnosticConsumer(prefix, PP, PD);
+static void createPlistHTMLDiagnosticConsumer(PathDiagnosticConsumers &C,
+                                              const std::string &prefix,
+                                              const Preprocessor &PP) {
+  createHTMLDiagnosticConsumer(C, llvm::sys::path::parent_path(prefix), PP);
+  createPlistDiagnosticConsumer(C, prefix, PP);
 }
+
+namespace {
+class ClangDiagPathDiagConsumer : public PathDiagnosticConsumer {
+  DiagnosticsEngine &Diag;
+public:
+  ClangDiagPathDiagConsumer(DiagnosticsEngine &Diag) : Diag(Diag) {}
+  virtual ~ClangDiagPathDiagConsumer() {}
+  virtual StringRef getName() const { return "ClangDiags"; }
+  virtual bool useVerboseDescription() const { return false; }
+  virtual PathGenerationScheme getGenerationScheme() const { return None; }
+
+  void FlushDiagnosticsImpl(std::vector<const PathDiagnostic *> &Diags,
+                            FilesMade *filesMade) {
+    for (std::vector<const PathDiagnostic*>::iterator I = Diags.begin(),
+         E = Diags.end(); I != E; ++I) {
+      const PathDiagnostic *PD = *I;
+      StringRef desc = PD->getDescription();
+      SmallString<512> TmpStr;
+      llvm::raw_svector_ostream Out(TmpStr);
+      for (StringRef::iterator I=desc.begin(), E=desc.end(); I!=E; ++I) {
+        if (*I == '%')
+          Out << "%%";
+        else
+          Out << *I;
+      }
+      Out.flush();
+      unsigned ErrorDiag = Diag.getCustomDiagID(DiagnosticsEngine::Warning,
+                                                TmpStr);
+      SourceLocation L = PD->getLocation().asLocation();
+      DiagnosticBuilder diagBuilder = Diag.Report(L, ErrorDiag);
+
+      // Get the ranges from the last point in the path.
+      ArrayRef<SourceRange> Ranges = PD->path.back()->getRanges();
+
+      for (ArrayRef<SourceRange>::iterator I = Ranges.begin(),
+                                           E = Ranges.end(); I != E; ++I) {
+        diagBuilder << *I;
+      }
+    }
+  }
+};
+} // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // AnalysisConsumer declaration.
@@ -103,8 +146,8 @@ public:
   /// working with a PCH file.
   SetOfDecls LocalTUDecls;
                            
-  // PD is owned by AnalysisManager.
-  PathDiagnosticConsumer *PD;
+  // Set of PathDiagnosticConsumers.  Owned by AnalysisManager.
+  PathDiagnosticConsumers PathConsumers;
 
   StoreManagerCreator CreateStoreMgr;
   ConstraintManagerCreator CreateConstraintMgr;
@@ -124,7 +167,7 @@ public:
                    const AnalyzerOptions& opts,
                    ArrayRef<std::string> plugins)
     : RecVisitorMode(ANALYSIS_ALL), RecVisitorBR(0),
-      Ctx(0), PP(pp), OutDir(outdir), Opts(opts), Plugins(plugins), PD(0) {
+      Ctx(0), PP(pp), OutDir(outdir), Opts(opts), Plugins(plugins) {
     DigestAnalyzerOptions();
     if (Opts.PrintStats) {
       llvm::EnableStatistics();
@@ -139,17 +182,19 @@ public:
 
   void DigestAnalyzerOptions() {
     // Create the PathDiagnosticConsumer.
+    PathConsumers.push_back(new ClangDiagPathDiagConsumer(PP.getDiagnostics()));
+
     if (!OutDir.empty()) {
       switch (Opts.AnalysisDiagOpt) {
       default:
 #define ANALYSIS_DIAGNOSTICS(NAME, CMDFLAG, DESC, CREATEFN, AUTOCREATE) \
-        case PD_##NAME: PD = CREATEFN(OutDir, PP); break;
+        case PD_##NAME: CREATEFN(PathConsumers, OutDir, PP); break;
 #include "clang/Frontend/Analyses.def"
       }
     } else if (Opts.AnalysisDiagOpt == PD_TEXT) {
       // Create the text client even without a specified output file since
       // it just uses diagnostic notes.
-      PD = createTextPathDiagnosticConsumer("", PP);
+      createTextPathDiagnosticConsumer(PathConsumers, "", PP);
     }
 
     // Create the analyzer component creators.
@@ -203,16 +248,18 @@ public:
     Ctx = &Context;
     checkerMgr.reset(createCheckerManager(Opts, PP.getLangOpts(), Plugins,
                                           PP.getDiagnostics()));
-    Mgr.reset(new AnalysisManager(*Ctx, PP.getDiagnostics(),
-                                  PP.getLangOpts(), PD,
-                                  CreateStoreMgr, CreateConstraintMgr,
+    Mgr.reset(new AnalysisManager(*Ctx,
+                                  PP.getDiagnostics(),
+                                  PP.getLangOpts(),
+                                  PathConsumers,
+                                  CreateStoreMgr,
+                                  CreateConstraintMgr,
                                   checkerMgr.get(),
                                   Opts.MaxNodes, Opts.MaxLoop,
                                   Opts.VisualizeEGDot, Opts.VisualizeEGUbi,
                                   Opts.AnalysisPurgeOpt, Opts.EagerlyAssume,
                                   Opts.TrimGraph,
                                   Opts.UnoptimizedCFG, Opts.CFGAddImplicitDtors,
-                                  Opts.CFGAddInitializers,
                                   Opts.EagerlyTrimEGraph,
                                   Opts.IPAMode,
                                   Opts.InlineMaxStackDepth,
@@ -230,7 +277,7 @@ public:
 
   /// \brief Build the call graph for all the top level decls of this TU and
   /// use it to define the order in which the functions should be visited.
-  void HandleDeclsGallGraph();
+  void HandleDeclsGallGraph(const unsigned LocalTUDeclsSize);
 
   /// \brief Run analyzes(syntax or path sensitive) on the given function.
   /// \param Mode - determines if we are requesting syntax only or path
@@ -311,14 +358,18 @@ void AnalysisConsumer::storeTopLevelDecls(DeclGroupRef DG) {
   }
 }
 
-void AnalysisConsumer::HandleDeclsGallGraph() {
+void AnalysisConsumer::HandleDeclsGallGraph(const unsigned LocalTUDeclsSize) {
   // Otherwise, use the Callgraph to derive the order.
   // Build the Call Graph.
   CallGraph CG;
+
   // Add all the top level declarations to the graph.
-  for (SetOfDecls::iterator I = LocalTUDecls.begin(),
-                            E = LocalTUDecls.end(); I != E; ++I)
-    CG.addToCallGraph(*I);
+  // Note: CallGraph can trigger deserialization of more items from a pch
+  // (though HandleInterestingDecl); triggering additions to LocalTUDecls.
+  // We rely on random access to add the initially processed Decls to CG.
+  for (unsigned i = 0 ; i < LocalTUDeclsSize ; ++i) {
+    CG.addToCallGraph(LocalTUDecls[i]);
+  }
 
   // Find the top level nodes - children of root + the unreachable (parentless)
   // nodes.
@@ -343,7 +394,7 @@ void AnalysisConsumer::HandleDeclsGallGraph() {
   for (llvm::SmallVector<CallGraphNode*, 24>::reverse_iterator
          TI = TopLevelFunctions.rbegin(), TE = TopLevelFunctions.rend();
          TI != TE; ++TI)
-    BFSQueue.push_front(*TI);
+    BFSQueue.push_back(*TI);
 
   // BFS over all of the functions, while skipping the ones inlined into
   // the previously processed functions. Use external Visited set, which is
@@ -352,6 +403,13 @@ void AnalysisConsumer::HandleDeclsGallGraph() {
   while(!BFSQueue.empty()) {
     CallGraphNode *N = BFSQueue.front();
     BFSQueue.pop_front();
+
+    // Push the children into the queue.
+    for (CallGraphNode::const_iterator CI = N->begin(),
+         CE = N->end(); CI != CE; ++CI) {
+      if (!Visited.count(*CI))
+        BFSQueue.push_back(*CI);
+    }
 
     // Skip the functions which have been processed already or previously
     // inlined.
@@ -373,12 +431,6 @@ void AnalysisConsumer::HandleDeclsGallGraph() {
         Visited.insert(VN);
     }
     Visited.insert(N);
-
-    // Push the children into the queue.
-    for (CallGraphNode::const_iterator CI = N->begin(),
-                                       CE = N->end(); CI != CE; ++CI) {
-      BFSQueue.push_front(*CI);
-    }
   }
 }
 
@@ -408,13 +460,13 @@ void AnalysisConsumer::HandleTranslationUnit(ASTContext &C) {
     // entries.  Thus we don't use an iterator, but rely on LocalTUDecls
     // random access.  By doing so, we automatically compensate for iterators
     // possibly being invalidated, although this is a bit slower.
-    const unsigned n = LocalTUDecls.size();
-    for (unsigned i = 0 ; i < n ; ++i) {
+    const unsigned LocalTUDeclsSize = LocalTUDecls.size();
+    for (unsigned i = 0 ; i < LocalTUDeclsSize ; ++i) {
       TraverseDecl(LocalTUDecls[i]);
     }
 
     if (Mgr->shouldInlineCall())
-      HandleDeclsGallGraph();
+      HandleDeclsGallGraph(LocalTUDeclsSize);
 
     // After all decls handled, run checkers on the entire TranslationUnit.
     checkerMgr->runCheckersOnEndOfTranslationUnit(TU, *Mgr, BR);
@@ -482,6 +534,12 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
     return;
 
   DisplayFunction(D, Mode);
+  CFG *DeclCFG = Mgr->getCFG(D);
+  if (DeclCFG) {
+    unsigned CFGSize = DeclCFG->size();
+    MaxCFGSize = MaxCFGSize < CFGSize ? CFGSize : MaxCFGSize;
+  }
+
 
   // Clear the AnalysisManager of old AnalysisDeclContexts.
   Mgr->ClearContexts();
@@ -515,6 +573,10 @@ void AnalysisConsumer::ActionExprEngine(Decl *D, bool ObjCGCEnabled,
   // Construct the analysis engine.  First check if the CFG is valid.
   // FIXME: Inter-procedural analysis will need to handle invalid CFGs.
   if (!Mgr->getCFG(D))
+    return;
+
+  // See if the LiveVariables analysis scales.
+  if (!Mgr->getAnalysisDeclContext(D)->getAnalysis<RelaxedLiveVariables>())
     return;
 
   ExprEngine Eng(*Mgr, ObjCGCEnabled, VisitedCallees, &FunctionSummaries);

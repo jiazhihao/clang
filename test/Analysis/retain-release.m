@@ -199,7 +199,7 @@ typedef struct IONotificationPort * IONotificationPortRef;
 typedef void (*IOServiceMatchingCallback)(  void * refcon,  io_iterator_t iterator );
 io_service_t IOServiceGetMatchingService(  mach_port_t masterPort,  CFDictionaryRef matching );
 kern_return_t IOServiceGetMatchingServices(  mach_port_t masterPort,  CFDictionaryRef matching,  io_iterator_t * existing );
-kern_return_t IOServiceAddNotification(  mach_port_t masterPort,  const io_name_t notificationType,  CFDictionaryRef matching,  mach_port_t wakePort,  uintptr_t reference,  io_iterator_t * notification ) __attribute__((deprecated));
+kern_return_t IOServiceAddNotification(  mach_port_t masterPort,  const io_name_t notificationType,  CFDictionaryRef matching,  mach_port_t wakePort,  uintptr_t reference,  io_iterator_t * notification ) __attribute__((deprecated)); // expected-note {{'IOServiceAddNotification' declared here}}
 kern_return_t IOServiceAddMatchingNotification(  IONotificationPortRef notifyPort,  const io_name_t notificationType,  CFDictionaryRef matching,         IOServiceMatchingCallback callback,         void * refCon,  io_iterator_t * notification );
 CFMutableDictionaryRef IOServiceMatching(  const char * name );
 CFMutableDictionaryRef IOServiceNameMatching(  const char * name );
@@ -299,6 +299,9 @@ extern CGColorSpaceRef CGColorSpaceCreateDeviceRGB(void);
 - (void)addObject:(id)object;
 + (id)array;
 @end
+
+// This is how NSMakeCollectable is declared in the OS X 10.8 headers.
+id NSMakeCollectable(CFTypeRef __attribute__((cf_consumed))) __attribute__((ns_returns_retained));
 
 
 //===----------------------------------------------------------------------===//
@@ -753,7 +756,7 @@ typedef CFTypeRef OtherRef;
 @end
 
 //===----------------------------------------------------------------------===//
-//<rdar://problem/6320065> false positive - init method returns an object
+// <rdar://problem/6320065> false positive - init method returns an object
 // owned by caller
 //===----------------------------------------------------------------------===//
 
@@ -1452,8 +1455,7 @@ void test_blocks_1_indirect_release_via_call(void) {
 }
 
 void test_blocks_1_indirect_retain_via_call(void) {
-  // Eventually this should be reported as a leak.
-  NSNumber *number = [[NSNumber alloc] initWithInt:5]; // no-warning
+  NSNumber *number = [[NSNumber alloc] initWithInt:5]; // expected-warning {{leak}}
   ^(NSObject *o){ [o retain]; }(number);
 }
 
@@ -1746,7 +1748,7 @@ extern id NSApp;
 @end
 //===----------------------------------------------------------------------===//
 // Test returning allocated memory in a struct.
-// 
+//
 // We currently don't have a general way to track pointers that "escape".
 // Here we test that RetainCountChecker doesn't get excited about returning
 // allocated CF objects in struct fields.
@@ -1842,4 +1844,44 @@ void rdar11400885(int y)
     [printString release];
     NSLog(@"Again: %@", printString); // expected-warning {{Reference-counted object is used after it is released}}
   }
+}
+
+id makeCollectableNonLeak() {
+  extern CFTypeRef CFCreateSomething();
+
+  CFTypeRef object = CFCreateSomething(); // +1
+  CFRetain(object); // +2
+  id objCObject = NSMakeCollectable(object); // +2
+  [objCObject release]; // +1
+  return [objCObject autorelease]; // +0
+}
+
+
+void consumeAndStopTracking(id NS_CONSUMED obj, void (^callback)(void));
+void CFConsumeAndStopTracking(CFTypeRef CF_CONSUMED obj, void (^callback)(void));
+
+void testConsumeAndStopTracking() {
+  id retained = [@[] retain]; // +1
+  consumeAndStopTracking(retained, ^{}); // no-warning
+
+  id doubleRetained = [[@[] retain] retain]; // +2
+  consumeAndStopTracking(doubleRetained, ^{
+    [doubleRetained release];
+  }); // no-warning
+
+  id unretained = @[]; // +0
+  consumeAndStopTracking(unretained, ^{}); // expected-warning {{Incorrect decrement of the reference count of an object that is not owned at this point by the caller}}
+}
+
+void testCFConsumeAndStopTracking() {
+  id retained = [@[] retain]; // +1
+  CFConsumeAndStopTracking((CFTypeRef)retained, ^{}); // no-warning
+
+  id doubleRetained = [[@[] retain] retain]; // +2
+  CFConsumeAndStopTracking((CFTypeRef)doubleRetained, ^{
+    [doubleRetained release];
+  }); // no-warning
+
+  id unretained = @[]; // +0
+  CFConsumeAndStopTracking((CFTypeRef)unretained, ^{}); // expected-warning {{Incorrect decrement of the reference count of an object that is not owned at this point by the caller}}
 }

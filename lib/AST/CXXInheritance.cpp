@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/AST/CXXInheritance.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/DeclCXX.h"
 #include <algorithm>
@@ -24,13 +25,11 @@ void CXXBasePaths::ComputeDeclsFound() {
   assert(NumDeclsFound == 0 && !DeclsFound &&
          "Already computed the set of declarations");
 
+  llvm::SmallPtrSet<NamedDecl *, 8> KnownDecls;
   SmallVector<NamedDecl *, 8> Decls;
   for (paths_iterator Path = begin(), PathEnd = end(); Path != PathEnd; ++Path)
-    Decls.push_back(*Path->Decls.first);
-
-  // Eliminate duplicated decls.
-  llvm::array_pod_sort(Decls.begin(), Decls.end());
-  Decls.erase(std::unique(Decls.begin(), Decls.end()), Decls.end());
+    if (KnownDecls.insert(*Path->Decls.first))
+      Decls.push_back(*Path->Decls.first);
 
   NumDeclsFound = Decls.size();
   DeclsFound = new NamedDecl * [NumDeclsFound];
@@ -96,7 +95,7 @@ bool CXXRecordDecl::isDerivedFrom(const CXXRecordDecl *Base,
                        Paths);
 }
 
-bool CXXRecordDecl::isVirtuallyDerivedFrom(CXXRecordDecl *Base) const {
+bool CXXRecordDecl::isVirtuallyDerivedFrom(const CXXRecordDecl *Base) const {
   if (!getNumVBases())
     return false;
 
@@ -106,8 +105,12 @@ bool CXXRecordDecl::isVirtuallyDerivedFrom(CXXRecordDecl *Base) const {
   if (getCanonicalDecl() == Base->getCanonicalDecl())
     return false;
   
-  Paths.setOrigin(const_cast<CXXRecordDecl*>(this));  
-  return lookupInBases(&FindVirtualBaseClass, Base->getCanonicalDecl(), Paths);
+  Paths.setOrigin(const_cast<CXXRecordDecl*>(this));
+
+  const void *BasePtr = static_cast<const void*>(Base->getCanonicalDecl());
+  return lookupInBases(&FindVirtualBaseClass,
+                       const_cast<void *>(BasePtr),
+                       Paths);
 }
 
 static bool BaseIsNot(const CXXRecordDecl *Base, void *OpaqueTarget) {
@@ -160,7 +163,7 @@ bool CXXRecordDecl::forallBases(ForallBasesCallback *BaseMatches,
   return AllMatches;
 }
 
-bool CXXBasePaths::lookupInBases(ASTContext &Context, 
+bool CXXBasePaths::lookupInBases(ASTContext &Context,
                                  const CXXRecordDecl *Record,
                                CXXRecordDecl::BaseMatchesCallback *BaseMatches, 
                                  void *UserData) {
@@ -360,8 +363,8 @@ bool CXXRecordDecl::FindBaseClass(const CXXBaseSpecifier *Specifier,
                                   void *BaseRecord) {
   assert(((Decl *)BaseRecord)->getCanonicalDecl() == BaseRecord &&
          "User data for FindBaseClass is not canonical!");
-  return Specifier->getType()->getAs<RecordType>()->getDecl()
-           ->getCanonicalDecl() == BaseRecord;
+  return Specifier->getType()->castAs<RecordType>()->getDecl()
+            ->getCanonicalDecl() == BaseRecord;
 }
 
 bool CXXRecordDecl::FindVirtualBaseClass(const CXXBaseSpecifier *Specifier, 
@@ -370,14 +373,15 @@ bool CXXRecordDecl::FindVirtualBaseClass(const CXXBaseSpecifier *Specifier,
   assert(((Decl *)BaseRecord)->getCanonicalDecl() == BaseRecord &&
          "User data for FindBaseClass is not canonical!");
   return Specifier->isVirtual() &&
-         Specifier->getType()->getAs<RecordType>()->getDecl()
-           ->getCanonicalDecl() == BaseRecord;
+         Specifier->getType()->castAs<RecordType>()->getDecl()
+            ->getCanonicalDecl() == BaseRecord;
 }
 
 bool CXXRecordDecl::FindTagMember(const CXXBaseSpecifier *Specifier, 
                                   CXXBasePath &Path,
                                   void *Name) {
-  RecordDecl *BaseRecord = Specifier->getType()->getAs<RecordType>()->getDecl();
+  RecordDecl *BaseRecord =
+    Specifier->getType()->castAs<RecordType>()->getDecl();
 
   DeclarationName N = DeclarationName::getFromOpaquePtr(Name);
   for (Path.Decls = BaseRecord->lookup(N);
@@ -393,7 +397,8 @@ bool CXXRecordDecl::FindTagMember(const CXXBaseSpecifier *Specifier,
 bool CXXRecordDecl::FindOrdinaryMember(const CXXBaseSpecifier *Specifier, 
                                        CXXBasePath &Path,
                                        void *Name) {
-  RecordDecl *BaseRecord = Specifier->getType()->getAs<RecordType>()->getDecl();
+  RecordDecl *BaseRecord =
+    Specifier->getType()->castAs<RecordType>()->getDecl();
   
   const unsigned IDNS = IDNS_Ordinary | IDNS_Tag | IDNS_Member;
   DeclarationName N = DeclarationName::getFromOpaquePtr(Name);
@@ -411,7 +416,8 @@ bool CXXRecordDecl::
 FindNestedNameSpecifierMember(const CXXBaseSpecifier *Specifier, 
                               CXXBasePath &Path,
                               void *Name) {
-  RecordDecl *BaseRecord = Specifier->getType()->getAs<RecordType>()->getDecl();
+  RecordDecl *BaseRecord =
+    Specifier->getType()->castAs<RecordType>()->getDecl();
   
   DeclarationName N = DeclarationName::getFromOpaquePtr(Name);
   for (Path.Decls = BaseRecord->lookup(N);
@@ -505,12 +511,17 @@ void FinalOverriderCollector::Collect(const CXXRecordDecl *RD,
       CXXFinalOverriderMap *BaseOverriders = &ComputedBaseOverriders;
       if (Base->isVirtual()) {
         CXXFinalOverriderMap *&MyVirtualOverriders = VirtualOverriders[BaseDecl];
+        BaseOverriders = MyVirtualOverriders;
         if (!MyVirtualOverriders) {
           MyVirtualOverriders = new CXXFinalOverriderMap;
+
+          // Collect may cause VirtualOverriders to reallocate, invalidating the
+          // MyVirtualOverriders reference. Set BaseOverriders to the right
+          // value now.
+          BaseOverriders = MyVirtualOverriders;
+
           Collect(BaseDecl, true, BaseDecl, *MyVirtualOverriders);
         }
-
-        BaseOverriders = MyVirtualOverriders;
       } else
         Collect(BaseDecl, false, InVirtualSubobject, ComputedBaseOverriders);
 
@@ -684,7 +695,7 @@ AddIndirectPrimaryBases(const CXXRecordDecl *RD, ASTContext &Context,
            "Cannot get indirect primary bases for class with dependent bases.");
 
     const CXXRecordDecl *BaseDecl =
-      cast<CXXRecordDecl>(I->getType()->getAs<RecordType>()->getDecl());
+      cast<CXXRecordDecl>(I->getType()->castAs<RecordType>()->getDecl());
 
     // Only bases with virtual bases participate in computing the
     // indirect primary virtual base classes.

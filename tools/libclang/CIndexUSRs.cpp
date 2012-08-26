@@ -759,7 +759,7 @@ void USRGenerator::VisitTemplateArgument(const TemplateArgument &Arg) {
   case TemplateArgument::Integral:
     Out << 'V';
     VisitType(Arg.getIntegralType());
-    Out << *Arg.getAsIntegral();
+    Out << Arg.getAsIntegral();
     break;
   }
 }

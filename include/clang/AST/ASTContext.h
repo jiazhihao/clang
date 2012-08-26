@@ -27,6 +27,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/CanonicalType.h"
+#include "clang/AST/RawCommentList.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -51,7 +52,6 @@ namespace clang {
   class ASTMutationListener;
   class IdentifierTable;
   class SelectorTable;
-  class SourceManager;
   class TargetInfo;
   class CXXABI;
   // Decls
@@ -79,6 +79,10 @@ namespace clang {
   class UnresolvedSetIterator;
 
   namespace Builtin { class Context; }
+
+  namespace comments {
+    class FullComment;
+  }
 
 /// ASTContext - This class holds long-lived AST nodes (such as types and
 /// decls) that can be referred to throughout the semantic analysis of a file.
@@ -199,10 +203,9 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// \brief The typedef for the __uint128_t type.
   mutable TypedefDecl *UInt128Decl;
   
-  /// BuiltinVaListType - built-in va list type.
-  /// This is initially null and set by Sema::LazilyCreateBuiltin when
-  /// a builtin that takes a valist is encountered.
-  QualType BuiltinVaListType;
+  /// \brief The typedef for the target specific predefined
+  /// __builtin_va_list type.
+  mutable TypedefDecl *BuiltinVaListDecl;
 
   /// \brief The typedef for the predefined 'id' type.
   mutable TypedefDecl *ObjCIdDecl;
@@ -393,6 +396,11 @@ public:
   
   SourceManager& getSourceManager() { return SourceMgr; }
   const SourceManager& getSourceManager() const { return SourceMgr; }
+
+  llvm::BumpPtrAllocator &getAllocator() const {
+    return BumpAlloc;
+  }
+
   void *Allocate(unsigned Size, unsigned Align = 8) const {
     return BumpAlloc.Allocate(Size, Align);
   }
@@ -419,6 +427,103 @@ public:
   FullSourceLoc getFullLoc(SourceLocation Loc) const {
     return FullSourceLoc(Loc,SourceMgr);
   }
+
+  /// \brief All comments in this translation unit.
+  RawCommentList Comments;
+
+  /// \brief True if comments are already loaded from ExternalASTSource.
+  mutable bool CommentsLoaded;
+
+  class RawCommentAndCacheFlags {
+  public:
+    enum Kind {
+      /// We searched for a comment attached to the particular declaration, but
+      /// didn't find any.
+      ///
+      /// getRaw() == 0.
+      NoCommentInDecl = 0,
+
+      /// We have found a comment attached to this particular declaration.
+      ///
+      /// getRaw() != 0.
+      FromDecl,
+
+      /// This declaration does not have an attached comment, and we have
+      /// searched the redeclaration chain.
+      ///
+      /// If getRaw() == 0, the whole redeclaration chain does not have any
+      /// comments.
+      ///
+      /// If getRaw() != 0, it is a comment propagated from other
+      /// redeclaration.
+      FromRedecl
+    };
+
+    Kind getKind() const LLVM_READONLY {
+      return Data.getInt();
+    }
+
+    void setKind(Kind K) {
+      Data.setInt(K);
+    }
+
+    const RawComment *getRaw() const LLVM_READONLY {
+      return Data.getPointer();
+    }
+
+    void setRaw(const RawComment *RC) {
+      Data.setPointer(RC);
+    }
+
+    const Decl *getOriginalDecl() const LLVM_READONLY {
+      return OriginalDecl;
+    }
+
+    void setOriginalDecl(const Decl *Orig) {
+      OriginalDecl = Orig;
+    }
+
+  private:
+    llvm::PointerIntPair<const RawComment *, 2, Kind> Data;
+    const Decl *OriginalDecl;
+  };
+
+  /// \brief Mapping from declarations to comments attached to any
+  /// redeclaration.
+  ///
+  /// Raw comments are owned by Comments list.  This mapping is populated
+  /// lazily.
+  mutable llvm::DenseMap<const Decl *, RawCommentAndCacheFlags> RedeclComments;
+
+  /// \brief Mapping from declarations to parsed comments attached to any
+  /// redeclaration.
+  mutable llvm::DenseMap<const Decl *, comments::FullComment *> ParsedComments;
+
+  /// \brief Return the documentation comment attached to a given declaration,
+  /// without looking into cache.
+  RawComment *getRawCommentForDeclNoCache(const Decl *D) const;
+
+public:
+  RawCommentList &getRawCommentList() {
+    return Comments;
+  }
+
+  void addComment(const RawComment &RC) {
+    Comments.addComment(RC, BumpAlloc);
+  }
+
+  /// \brief Return the documentation comment attached to a given declaration.
+  /// Returns NULL if no comment is attached.
+  ///
+  /// \param OriginalDecl if not NULL, is set to declaration AST node that had
+  /// the comment, if the comment we found comes from a redeclaration.
+  const RawComment *getRawCommentForAnyRedecl(
+                                      const Decl *D,
+                                      const Decl **OriginalDecl = NULL) const;
+
+  /// Return parsed documentation comment attached to a given declaration.
+  /// Returns NULL if no comment is attached.
+  comments::FullComment *getCommentForDecl(const Decl *D) const;
 
   /// \brief Retrieve the attributes for the given declaration.
   AttrVec& getDeclAttrs(const Decl *D);
@@ -576,6 +681,10 @@ public:
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
   mutable QualType AutoRRefDeductTy; // Deduction against 'auto &&'.
+
+  // Type used to help define __builtin_va_list for some targets.
+  // The type is built when constructing 'BuiltinVaListDecl'.
+  mutable QualType VaListTagTy;
 
   ASTContext(LangOptions& LOpts, SourceManager &SM, const TargetInfo *t,
              IdentifierTable &idents, SelectorTable &sels,
@@ -1161,8 +1270,19 @@ public:
     return getObjCInterfaceType(getObjCProtocolDecl());
   }
   
-  void setBuiltinVaListType(QualType T);
-  QualType getBuiltinVaListType() const { return BuiltinVaListType; }
+  /// \brief Retrieve the C type declaration corresponding to the predefined
+  /// __builtin_va_list type.
+  TypedefDecl *getBuiltinVaListDecl() const;
+
+  /// \brief Retrieve the type of the __builtin_va_list type.
+  QualType getBuiltinVaListType() const {
+    return getTypeDeclType(getBuiltinVaListDecl());
+  }
+
+  /// \brief Retrieve the C type declaration corresponding to the predefined
+  /// __va_list_tag type used to help define the __builtin_va_list type for
+  /// some targets.
+  QualType getVaListTagType() const;
 
   /// getCVRQualifiedType - Returns a type with additional const,
   /// volatile, or restrict qualifiers.
@@ -1223,10 +1343,10 @@ public:
                                         const TemplateArgument &ArgPack) const;
   
   enum GetBuiltinTypeError {
-    GE_None,              //< No error
-    GE_Missing_stdio,     //< Missing a type from <stdio.h>
-    GE_Missing_setjmp,    //< Missing a type from <setjmp.h>
-    GE_Missing_ucontext   //< Missing a type from <ucontext.h>
+    GE_None,              ///< No error
+    GE_Missing_stdio,     ///< Missing a type from <stdio.h>
+    GE_Missing_setjmp,    ///< Missing a type from <setjmp.h>
+    GE_Missing_ucontext   ///< Missing a type from <ucontext.h>
   };
 
   /// GetBuiltinType - Return the type for the specified builtin.  If 
@@ -1315,6 +1435,10 @@ public:
   /// characters. This method does not work on incomplete types.
   CharUnits getTypeAlignInChars(QualType T) const;
   CharUnits getTypeAlignInChars(const Type *T) const;
+  
+  // getTypeInfoDataSizeInChars - Return the size of a type, in chars. If the
+  // type is a record, its data size is returned.
+  std::pair<CharUnits, CharUnits> getTypeInfoDataSizeInChars(QualType T) const;
 
   std::pair<CharUnits, CharUnits> getTypeInfoInChars(const Type *T) const;
   std::pair<CharUnits, CharUnits> getTypeInfoInChars(QualType T) const;
@@ -1453,15 +1577,11 @@ public:
 
   /// \brief Retrieves the default calling convention to use for
   /// C++ instance methods.
-  CallingConv getDefaultMethodCallConv();
+  CallingConv getDefaultCXXMethodCallConv(bool isVariadic);
 
   /// \brief Retrieves the canonical representation of the given
   /// calling convention.
-  CallingConv getCanonicalCallConv(CallingConv CC) const {
-    if (!LangOpts.MRTD && CC == CC_C)
-      return CC_Default;
-    return CC;
-  }
+  CallingConv getCanonicalCallConv(CallingConv CC) const;
 
   /// \brief Determines whether two calling conventions name the same
   /// calling convention.
@@ -1476,7 +1596,7 @@ public:
   /// be used to refer to a given template. For most templates, this
   /// expression is just the template declaration itself. For example,
   /// the template std::vector can be referred to via a variety of
-  /// names---std::vector, ::std::vector, vector (if vector is in
+  /// names---std::vector, \::std::vector, vector (if vector is in
   /// scope), etc.---but all of these names map down to the same
   /// TemplateDecl, which is used to form the canonical template name.
   ///
@@ -1716,7 +1836,7 @@ public:
   /// \brief Get the implementation of ObjCCategoryDecl, or NULL if none exists.
   ObjCCategoryImplDecl   *getObjCImplementation(ObjCCategoryDecl *D);
 
-  /// \brief returns true if there is at lease one @implementation in TU.
+  /// \brief returns true if there is at least one \@implementation in TU.
   bool AnyObjCImplementation() {
     return !ObjCImpls.empty();
   }
@@ -1777,9 +1897,9 @@ public:
   /// \brief Add a deallocation callback that will be invoked when the 
   /// ASTContext is destroyed.
   ///
-  /// \brief Callback A callback function that will be invoked on destruction.
+  /// \param Callback A callback function that will be invoked on destruction.
   ///
-  /// \brief Data Pointer data that will be provided to the callback function
+  /// \param Data Pointer data that will be provided to the callback function
   /// when it is called.
   void AddDeallocation(void (*Callback)(void*), void *Data);
 

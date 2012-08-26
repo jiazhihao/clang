@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
@@ -180,8 +181,16 @@ void AnalysisDeclContext::dumpCFG(bool ShowColors) {
 }
 
 ParentMap &AnalysisDeclContext::getParentMap() {
-  if (!PM)
+  if (!PM) {
     PM.reset(new ParentMap(getBody()));
+    if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(getDecl())) {
+      for (CXXConstructorDecl::init_const_iterator I = C->init_begin(),
+                                                   E = C->init_end();
+           I != E; ++I) {
+        PM->addStmt((*I)->getInit());
+      }
+    }
+  }
   return *PM;
 }
 
@@ -202,6 +211,14 @@ const StackFrameContext *
 AnalysisDeclContext::getStackFrame(LocationContext const *Parent, const Stmt *S,
                                const CFGBlock *Blk, unsigned Idx) {
   return getLocationContextManager().getStackFrame(this, Parent, S, Blk, Idx);
+}
+
+const BlockInvocationContext *
+AnalysisDeclContext::getBlockInvocationContext(const LocationContext *parent,
+                                               const clang::BlockDecl *BD,
+                                               const void *ContextData) {
+  return getLocationContextManager().getBlockInvocationContext(this, parent,
+                                                               BD, ContextData);
 }
 
 LocationContextManager & AnalysisDeclContext::getLocationContextManager() {
@@ -234,7 +251,7 @@ void ScopeContext::Profile(llvm::FoldingSetNodeID &ID) {
 }
 
 void BlockInvocationContext::Profile(llvm::FoldingSetNodeID &ID) {
-  Profile(ID, getAnalysisDeclContext(), getParent(), BD);
+  Profile(ID, getAnalysisDeclContext(), getParent(), BD, ContextData);
 }
 
 //===----------------------------------------------------------------------===//
@@ -283,6 +300,24 @@ LocationContextManager::getScope(AnalysisDeclContext *ctx,
   return getLocationContext<ScopeContext, Stmt>(ctx, parent, s);
 }
 
+const BlockInvocationContext *
+LocationContextManager::getBlockInvocationContext(AnalysisDeclContext *ctx,
+                                                  const LocationContext *parent,
+                                                  const BlockDecl *BD,
+                                                  const void *ContextData) {
+  llvm::FoldingSetNodeID ID;
+  BlockInvocationContext::Profile(ID, ctx, parent, BD, ContextData);
+  void *InsertPos;
+  BlockInvocationContext *L =
+    cast_or_null<BlockInvocationContext>(Contexts.FindNodeOrInsertPos(ID,
+                                                                    InsertPos));
+  if (!L) {
+    L = new BlockInvocationContext(ctx, parent, BD, ContextData);
+    Contexts.InsertNode(L, InsertPos);
+  }
+  return L;
+}
+
 //===----------------------------------------------------------------------===//
 // LocationContext methods.
 //===----------------------------------------------------------------------===//
@@ -292,19 +327,6 @@ const StackFrameContext *LocationContext::getCurrentStackFrame() const {
   while (LC) {
     if (const StackFrameContext *SFC = dyn_cast<StackFrameContext>(LC))
       return SFC;
-    LC = LC->getParent();
-  }
-  return NULL;
-}
-
-const StackFrameContext *
-LocationContext::getStackFrameForDeclContext(const DeclContext *DC) const {
-  const LocationContext *LC = this;
-  while (LC) {
-    if (const StackFrameContext *SFC = dyn_cast<StackFrameContext>(LC)) {
-      if (cast<DeclContext>(SFC->getDecl()) == DC)
-        return SFC;
-    }
     LC = LC->getParent();
   }
   return NULL;

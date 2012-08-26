@@ -97,14 +97,14 @@ public:
   Lexer(FileID FID, const llvm::MemoryBuffer *InputBuffer, Preprocessor &PP);
 
   /// Lexer constructor - Create a new raw lexer object.  This object is only
-  /// suitable for calls to 'LexRawToken'.  This lexer assumes that the text
-  /// range will outlive it, so it doesn't take ownership of it.
+  /// suitable for calls to 'LexFromRawLexer'.  This lexer assumes that the
+  /// text range will outlive it, so it doesn't take ownership of it.
   Lexer(SourceLocation FileLoc, const LangOptions &LangOpts,
         const char *BufStart, const char *BufPtr, const char *BufEnd);
 
   /// Lexer constructor - Create a new raw lexer object.  This object is only
-  /// suitable for calls to 'LexRawToken'.  This lexer assumes that the text
-  /// range will outlive it, so it doesn't take ownership of it.
+  /// suitable for calls to 'LexFromRawLexer'.  This lexer assumes that the
+  /// text range will outlive it, so it doesn't take ownership of it.
   Lexer(FileID FID, const llvm::MemoryBuffer *InputBuffer,
         const SourceManager &SM, const LangOptions &LangOpts);
 
@@ -278,8 +278,6 @@ public:
   /// \brief Given a location any where in a source buffer, find the location
   /// that corresponds to the beginning of the token in which the original
   /// source location lands.
-  ///
-  /// \param Loc 
   static SourceLocation GetBeginningOfToken(SourceLocation Loc,
                                             const SourceManager &SM,
                                             const LangOptions &LangOpts);
@@ -324,7 +322,7 @@ public:
   /// \brief Returns true if the given MacroID location points at the last
   /// token of the macro expansion.
   ///
-  /// \param MacroBegin If non-null and function returns true, it is set to
+  /// \param MacroEnd If non-null and function returns true, it is set to
   /// end location of the macro.
   static bool isAtEndOfMacroExpansion(SourceLocation loc,
                                       const SourceManager &SM,
@@ -341,7 +339,7 @@ public:
   ///
   /// -begin or end range lies at the start or end of a macro expansion, in
   ///  which case the location will be set to the expansion point, e.g:
-  ///    #define M 1 2
+  ///    \#define M 1 2
   ///    a M
   /// If you have a range [a, 2] (where 2 came from the macro), the function
   /// will return a range for "a M"
@@ -350,8 +348,8 @@ public:
   ///
   /// -The macro is a function macro and the range can be mapped to the macro
   ///  arguments, e.g:
-  ///    #define M 1 2
-  ///    #define FM(x) x
+  ///    \#define M 1 2
+  ///    \#define FM(x) x
   ///    FM(a b M)
   /// if you have range [b, 2], the function will return the file range "b M"
   /// inside the macro arguments.
@@ -540,6 +538,9 @@ public:
                                          const SourceManager &SM,
                                          const LangOptions &LangOpts,
                                          bool SkipTrailingWhitespaceAndNewLine);
+
+  /// \brief Returns true if the given character could appear in an identifier.
+  static bool isIdentifierBodyChar(char c, const LangOptions &LangOpts);
 
 private:
 

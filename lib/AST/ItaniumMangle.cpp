@@ -657,7 +657,7 @@ void CXXNameMangler::mangleFloat(const llvm::APFloat &f) {
   // mistake; see the discussion on cxx-abi-dev beginning on
   // 2012-01-16.
 
-  // Our requirements here are just barely wierd enough to justify
+  // Our requirements here are just barely weird enough to justify
   // using a custom algorithm instead of post-processing APInt::toString().
 
   llvm::APInt valueBits = f.bitcastToAPInt();
@@ -693,9 +693,10 @@ void CXXNameMangler::mangleFloat(const llvm::APFloat &f) {
 void CXXNameMangler::mangleNumber(const llvm::APSInt &Value) {
   if (Value.isSigned() && Value.isNegative()) {
     Out << 'n';
-    Value.abs().print(Out, true);
-  } else
-    Value.print(Out, Value.isSigned());
+    Value.abs().print(Out, /*signed*/ false);
+  } else {
+    Value.print(Out, /*signed*/ false);
+  }
 }
 
 void CXXNameMangler::mangleNumber(int64_t Number) {
@@ -1033,17 +1034,14 @@ static const FieldDecl *FindFirstNamedDataMember(const RecordDecl *RD) {
   
   for (RecordDecl::field_iterator I = RD->field_begin(), E = RD->field_end();
        I != E; ++I) {
-    const FieldDecl *FD = &*I;
+    if (I->getIdentifier())
+      return *I;
     
-    if (FD->getIdentifier())
-      return FD;
-    
-    if (const RecordType *RT = FD->getType()->getAs<RecordType>()) {
+    if (const RecordType *RT = I->getType()->getAs<RecordType>())
       if (const FieldDecl *NamedDataMember = 
           FindFirstNamedDataMember(RT->getDecl()))
         return NamedDataMember;
     }
-  }
 
   // We didn't find a named data member.
   return 0;
@@ -2998,7 +2996,7 @@ void CXXNameMangler::mangleFunctionParam(const ParmVarDecl *parm) {
 
   // Top-level qualifiers.  We don't have to worry about arrays here,
   // because parameters declared as arrays should already have been
-  // tranformed to have pointer type. FIXME: apparently these don't
+  // transformed to have pointer type. FIXME: apparently these don't
   // get mangled if used as an rvalue of a known non-class type?
   assert(!parm->getType()->isArrayType()
          && "parameter's type is still an array type?");
@@ -3141,7 +3139,7 @@ void CXXNameMangler::mangleTemplateArg(const NamedDecl *P,
     break;
   }
   case TemplateArgument::Integral:
-    mangleIntegerLiteral(A.getIntegralType(), *A.getAsIntegral());
+    mangleIntegerLiteral(A.getIntegralType(), A.getAsIntegral());
     break;
   case TemplateArgument::Declaration: {
     assert(P && "Missing template parameter for declaration argument");

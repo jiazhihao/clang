@@ -30,13 +30,13 @@
 @synthesize gradientStyle = _gradientStyle;
 - (void)setGradientStyle:(id)value { }
 
-+ (void)_componentCellWithRepresentedObject {
-    self.gradientStyle; // expected-error {{property 'gradientStyle' not found on object of type 'Class'}}
++ (id)_componentCellWithRepresentedObject {
+    return self.gradientStyle;
 }
 @end
 
-// rdar://1105153
-@interface rdar1105153
+// rdar://11054153
+@interface rdar11054153
 @property int P; // expected-error {{type of property 'P' ('int') does not match type of accessor 'P' ('void')}}
 - (void)P; // expected-note {{declared here}}
 

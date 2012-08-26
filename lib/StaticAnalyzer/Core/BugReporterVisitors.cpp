@@ -32,7 +32,11 @@ using namespace ento;
 const Stmt *bugreporter::GetDerefExpr(const ExplodedNode *N) {
   // Pattern match for a few useful cases (do something smarter later):
   //   a[0], p->f, *p
-  const Stmt *S = N->getLocationAs<PostStmt>()->getStmt();
+  const PostStmt *Loc = N->getLocationAs<PostStmt>();
+  if (!Loc)
+    return 0;
+
+  const Stmt *S = Loc->getStmt();
 
   while (true) {
     if (const BinaryOperator *B = dyn_cast<BinaryOperator>(S)) {
@@ -60,14 +64,6 @@ const Stmt *bugreporter::GetDenomExpr(const ExplodedNode *N) {
   const Stmt *S = N->getLocationAs<PreStmt>()->getStmt();
   if (const BinaryOperator *BE = dyn_cast<BinaryOperator>(S))
     return BE->getRHS();
-  return NULL;
-}
-
-const Stmt *bugreporter::GetCalleeExpr(const ExplodedNode *N) {
-  // Callee is checked as a PreVisit to the CallExpr.
-  const Stmt *S = N->getLocationAs<PreStmt>()->getStmt();
-  if (const CallExpr *CE = dyn_cast<CallExpr>(S))
-    return CE->getCallee();
   return NULL;
 }
 
@@ -127,10 +123,16 @@ PathDiagnosticPiece *FindLastStoreBRVisitor::VisitNode(const ExplodedNode *N,
     return NULL;
 
   if (!StoreSite) {
-    const ExplodedNode *Node = N, *Last = NULL;
+    // Make sure the region is actually bound to value V here.
+    // This is necessary because the region may not actually be live at the
+    // report's error node.
+    if (N->getState()->getSVal(R) != V)
+      return NULL;
 
+    const ExplodedNode *Node = N, *Last = N;
+
+    // Now look for the store of V.
     for ( ; Node ; Node = Node->getFirstPred()) {
-
       if (const VarRegion *VR = dyn_cast<VarRegion>(R)) {
         if (const PostStmt *P = Node->getLocationAs<PostStmt>())
           if (const DeclStmt *DS = P->getStmtAs<DeclStmt>())
@@ -145,9 +147,11 @@ PathDiagnosticPiece *FindLastStoreBRVisitor::VisitNode(const ExplodedNode *N,
       // looking for store sites.
       if (Node->getState()->getSVal(R) != V)
         break;
+
+      Last = Node;
     }
 
-    if (!Node || !Last) {
+    if (!Node) {
       satisfied = true;
       return NULL;
     }
@@ -197,6 +201,9 @@ PathDiagnosticPiece *FindLastStoreBRVisitor::VisitNode(const ExplodedNode *N,
             os << "declared without an initial value";
         }
       }
+      else {
+        os << "initialized here";
+      }
     }
   }
 
@@ -223,7 +230,7 @@ PathDiagnosticPiece *FindLastStoreBRVisitor::VisitNode(const ExplodedNode *N,
                << " is assigned to ";
     }
     else
-      return NULL;
+      os << "Value assigned to ";
 
     if (const VarRegion *VR = dyn_cast<VarRegion>(R)) {
       os << '\'' << *VR->getDecl() << '\'';
@@ -293,12 +300,54 @@ TrackConstraintBRVisitor::VisitNode(const ExplodedNode *N,
   return NULL;
 }
 
-BugReporterVisitor *
-bugreporter::getTrackNullOrUndefValueVisitor(const ExplodedNode *N,
-                                             const Stmt *S,
-                                             BugReport *report) {
+namespace {
+class ReturnNullVisitor : public BugReporterVisitorImpl<ReturnNullVisitor> {
+  const ExplodedNode *ReturnNode;
+public:
+  ReturnNullVisitor(const ExplodedNode *N) : ReturnNode(N) {}
+
+  virtual void Profile(llvm::FoldingSetNodeID &ID) const {
+    static int Tag = 0;
+    ID.AddPointer(&Tag);
+    ID.Add(*ReturnNode);
+  }
+
+  PathDiagnosticPiece *VisitNode(const ExplodedNode *N,
+                                 const ExplodedNode *PrevN,
+                                 BugReporterContext &BRC,
+                                 BugReport &BR) {
+    if (ReturnNode != BRC.getNodeResolver().getOriginalNode(N))
+      return 0;
+
+    StmtPoint SP = cast<StmtPoint>(ReturnNode->getLocation());
+    const ReturnStmt *Ret = cast<ReturnStmt>(SP.getStmt());
+    PathDiagnosticLocation L(Ret, BRC.getSourceManager(),
+                             N->getLocationContext());
+
+    SmallString<64> Msg;
+    llvm::raw_svector_ostream Out(Msg);
+
+    if (Loc::isLocType(Ret->getRetValue()->getType()))
+      Out << "Returning null pointer";
+    else
+      Out << "Returning zero";
+
+    // FIXME: We should have a more generalized printing mechanism.
+    const Expr *RetE = Ret->getRetValue()->IgnoreParenCasts();
+    if (const DeclRefExpr *DR = dyn_cast<DeclRefExpr>(RetE))
+      if (const DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(DR->getDecl()))
+        Out << " (loaded from '" << *DD << "')";
+
+    return new PathDiagnosticEventPiece(L, Out.str());
+  }
+};
+} // end anonymous namespace
+
+void bugreporter::addTrackNullOrUndefValueVisitor(const ExplodedNode *N,
+                                                  const Stmt *S,
+                                                  BugReport *report) {
   if (!S || !N)
-    return 0;
+    return;
 
   ProgramStateManager &StateMgr = N->getState()->getStateManager();
 
@@ -309,19 +358,22 @@ bugreporter::getTrackNullOrUndefValueVisitor(const ExplodedNode *N,
     if (const PostStmt *ps = dyn_cast<PostStmt>(&pp)) {
       if (ps->getStmt() == S)
         break;
+    } else if (const CallExitEnd *CEE = dyn_cast<CallExitEnd>(&pp)) {
+      if (CEE->getCalleeContext()->getCallSite() == S)
+        break;
     }
     N = N->getFirstPred();
   }
 
   if (!N)
-    return 0;
+    return;
   
   ProgramStateRef state = N->getState();
 
   // Walk through lvalue-to-rvalue conversions.
   const Expr *Ex = dyn_cast<Expr>(S);
   if (Ex) {
-    Ex = Ex->IgnoreParenLValueCasts();
+    Ex = Ex->IgnoreParenCasts();
     if (const DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Ex)) {
       if (const VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl())) {
         const VarRegion *R =
@@ -331,7 +383,15 @@ bugreporter::getTrackNullOrUndefValueVisitor(const ExplodedNode *N,
         SVal V = state->getRawSVal(loc::MemRegionVal(R));
         report->markInteresting(R);
         report->markInteresting(V);
-        return new FindLastStoreBRVisitor(V, R);
+
+        if (V.getAsLocSymbol()) {
+          BugReporterVisitor *ConstraintTracker
+            = new TrackConstraintBRVisitor(cast<loc::MemRegionVal>(V), false);
+          report->addVisitor(ConstraintTracker);
+        }
+
+        report->addVisitor(new FindLastStoreBRVisitor(V, R));
+        return;
       }
     }
   }
@@ -351,11 +411,32 @@ bugreporter::getTrackNullOrUndefValueVisitor(const ExplodedNode *N,
 
     if (R) {
       report->markInteresting(R);
-      return new TrackConstraintBRVisitor(loc::MemRegionVal(R), false);
+      report->addVisitor(new TrackConstraintBRVisitor(loc::MemRegionVal(R),
+                                                      false));
+    }
+  } else {
+    // Walk backwards to just before the post-statement checks.
+    ProgramPoint PP = N->getLocation();
+    while (N && isa<PostStmt>(PP = N->getLocation()))
+      N = N->getFirstPred();
+
+    if (N && isa<CallExitEnd>(PP)) {
+      // Find a ReturnStmt, if there is one.
+      do {
+        N = N->getFirstPred();
+        PP = N->getLocation();
+      } while (!isa<StmtPoint>(PP) && !isa<CallEnter>(PP));
+
+      if (const StmtPoint *SP = dyn_cast<StmtPoint>(&PP)) {
+        if (const ReturnStmt *Ret = SP->getStmtAs<ReturnStmt>()) {
+          if (const Expr *RetE = Ret->getRetValue()) {
+            report->addVisitor(new ReturnNullVisitor(N));
+            addTrackNullOrUndefValueVisitor(N, RetE, report);
+          }
+        }
+      }
     }
   }
-
-  return 0;
 }
 
 BugReporterVisitor *
@@ -397,7 +478,7 @@ PathDiagnosticPiece *NilReceiverBRVisitor::VisitNode(const ExplodedNode *N,
   // The receiver was nil, and hence the method was skipped.
   // Register a BugReporterVisitor to issue a message telling us how
   // the receiver was null.
-  BR.addVisitor(bugreporter::getTrackNullOrUndefValueVisitor(N, Receiver, &BR));
+  bugreporter::addTrackNullOrUndefValueVisitor(N, Receiver, &BR);
   // Issue a message saying that the method was skipped.
   PathDiagnosticLocation L(Receiver, BRC.getSourceManager(),
                                      N->getLocationContext());
@@ -707,6 +788,9 @@ ConditionBRVisitor::VisitConditionVariable(StringRef LhsString,
                                            BugReporterContext &BRC,
                                            BugReport &report,
                                            const ExplodedNode *N) {
+  // FIXME: If there's already a constraint tracker for this variable,
+  // we shouldn't emit anything here (c.f. the double note in
+  // test/Analysis/inlining/path-notes.c)
   SmallString<256> buf;
   llvm::raw_svector_ostream Out(buf);
   Out << "Assuming " << LhsString << " is ";

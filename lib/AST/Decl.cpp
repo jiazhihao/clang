@@ -158,13 +158,42 @@ getLVForTemplateArgumentList(const TemplateArgumentList &TArgs,
   return getLVForTemplateArgumentList(TArgs.data(), TArgs.size(), OnlyTemplate);
 }
 
-static bool shouldConsiderTemplateLV(const FunctionDecl *fn,
+static bool shouldConsiderTemplateVis(const FunctionDecl *fn,
                                const FunctionTemplateSpecializationInfo *spec) {
   return !fn->hasAttr<VisibilityAttr>() || spec->isExplicitSpecialization();
 }
 
-static bool shouldConsiderTemplateLV(const ClassTemplateSpecializationDecl *d) {
+static bool
+shouldConsiderTemplateVis(const ClassTemplateSpecializationDecl *d) {
   return !d->hasAttr<VisibilityAttr>() || d->isExplicitSpecialization();
+}
+
+static bool useInlineVisibilityHidden(const NamedDecl *D) {
+  // FIXME: we should warn if -fvisibility-inlines-hidden is used with c.
+  const LangOptions &Opts = D->getASTContext().getLangOpts();
+  if (!Opts.CPlusPlus || !Opts.InlineVisibilityHidden)
+    return false;
+
+  const FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+  if (!FD)
+    return false;
+
+  TemplateSpecializationKind TSK = TSK_Undeclared;
+  if (FunctionTemplateSpecializationInfo *spec
+      = FD->getTemplateSpecializationInfo()) {
+    TSK = spec->getTemplateSpecializationKind();
+  } else if (MemberSpecializationInfo *MSI =
+             FD->getMemberSpecializationInfo()) {
+    TSK = MSI->getTemplateSpecializationKind();
+  }
+
+  const FunctionDecl *Def = 0;
+  // InlineVisibilityHidden only applies to definitions, and
+  // isInlined() only gives meaningful answers on definitions
+  // anyway.
+  return TSK != TSK_ExplicitInstantiationDeclaration &&
+    TSK != TSK_ExplicitInstantiationDefinition &&
+    FD->hasBody(Def) && Def->isInlined();
 }
 
 static LinkageInfo getLVForNamespaceScopeDecl(const NamedDecl *D,
@@ -265,8 +294,13 @@ static LinkageInfo getLVForNamespaceScopeDecl(const NamedDecl *D,
     }
   }
 
-  if (!OnlyTemplate)
+  if (!OnlyTemplate) {
     LV.mergeVisibility(Context.getLangOpts().getVisibilityMode());
+    // If we're paying attention to global visibility, apply
+    // -finline-visibility-hidden if this is an inline method.
+    if (!LV.visibilityExplicit() && useInlineVisibilityHidden(D))
+      LV.mergeVisibility(HiddenVisibility, true);
+  }
 
   // C++ [basic.link]p4:
 
@@ -375,12 +409,16 @@ static LinkageInfo getLVForNamespaceScopeDecl(const NamedDecl *D,
     // this is an explicit specialization with a visibility attribute.
     if (FunctionTemplateSpecializationInfo *specInfo
                                = Function->getTemplateSpecializationInfo()) {
-      if (shouldConsiderTemplateLV(Function, specInfo)) {
-        LV.merge(getLVForDecl(specInfo->getTemplate(),
-                              true));
-        const TemplateArgumentList &templateArgs = *specInfo->TemplateArguments;
-        LV.mergeWithMin(getLVForTemplateArgumentList(templateArgs,
-                                                     OnlyTemplate));
+      LinkageInfo TempLV = getLVForDecl(specInfo->getTemplate(), true);
+      const TemplateArgumentList &templateArgs = *specInfo->TemplateArguments;
+      LinkageInfo ArgsLV = getLVForTemplateArgumentList(templateArgs,
+                                                        OnlyTemplate);
+      if (shouldConsiderTemplateVis(Function, specInfo)) {
+        LV.mergeWithMin(TempLV);
+        LV.mergeWithMin(ArgsLV);
+      } else {
+        LV.mergeLinkage(TempLV);
+        LV.mergeLinkage(ArgsLV);
       }
     }
 
@@ -399,15 +437,19 @@ static LinkageInfo getLVForNamespaceScopeDecl(const NamedDecl *D,
     // linkage of the template and template arguments.
     if (const ClassTemplateSpecializationDecl *spec
           = dyn_cast<ClassTemplateSpecializationDecl>(Tag)) {
-      if (shouldConsiderTemplateLV(spec)) {
-        // From the template.
-        LV.merge(getLVForDecl(spec->getSpecializedTemplate(),
-                              true));
+      // From the template.
+      LinkageInfo TempLV = getLVForDecl(spec->getSpecializedTemplate(), true);
 
-        // The arguments at which the template was instantiated.
-        const TemplateArgumentList &TemplateArgs = spec->getTemplateArgs();
-        LV.mergeWithMin(getLVForTemplateArgumentList(TemplateArgs,
-                                                     OnlyTemplate));
+      // The arguments at which the template was instantiated.
+      const TemplateArgumentList &TemplateArgs = spec->getTemplateArgs();
+      LinkageInfo ArgsLV = getLVForTemplateArgumentList(TemplateArgs,
+                                                        OnlyTemplate);
+      if (shouldConsiderTemplateVis(spec)) {
+        LV.mergeWithMin(TempLV);
+        LV.mergeWithMin(ArgsLV);
+      } else {
+        LV.mergeLinkage(TempLV);
+        LV.mergeLinkage(ArgsLV);
       }
     }
 
@@ -464,40 +506,19 @@ static LinkageInfo getLVForClassMember(const NamedDecl *D, bool OnlyTemplate) {
   if (!OnlyTemplate) {
     if (llvm::Optional<Visibility> Vis = D->getExplicitVisibility())
       LV.mergeVisibility(*Vis, true);
+    // If we're paying attention to global visibility, apply
+    // -finline-visibility-hidden if this is an inline method.
+    //
+    // Note that we do this before merging information about
+    // the class visibility.
+    if (!LV.visibilityExplicit() && useInlineVisibilityHidden(D))
+      LV.mergeVisibility(HiddenVisibility, true);
   }
 
   // If this class member has an explicit visibility attribute, the only
   // thing that can change its visibility is the template arguments, so
-  // only look for them when processing the the class.
+  // only look for them when processing the class.
   bool ClassOnlyTemplate =  LV.visibilityExplicit() ? true : OnlyTemplate;
-
-  // If we're paying attention to global visibility, apply
-  // -finline-visibility-hidden if this is an inline method.
-  //
-  // Note that we do this before merging information about
-  // the class visibility.
-  if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D)) {
-    TemplateSpecializationKind TSK = TSK_Undeclared;
-    if (FunctionTemplateSpecializationInfo *spec
-        = MD->getTemplateSpecializationInfo()) {
-      TSK = spec->getTemplateSpecializationKind();
-    } else if (MemberSpecializationInfo *MSI =
-               MD->getMemberSpecializationInfo()) {
-      TSK = MSI->getTemplateSpecializationKind();
-    }
-
-    const FunctionDecl *Def = 0;
-    // InlineVisibilityHidden only applies to definitions, and
-    // isInlined() only gives meaningful answers on definitions
-    // anyway.
-    if (TSK != TSK_ExplicitInstantiationDeclaration &&
-        TSK != TSK_ExplicitInstantiationDefinition &&
-        !OnlyTemplate &&
-        !LV.visibilityExplicit() &&
-        MD->getASTContext().getLangOpts().InlineVisibilityHidden &&
-        MD->hasBody(Def) && Def->isInlined())
-      LV.mergeVisibility(HiddenVisibility, true);
-  }
 
   // If this member has an visibility attribute, ClassF will exclude
   // attributes on the class or command line options, keeping only information
@@ -526,12 +547,20 @@ static LinkageInfo getLVForClassMember(const NamedDecl *D, bool OnlyTemplate) {
     // the template parameters and arguments.
     if (FunctionTemplateSpecializationInfo *spec
            = MD->getTemplateSpecializationInfo()) {
-      if (shouldConsiderTemplateLV(MD, spec)) {
-        LV.mergeWithMin(getLVForTemplateArgumentList(*spec->TemplateArguments,
-                                                     OnlyTemplate));
+      const TemplateArgumentList &TemplateArgs = *spec->TemplateArguments;
+      LinkageInfo ArgsLV = getLVForTemplateArgumentList(TemplateArgs,
+                                                        OnlyTemplate);
+      TemplateParameterList *TemplateParams =
+        spec->getTemplate()->getTemplateParameters();
+      LinkageInfo ParamsLV = getLVForTemplateParameterList(TemplateParams);
+      if (shouldConsiderTemplateVis(MD, spec)) {
+        LV.mergeWithMin(ArgsLV);
         if (!OnlyTemplate)
-          LV.merge(getLVForTemplateParameterList(
-                              spec->getTemplate()->getTemplateParameters()));
+          LV.mergeWithMin(ParamsLV);
+      } else {
+        LV.mergeLinkage(ArgsLV);
+        if (!OnlyTemplate)
+          LV.mergeLinkage(ParamsLV);
       }
     }
 
@@ -541,14 +570,22 @@ static LinkageInfo getLVForClassMember(const NamedDecl *D, bool OnlyTemplate) {
   } else if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {
     if (const ClassTemplateSpecializationDecl *spec
         = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-      if (shouldConsiderTemplateLV(spec)) {
-        // Merge template argument/parameter information for member
-        // class template specializations.
-        LV.mergeWithMin(getLVForTemplateArgumentList(spec->getTemplateArgs(),
-                                                     OnlyTemplate));
-      if (!OnlyTemplate)
-        LV.merge(getLVForTemplateParameterList(
-                    spec->getSpecializedTemplate()->getTemplateParameters()));
+      // Merge template argument/parameter information for member
+      // class template specializations.
+      const TemplateArgumentList &TemplateArgs = spec->getTemplateArgs();
+      LinkageInfo ArgsLV = getLVForTemplateArgumentList(TemplateArgs,
+                                                        OnlyTemplate);
+      TemplateParameterList *TemplateParams =
+        spec->getSpecializedTemplate()->getTemplateParameters();
+      LinkageInfo ParamsLV = getLVForTemplateParameterList(TemplateParams);
+      if (shouldConsiderTemplateVis(spec)) {
+        LV.mergeWithMin(ArgsLV);
+        if (!OnlyTemplate)
+          LV.mergeWithMin(ParamsLV);
+      } else {
+        LV.mergeLinkage(ArgsLV);
+        if (!OnlyTemplate)
+          LV.mergeLinkage(ParamsLV);
       }
     }
 
@@ -672,6 +709,10 @@ llvm::Optional<Visibility> NamedDecl::getExplicitVisibility() const {
   // Otherwise, just check the declaration itself first.
   if (llvm::Optional<Visibility> V = getVisibilityOf(this))
     return V;
+
+  // The visibility of a template is stored in the templated decl.
+  if (const TemplateDecl *TD = dyn_cast<TemplateDecl>(this))
+    return getVisibilityOf(TD->getTemplatedDecl());
 
   // If there wasn't explicit visibility there, and this is a
   // specialization of a class template, check for visibility
@@ -1659,6 +1700,13 @@ void FunctionDecl::setPure(bool P) {
       Parent->markedVirtualFunctionPure();
 }
 
+void FunctionDecl::setConstexpr(bool IC) {
+  IsConstexpr = IC;
+  CXXConstructorDecl *CD = dyn_cast<CXXConstructorDecl>(this);
+  if (IC && CD)
+    CD->getParent()->markedConstructorConstexpr(CD);
+}
+
 bool FunctionDecl::isMain() const {
   const TranslationUnitDecl *tunit =
     dyn_cast<TranslationUnitDecl>(getDeclContext()->getRedeclContext());
@@ -2433,15 +2481,15 @@ FieldDecl *FieldDecl::Create(const ASTContext &C, DeclContext *DC,
                              SourceLocation StartLoc, SourceLocation IdLoc,
                              IdentifierInfo *Id, QualType T,
                              TypeSourceInfo *TInfo, Expr *BW, bool Mutable,
-                             bool HasInit) {
+                             InClassInitStyle InitStyle) {
   return new (C) FieldDecl(Decl::Field, DC, StartLoc, IdLoc, Id, T, TInfo,
-                           BW, Mutable, HasInit);
+                           BW, Mutable, InitStyle);
 }
 
 FieldDecl *FieldDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   void *Mem = AllocateDeserializedDecl(C, ID, sizeof(FieldDecl));
   return new (Mem) FieldDecl(Field, 0, SourceLocation(), SourceLocation(),
-                             0, QualType(), 0, 0, false, false);
+                             0, QualType(), 0, 0, false, ICIS_NoInit);
 }
 
 bool FieldDecl::isAnonymousStructOrUnion() const {
@@ -2474,11 +2522,11 @@ unsigned FieldDecl::getFieldIndex() const {
 
     if (IsMsStruct) {
       // Zero-length bitfields following non-bitfield members are ignored.
-      if (getASTContext().ZeroBitfieldFollowsNonBitfield(&*I, LastFD)) {
+      if (getASTContext().ZeroBitfieldFollowsNonBitfield(*I, LastFD)) {
         --Index;
         continue;
       }
-      LastFD = &*I;
+      LastFD = *I;
     }
   }
 
@@ -2492,11 +2540,16 @@ SourceRange FieldDecl::getSourceRange() const {
   return DeclaratorDecl::getSourceRange();
 }
 
+void FieldDecl::setBitWidth(Expr *Width) {
+  assert(!InitializerOrBitWidth.getPointer() && !hasInClassInitializer() &&
+         "bit width or initializer already set");
+  InitializerOrBitWidth.setPointer(Width);
+}
+
 void FieldDecl::setInClassInitializer(Expr *Init) {
-  assert(!InitializerOrBitWidth.getPointer() &&
+  assert(!InitializerOrBitWidth.getPointer() && hasInClassInitializer() &&
          "bit width or initializer already set");
   InitializerOrBitWidth.setPointer(Init);
-  InitializerOrBitWidth.setInt(0);
 }
 
 //===----------------------------------------------------------------------===//

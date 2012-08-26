@@ -378,8 +378,6 @@ public:
     return hasConst();
   }
 
-  bool isSupersetOf(Qualifiers Other) const;
-
   /// \brief Determine whether this set of qualifiers is a strict superset of
   /// another set of qualifiers, not considering qualifier compatibility.
   bool isStrictSupersetOf(Qualifiers Other) const;
@@ -522,8 +520,6 @@ public:
   void setLocalFastQualifiers(unsigned Quals) { Value.setInt(Quals); }
 
   /// Retrieves a pointer to the underlying (unqualified) type.
-  /// This should really return a const Type, but it's not worth
-  /// changing all the users right now.
   ///
   /// This function requires that the type not be NULL. If the type might be
   /// NULL, use the (slightly less efficient) \c getTypePtrOrNull().
@@ -1142,8 +1138,6 @@ private:
     unsigned TC : 8;
 
     /// Dependent - Whether this type is a dependent type (C++ [temp.dep.type]).
-    /// Note that this should stay at the end of the ivars for Type so that
-    /// subclasses can pack their bitfields into the same word.
     unsigned Dependent : 1;
 
     /// \brief Whether this type somehow involves a template parameter, even
@@ -1653,7 +1647,7 @@ public:
   AutoType *getContainedAutoType() const;
 
   /// Member-template getAs<specific type>'.  Look through sugar for
-  /// an instance of <specific type>.   This scheme will eventually
+  /// an instance of \<specific type>.   This scheme will eventually
   /// replace the specific getAsXXXX methods above.
   ///
   /// There are some specializations of this member template listed
@@ -1665,7 +1659,7 @@ public:
   const ArrayType *getAsArrayTypeUnsafe() const;
 
   /// Member-template castAs<specific type>.  Look through sugar for
-  /// the underlying instance of <specific type>.
+  /// the underlying instance of \<specific type>.
   ///
   /// This method has the same relationship to getAs<T> as cast<T> has
   /// to dyn_cast<T>; which is to say, the underlying type *must*
@@ -2714,6 +2708,9 @@ public:
   bool getNoReturnAttr() const { return getExtInfo().getNoReturn(); }
   CallingConv getCallConv() const { return getExtInfo().getCC(); }
   ExtInfo getExtInfo() const { return ExtInfo(FunctionTypeBits.ExtInfo); }
+  bool isConst() const { return getTypeQuals() & Qualifiers::Const; }
+  bool isVolatile() const { return getTypeQuals() & Qualifiers::Volatile; }
+  bool isRestrict() const { return getTypeQuals() & Qualifiers::Restrict; }
 
   /// \brief Determine the type of an expression that calls a function of
   /// this type.
@@ -2881,6 +2878,8 @@ public:
     } else if (EPI.ExceptionSpecType == EST_Uninstantiated) {
       EPI.ExceptionSpecDecl = getExceptionSpecDecl();
       EPI.ExceptionSpecTemplate = getExceptionSpecTemplate();
+    } else if (EPI.ExceptionSpecType == EST_Unevaluated) {
+      EPI.ExceptionSpecDecl = getExceptionSpecDecl();
     }
     if (hasAnyConsumedArgs())
       EPI.ConsumedArguments = getConsumedArgsBuffer();
@@ -2924,11 +2923,13 @@ public:
     // NoexceptExpr sits where the arguments end.
     return *reinterpret_cast<Expr *const *>(arg_type_end());
   }
-  /// \brief If this function type has an uninstantiated exception
-  /// specification, this is the function whose exception specification
-  /// is represented by this type.
+  /// \brief If this function type has an exception specification which hasn't
+  /// been determined yet (either because it has not been evaluated or because
+  /// it has not been instantiated), this is the function whose exception
+  /// specification is represented by this type.
   FunctionDecl *getExceptionSpecDecl() const {
-    if (getExceptionSpecType() != EST_Uninstantiated)
+    if (getExceptionSpecType() != EST_Uninstantiated &&
+        getExceptionSpecType() != EST_Unevaluated)
       return 0;
     return reinterpret_cast<FunctionDecl * const *>(arg_type_end())[0];
   }
@@ -2943,7 +2944,7 @@ public:
   }
   bool isNothrow(ASTContext &Ctx) const {
     ExceptionSpecificationType EST = getExceptionSpecType();
-    assert(EST != EST_Delayed && EST != EST_Uninstantiated);
+    assert(EST != EST_Unevaluated && EST != EST_Uninstantiated);
     if (EST == EST_DynamicNone || EST == EST_BasicNoexcept)
       return true;
     if (EST != EST_ComputedNoexcept)
@@ -3735,7 +3736,7 @@ public:
   unsigned getNumArgs() const { return NumArgs; }
 
   /// \brief Retrieve a specific template argument as a type.
-  /// \precondition @c isArgType(Arg)
+  /// \pre @c isArgType(Arg)
   const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
 
   bool isSugared() const {
@@ -4139,7 +4140,7 @@ class PackExpansionType : public Type, public llvm::FoldingSetNode {
 
   PackExpansionType(QualType Pattern, QualType Canon,
                     llvm::Optional<unsigned> NumExpansions)
-    : Type(PackExpansion, Canon, /*Dependent=*/true,
+    : Type(PackExpansion, Canon, /*Dependent=*/Pattern->isDependentType(),
            /*InstantiationDependent=*/true,
            /*VariableModified=*/Pattern->isVariablyModifiedType(),
            /*ContainsUnexpandedParameterPack=*/false),
@@ -4191,8 +4192,10 @@ public:
 /// list of protocols.
 ///
 /// Given the following declarations:
-///   @class C;
-///   @protocol P;
+/// \code
+///   \@class C;
+///   \@protocol P;
+/// \endcode
 ///
 /// 'C' is an ObjCInterfaceType C.  It is sugar for an ObjCObjectType
 /// with base C and no protocols.
@@ -4406,11 +4409,13 @@ public:
   /// This method is equivalent to getPointeeType() except that
   /// it discards any typedefs (or other sugar) between this
   /// type and the "outermost" object type.  So for:
-  ///   @class A; @protocol P; @protocol Q;
+  /// \code
+  ///   \@class A; \@protocol P; \@protocol Q;
   ///   typedef A<P> AP;
   ///   typedef A A1;
   ///   typedef A1<P> A1P;
   ///   typedef A1P<Q> A1PQ;
+  /// \endcode
   /// For 'A*', getObjectType() will return 'A'.
   /// For 'A<P>*', getObjectType() will return 'A<P>'.
   /// For 'AP*', getObjectType() will return 'A<P>'.
@@ -4427,7 +4432,7 @@ public:
   }
 
   /// getInterfaceType - If this pointer points to an Objective C
-  /// @interface type, gets the type for that interface.  Any protocol
+  /// \@interface type, gets the type for that interface.  Any protocol
   /// qualifiers on the interface are ignored.
   ///
   /// \return null if the base type for this pointer is 'id' or 'Class'
@@ -4435,7 +4440,7 @@ public:
     return getObjectType()->getBaseType()->getAs<ObjCInterfaceType>();
   }
 
-  /// getInterfaceDecl - If this pointer points to an Objective @interface
+  /// getInterfaceDecl - If this pointer points to an Objective \@interface
   /// type, gets the declaration for that interface.
   ///
   /// \return null if the base type for this pointer is 'id' or 'Class'
@@ -5065,7 +5070,7 @@ struct ArrayType_cannot_be_used_with_getAs { };
 template<typename T>
 struct ArrayType_cannot_be_used_with_getAs<T, true>;
 
-/// Member-template getAs<specific type>'.
+// Member-template getAs<specific type>'.
 template <typename T> const T *Type::getAs() const {
   ArrayType_cannot_be_used_with_getAs<T> at;
   (void)at;

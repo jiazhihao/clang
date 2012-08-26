@@ -495,18 +495,17 @@ public:
   /// \brief Make a unique symbol for MemRegion R according to its kind.
   const SymbolRegionValue* getRegionValueSymbol(const TypedValueRegion* R);
 
-  const SymbolConjured* getConjuredSymbol(const Stmt *E,
-					  const LocationContext *LCtx,
-					  QualType T,
-                                          unsigned VisitCount,
-                                          const void *SymbolTag = 0);
+  const SymbolConjured* conjureSymbol(const Stmt *E,
+                                      const LocationContext *LCtx,
+                                      QualType T,
+                                      unsigned VisitCount,
+                                      const void *SymbolTag = 0);
 
-  const SymbolConjured* getConjuredSymbol(const Expr *E,
-					  const LocationContext *LCtx,
-					  unsigned VisitCount,
-                                          const void *SymbolTag = 0) {
-    return getConjuredSymbol(E, LCtx, E->getType(),
-			     VisitCount, SymbolTag);
+  const SymbolConjured* conjureSymbol(const Expr *E,
+                                      const LocationContext *LCtx,
+                                      unsigned VisitCount,
+                                      const void *SymbolTag = 0) {
+    return conjureSymbol(E, LCtx, E->getType(), VisitCount, SymbolTag);
   }
 
   const SymbolDerived *getDerivedSymbol(SymbolRef parentSymbol,
@@ -572,7 +571,7 @@ class SymbolReaper {
 
   RegionSetTy RegionRoots;
   
-  const LocationContext *LCtx;
+  const StackFrameContext *LCtx;
   const Stmt *Loc;
   SymbolManager& SymMgr;
   StoreRef reapedStore;
@@ -586,7 +585,8 @@ public:
   /// considered live.
   SymbolReaper(const LocationContext *ctx, const Stmt *s, SymbolManager& symmgr,
                StoreManager &storeMgr)
-   : LCtx(ctx), Loc(s), SymMgr(symmgr), reapedStore(0, storeMgr) {}
+   : LCtx(ctx->getCurrentStackFrame()), Loc(s), SymMgr(symmgr),
+     reapedStore(0, storeMgr) {}
 
   ~SymbolReaper() {}
 
