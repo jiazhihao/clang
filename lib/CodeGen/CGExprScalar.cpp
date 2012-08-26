@@ -1913,6 +1913,7 @@ void ScalarExprEmitter::EmitUndefinedBehaviorIntegerDivAndRemCheck(
 }
 
 Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
+  // Consider using code in EmitUndefinedBehaviorIntegerDivAndRemCheck
   if (isTrapvOverflowBehavior()) { 
     llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
 
