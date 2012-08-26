@@ -1936,6 +1936,32 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
       Builder.SetInsertPoint(DivCont);
     }
   }
+  if (Ops.Ty->isNanType()) {
+    QualType T = Ops.Ty;
+    llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(T));
+    //llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
+    llvm::Value *NaN, *Result2;
+    if (Ops.Ty->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(IntType);
+      Result2 = Builder.CreateUDiv(Ops.LHS, Ops.RHS, "div");
+    }
+    else {
+      NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                   llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
+      Result2 = Builder.CreateSDiv(Ops.LHS, Ops.RHS, "div");
+    }
+    
+    // Cmp = y == NaN
+    llvm::Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
+    // Result1 = Cmp ? NaN : Result2
+    llvm::Value *Result1 = Builder.CreateSelect(Cmp, NaN, Result2, "cond");
+    // Cmp = x == NaN
+    Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
+    // return Cmp ? NaN : Result1
+    return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
+  }
   if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
     llvm::Value *Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
     if (CGF.getContext().getLangOpts().OpenCL) {
