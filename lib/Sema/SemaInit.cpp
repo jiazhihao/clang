@@ -4792,6 +4792,7 @@ InitializedEntityOutlivesFullExpression(const InitializedEntity &Entity) {
   case InitializedEntity::EK_VectorElement:
   case InitializedEntity::EK_BlockElement:
   case InitializedEntity::EK_ComplexElement:
+  case InitializedEntity::EK_NanElement:
     // Could not determine what the full initialization is. Assume it might not
     // outlive the full-expression.
     return false;

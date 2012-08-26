@@ -1489,7 +1489,6 @@ void MicrosoftCXXNameMangler::mangleType(const DependentSizedExtVectorType *T,
 
 void MicrosoftCXXNameMangler::mangleType(const ObjCInterfaceType *T,
                                          SourceRange) {
->>>>>>> b41ba1aa47a66979df578074de3c218d820c152d
   // ObjC interfaces have structs underlying them.
   Out << 'U';
   mangleName(T->getDecl());
