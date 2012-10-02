@@ -344,6 +344,7 @@ NSAPI::getNSNumberFactoryMethodKind(QualType T) const {
   case BuiltinType::ARCUnbridgedCast:
   case BuiltinType::Half:
   case BuiltinType::PseudoObject:
+  case BuiltinType::BuiltinFn:
     break;
   }
   
@@ -398,4 +399,16 @@ bool NSAPI::isObjCEnumerator(const Expr *E,
       return EnumD->getIdentifier() == II;
 
   return false;
+}
+
+Selector NSAPI::getOrInitSelector(ArrayRef<StringRef> Ids,
+                                  Selector &Sel) const {
+  if (Sel.isNull()) {
+    SmallVector<IdentifierInfo *, 4> Idents;
+    for (ArrayRef<StringRef>::const_iterator
+           I = Ids.begin(), E = Ids.end(); I != E; ++I)
+      Idents.push_back(&Ctx.Idents.get(*I));
+    Sel = Ctx.Selectors.getSelector(Idents.size(), Idents.data());
+  }
+  return Sel;
 }

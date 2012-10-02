@@ -40,17 +40,17 @@ public:
 
   bool isMemberAccess() const { return IsMember; }
 
-  AccessedEntity(ASTContext &Context,
+  AccessedEntity(PartialDiagnostic::StorageAllocator &Allocator,
                  MemberNonce _,
                  CXXRecordDecl *NamingClass,
                  DeclAccessPair FoundDecl,
                  QualType BaseObjectType)
     : Access(FoundDecl.getAccess()), IsMember(true),
       Target(FoundDecl.getDecl()), NamingClass(NamingClass),
-      BaseObjectType(BaseObjectType), Diag(0, Context.getDiagAllocator()) {
+      BaseObjectType(BaseObjectType), Diag(0, Allocator) {
   }
 
-  AccessedEntity(ASTContext &Context,
+  AccessedEntity(PartialDiagnostic::StorageAllocator &Allocator,
                  BaseNonce _,
                  CXXRecordDecl *BaseClass,
                  CXXRecordDecl *DerivedClass,
@@ -58,7 +58,7 @@ public:
     : Access(Access), IsMember(false),
       Target(BaseClass),
       NamingClass(DerivedClass),
-      Diag(0, Context.getDiagAllocator()) {
+      Diag(0, Allocator) {
   }
 
   bool isQuiet() const { return Diag.getDiagID() == 0; }
@@ -124,6 +124,7 @@ public:
   static DelayedDiagnostic makeDeprecation(SourceLocation Loc,
            const NamedDecl *D,
            const ObjCInterfaceDecl *UnknownObjCClass,
+           const ObjCPropertyDecl  *ObjCProperty,
            StringRef Msg);
 
   static DelayedDiagnostic makeAccess(SourceLocation Loc,
@@ -193,12 +194,17 @@ public:
     return DeprecationData.UnknownObjCClass;
   }
 
+  const ObjCPropertyDecl *getObjCProperty() const {
+    return DeprecationData.ObjCProperty;
+  }
+  
 private:
   union {
     /// Deprecation.
     struct {
       const NamedDecl *Decl;
       const ObjCInterfaceDecl *UnknownObjCClass;
+      const ObjCPropertyDecl  *ObjCProperty;
       const char *Message;
       size_t MessageLen;
     } DeprecationData;
@@ -220,9 +226,8 @@ class DelayedDiagnosticPool {
   const DelayedDiagnosticPool *Parent;
   llvm::SmallVector<DelayedDiagnostic, 4> Diagnostics;
 
-  // Do not implement.
-  DelayedDiagnosticPool(const DelayedDiagnosticPool &other);
-  DelayedDiagnosticPool &operator=(const DelayedDiagnosticPool &other);
+  DelayedDiagnosticPool(const DelayedDiagnosticPool &) LLVM_DELETED_FUNCTION;
+  void operator=(const DelayedDiagnosticPool &) LLVM_DELETED_FUNCTION;
 public:
   DelayedDiagnosticPool(const DelayedDiagnosticPool *parent) : Parent(parent) {}
   ~DelayedDiagnosticPool() {

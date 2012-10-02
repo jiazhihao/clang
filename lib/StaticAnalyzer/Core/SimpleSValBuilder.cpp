@@ -81,7 +81,7 @@ SVal SimpleSValBuilder::evalCastFromNonLoc(NonLoc val, QualType castTy) {
   }
 
   if (const SymExpr *se = val.getAsSymbolicExpression()) {
-    QualType T = Context.getCanonicalType(se->getType(Context));
+    QualType T = Context.getCanonicalType(se->getType());
     // If types are the same or both are integers, ignore the cast.
     // FIXME: Remove this hack when we support symbolic truncation/extension.
     // HACK: If both castTy and T are integers, ignore the cast.  This is
@@ -276,7 +276,7 @@ SVal SimpleSValBuilder::MakeSymIntVal(const SymExpr *LHS,
     // with the given constant.
     // FIXME: This is an approximation of Sema::UsualArithmeticConversions.
     ASTContext &Ctx = getContext();
-    QualType SymbolType = LHS->getType(Ctx);
+    QualType SymbolType = LHS->getType();
     uint64_t ValWidth = RHS.getBitWidth();
     uint64_t TypeWidth = Ctx.getTypeSize(SymbolType);
 
@@ -318,7 +318,9 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
         return makeTruthVal(false, resultTy);
       case BO_Xor:
       case BO_Sub:
-        return makeIntVal(0, resultTy);
+        if (resultTy->isIntegralOrEnumerationType())
+          return makeIntVal(0, resultTy);
+        return evalCastFromNonLoc(makeIntVal(0, /*Unsigned=*/false), resultTy);
       case BO_Or:
       case BO_And:
         return evalCastFromNonLoc(lhs, resultTy);
@@ -459,7 +461,7 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
           case BO_NE:
             // Negate the comparison and make a value.
             opc = NegateComparison(opc);
-            assert(symIntExpr->getType(Context) == resultTy);
+            assert(symIntExpr->getType() == resultTy);
             return makeNonLoc(symIntExpr->getLHS(), opc,
                 symIntExpr->getRHS(), resultTy);
           }
@@ -505,7 +507,8 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       } else if (isa<SymbolData>(Sym)) {
         // Does the symbol simplify to a constant?  If so, "fold" the constant
         // by setting 'lhs' to a ConcreteInt and try again.
-        if (const llvm::APSInt *Constant = state->getSymVal(Sym)) {
+        if (const llvm::APSInt *Constant = state->getConstraintManager()
+                                                  .getSymVal(state, Sym)) {
           lhs = nonloc::ConcreteInt(*Constant);
           continue;
         }
@@ -673,11 +676,18 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
       // regions, though.
       return UnknownVal();
 
-    // If both values wrap regions, see if they're from different base regions.
+    const MemSpaceRegion *LeftMS = LeftMR->getMemorySpace();
+    const MemSpaceRegion *RightMS = RightMR->getMemorySpace();
+    const MemSpaceRegion *UnknownMS = MemMgr.getUnknownRegion();
     const MemRegion *LeftBase = LeftMR->getBaseRegion();
     const MemRegion *RightBase = RightMR->getBaseRegion();
-    if (LeftBase != RightBase &&
-        !isa<SymbolicRegion>(LeftBase) && !isa<SymbolicRegion>(RightBase)) {
+
+    // If the two regions are from different known memory spaces they cannot be
+    // equal. Also, assume that no symbolic region (whose memory space is
+    // unknown) is on the stack.
+    if (LeftMS != RightMS &&
+        ((LeftMS != UnknownMS && RightMS != UnknownMS) ||
+         (isa<StackSpaceRegion>(LeftMS) || isa<StackSpaceRegion>(RightMS)))) {
       switch (op) {
       default:
         return UnknownVal();
@@ -688,24 +698,20 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
       }
     }
 
-    // The two regions are from the same base region. See if they're both a
-    // type of region we know how to compare.
-    const MemSpaceRegion *LeftMS = LeftBase->getMemorySpace();
-    const MemSpaceRegion *RightMS = RightBase->getMemorySpace();
-
-    // Heuristic: assume that no symbolic region (whose memory space is
-    // unknown) is on the stack.
-    // FIXME: we should be able to be more precise once we can do better
-    // aliasing constraints for symbolic regions, but this is a reasonable,
-    // albeit unsound, assumption that holds most of the time.
-    if (isa<StackSpaceRegion>(LeftMS) ^ isa<StackSpaceRegion>(RightMS)) {
+    // If both values wrap regions, see if they're from different base regions.
+    // Note, heap base symbolic regions are assumed to not alias with
+    // each other; for example, we assume that malloc returns different address
+    // on each invocation.
+    if (LeftBase != RightBase &&
+        ((!isa<SymbolicRegion>(LeftBase) && !isa<SymbolicRegion>(RightBase)) ||
+         (isa<HeapSpaceRegion>(LeftMS) || isa<HeapSpaceRegion>(RightMS))) ){
       switch (op) {
-        default:
-          break;
-        case BO_EQ:
-          return makeTruthVal(false, resultTy);
-        case BO_NE:
-          return makeTruthVal(true, resultTy);
+      default:
+        return UnknownVal();
+      case BO_EQ:
+        return makeTruthVal(false, resultTy);
+      case BO_NE:
+        return makeTruthVal(true, resultTy);
       }
     }
 
@@ -821,9 +827,9 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
       bool leftFirst = (op == BO_LT || op == BO_LE);
       for (RecordDecl::field_iterator I = RD->field_begin(),
            E = RD->field_end(); I!=E; ++I) {
-        if (&*I == LeftFD)
+        if (*I == LeftFD)
           return makeTruthVal(leftFirst, resultTy);
-        if (&*I == RightFD)
+        if (*I == RightFD)
           return makeTruthVal(!leftFirst, resultTy);
       }
 
@@ -913,14 +919,8 @@ SVal SimpleSValBuilder::evalBinOpLN(ProgramStateRef state,
     else if (isa<SubRegion>(region)) {
       superR = region;
       index = rhs;
-      if (const PointerType *PT = resultTy->getAs<PointerType>()) {
-        elementType = PT->getPointeeType();
-      }
-      else {
-        const ObjCObjectPointerType *OT =
-          resultTy->getAs<ObjCObjectPointerType>();
-        elementType = OT->getPointeeType();
-      }
+      if (resultTy->isAnyPointerType())
+        elementType = resultTy->getPointeeType();
     }
 
     if (NonLoc *indexV = dyn_cast<NonLoc>(&index)) {
@@ -943,7 +943,7 @@ const llvm::APSInt *SimpleSValBuilder::getKnownValue(ProgramStateRef state,
     return &X->getValue();
 
   if (SymbolRef Sym = V.getAsSymbol())
-    return state->getSymVal(Sym);
+    return state->getConstraintManager().getSymVal(state, Sym);
 
   // FIXME: Add support for SymExprs.
   return NULL;

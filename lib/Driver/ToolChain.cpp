@@ -14,10 +14,10 @@
 #include "clang/Driver/ArgList.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/ObjCRuntime.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "clang/Basic/ObjCRuntime.h"
 using namespace clang::driver;
 using namespace clang;
 
@@ -30,6 +30,10 @@ ToolChain::~ToolChain() {
 
 const Driver &ToolChain::getDriver() const {
  return D;
+}
+
+bool ToolChain::IsUnwindTablesDefault() const {
+  return false;
 }
 
 std::string ToolChain::GetFilePath(const char *Name) const {
@@ -49,25 +53,9 @@ bool ToolChain::HasNativeLLVMSupport() const {
   return false;
 }
 
-void ToolChain::configureObjCRuntime(ObjCRuntime &runtime) const {
-  switch (runtime.getKind()) {
-  case ObjCRuntime::NeXT:
-    // Assume a minimal NeXT runtime.
-    runtime.HasARC = false;
-    runtime.HasWeak = false;
-    runtime.HasSubscripting = false;
-    runtime.HasTerminate = false;
-    return;
-
-  case ObjCRuntime::GNU:
-    // Assume a maximal GNU runtime.
-    runtime.HasARC = true;
-    runtime.HasWeak = true;
-    runtime.HasSubscripting = false; // to be added
-    runtime.HasTerminate = false; // to be added
-    return;
-  }
-  llvm_unreachable("invalid runtime kind!");
+ObjCRuntime ToolChain::getDefaultObjCRuntime(bool isNonFragile) const {
+  return ObjCRuntime(isNonFragile ? ObjCRuntime::GNUstep : ObjCRuntime::GCC,
+                     VersionTuple());
 }
 
 /// getARMTargetCPU - Get the (LLVM) name of the ARM cpu we are targeting.
@@ -107,6 +95,8 @@ static const char *getARMTargetCPU(const ArgList &Args,
     .Cases("armv6z", "armv6zk", "arm1176jzf-s")
     .Case("armv6t2", "arm1156t2-s")
     .Cases("armv7", "armv7a", "armv7-a", "cortex-a8")
+    .Cases("armv7f", "armv7-f", "cortex-a9-mp")
+    .Cases("armv7s", "armv7-s", "swift")
     .Cases("armv7r", "armv7-r", "cortex-r4")
     .Cases("armv7m", "armv7-m", "cortex-m3")
     .Case("ep9312", "ep9312")
@@ -135,10 +125,12 @@ static const char *getLLVMArchSuffixForARM(StringRef CPU) {
     .Cases("arm1136j-s",  "arm1136jf-s",  "arm1176jz-s", "v6")
     .Cases("arm1176jzf-s",  "mpcorenovfp",  "mpcore", "v6")
     .Cases("arm1156t2-s",  "arm1156t2f-s", "v6t2")
-    .Cases("cortex-a8", "cortex-a9", "v7")
+    .Cases("cortex-a8", "cortex-a9", "cortex-a15", "v7")
     .Case("cortex-m3", "v7m")
     .Case("cortex-m4", "v7m")
     .Case("cortex-m0", "v6m")
+    .Case("cortex-a9-mp", "v7f")
+    .Case("swift", "v7s")
     .Default("");
 }
 
@@ -158,7 +150,7 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
     // FIXME: Thumb should just be another -target-feaure, not in the triple.
     StringRef Suffix =
       getLLVMArchSuffixForARM(getARMTargetCPU(Args, Triple));
-    bool ThumbDefault = (Suffix == "v7" && getTriple().isOSDarwin());
+    bool ThumbDefault = (Suffix.startswith("v7") && getTriple().isOSDarwin());
     std::string ArchName = "arm";
 
     // Assembly files should start in ARM mode.
@@ -187,6 +179,9 @@ std::string ToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
 void ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                           ArgStringList &CC1Args) const {
   // Each toolchain should provide the appropriate include flags.
+}
+
+void ToolChain::addClangTargetOptions(ArgStringList &CC1Args) const {
 }
 
 ToolChain::RuntimeLibType ToolChain::GetRuntimeLibType(

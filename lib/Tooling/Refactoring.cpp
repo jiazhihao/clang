@@ -16,7 +16,7 @@
 #include "clang/Frontend/DiagnosticOptions.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Rewrite/Rewriter.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/Tooling/Refactoring.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -69,6 +69,14 @@ bool Replacement::apply(Rewriter &Rewrite) const {
   bool RewriteSucceeded = !Rewrite.ReplaceText(Start, Length, ReplacementText);
   assert(RewriteSucceeded);
   return RewriteSucceeded;
+}
+
+std::string Replacement::toString() const {
+  std::string result;
+  llvm::raw_string_ostream stream(result);
+  stream << FilePath << ": " << Offset << ":+" << Length
+         << ":\"" << ReplacementText << "\"";
+  return result;
 }
 
 bool Replacement::Less::operator()(const Replacement &R1,
