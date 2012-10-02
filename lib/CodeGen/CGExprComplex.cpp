@@ -429,6 +429,7 @@ ComplexPairTy ComplexExprEmitter::EmitCast(CastExpr::CastKind CK, Expr *Op,
   case CK_CopyAndAutoreleaseBlockObject:
   case CK_IntegralToNan:
   case CK_NanCast:
+  case CK_BuiltinFnToFnPtr:
     llvm_unreachable("invalid cast kind for complex value");
 
   case CK_FloatingRealToComplex:

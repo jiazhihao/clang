@@ -107,8 +107,8 @@ public:
     return 0;
   }
 
-  /// SelectTool - Choose a tool to use to handle the action \arg JA with the
-  /// given \arg Inputs.
+  /// SelectTool - Choose a tool to use to handle the action \p JA with the
+  /// given \p Inputs.
   virtual Tool &SelectTool(const Compilation &C, const JobAction &JA,
                            const ActionList &Inputs) const = 0;
 
@@ -166,7 +166,7 @@ public:
 
   /// IsUnwindTablesDefault - Does this tool chain use -funwind-tables
   /// by default.
-  virtual bool IsUnwindTablesDefault() const = 0;
+  virtual bool IsUnwindTablesDefault() const;
 
   /// GetDefaultRelocationModel - Return the LLVM name of the default
   /// relocation model for this tool chain.

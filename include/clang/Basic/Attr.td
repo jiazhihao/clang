@@ -190,7 +190,7 @@ def Availability : InheritableAttr {
 [{static llvm::StringRef getPrettyPlatformName(llvm::StringRef Platform) {
     return llvm::StringSwitch<llvm::StringRef>(Platform)
              .Case("ios", "iOS")
-             .Case("macosx", "Mac OS X")
+             .Case("macosx", "OS X")
              .Default(llvm::StringRef());
 } }];
 }
@@ -525,6 +525,11 @@ def ObjCPreciseLifetime : Attr {
 
 def ObjCReturnsInnerPointer : Attr {
   let Spellings = [GNU<"objc_returns_inner_pointer">];
+  let Subjects = [ObjCMethod];
+}
+
+def ObjCRequiresSuper : InheritableAttr {
+  let Spellings = [GNU<"objc_requires_super">];
   let Subjects = [ObjCMethod];
 }
 

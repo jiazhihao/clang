@@ -288,18 +288,17 @@ QualType QualType::IgnoreParens(QualType T) {
   return T;
 }
 
-/// \brief This will check for a TypedefType by removing any existing sugar
-/// until it reaches a TypedefType or a non-sugared type.
-template <> const TypedefType *Type::getAs() const {
-  const Type *Cur = this;
-
+/// \brief This will check for a T (which should be a Type which can act as
+/// sugar, such as a TypedefType) by removing any existing sugar until it
+/// reaches a T or a non-sugared type.
+template<typename T> static const T *getAsSugar(const Type *Cur) {
   while (true) {
-    if (const TypedefType *TDT = dyn_cast<TypedefType>(Cur))
-      return TDT;
+    if (const T *Sugar = dyn_cast<T>(Cur))
+      return Sugar;
     switch (Cur->getTypeClass()) {
 #define ABSTRACT_TYPE(Class, Parent)
 #define TYPE(Class, Parent) \
-    case Class: { \
+    case Type::Class: { \
       const Class##Type *Ty = cast<Class##Type>(Cur); \
       if (!Ty->isSugared()) return 0; \
       Cur = Ty->desugar().getTypePtr(); \
@@ -308,6 +307,14 @@ template <> const TypedefType *Type::getAs() const {
 #include "clang/AST/TypeNodes.def"
     }
   }
+}
+
+template <> const TypedefType *Type::getAs() const {
+  return getAsSugar<TypedefType>(this);
+}
+
+template <> const TemplateSpecializationType *Type::getAs() const {
+  return getAsSugar<TemplateSpecializationType>(this);
 }
 
 /// getUnqualifiedDesugaredType - Pull any qualifiers and syntactic
@@ -357,9 +364,15 @@ bool Type::isStructureType() const {
     return RT->getDecl()->isStruct();
   return false;
 }
+bool Type::isInterfaceType() const {
+  if (const RecordType *RT = getAs<RecordType>())
+    return RT->getDecl()->isInterface();
+  return false;
+}
 bool Type::isStructureOrClassType() const {
   if (const RecordType *RT = getAs<RecordType>())
-    return RT->getDecl()->isStruct() || RT->getDecl()->isClass();
+    return RT->getDecl()->isStruct() || RT->getDecl()->isClass() ||
+      RT->getDecl()->isInterface();
   return false;
 }
 bool Type::isVoidPointerType() const {
@@ -1229,8 +1242,6 @@ bool QualType::isCXX11PODType(ASTContext &Context) const {
       return false;
 
     case Qualifiers::OCL_None:
-      if (ty->isObjCLifetimeType())
-        return false;
       break;
     }        
   }
@@ -1342,6 +1353,7 @@ TypeWithKeyword::getKeywordForTypeSpec(unsigned TypeSpec) {
   case TST_typename: return ETK_Typename;
   case TST_class: return ETK_Class;
   case TST_struct: return ETK_Struct;
+  case TST_interface: return ETK_Interface;
   case TST_union: return ETK_Union;
   case TST_enum: return ETK_Enum;
   }
@@ -1352,6 +1364,7 @@ TypeWithKeyword::getTagTypeKindForTypeSpec(unsigned TypeSpec) {
   switch(TypeSpec) {
   case TST_class: return TTK_Class;
   case TST_struct: return TTK_Struct;
+  case TST_interface: return TTK_Interface;
   case TST_union: return TTK_Union;
   case TST_enum: return TTK_Enum;
   }
@@ -1364,6 +1377,7 @@ TypeWithKeyword::getKeywordForTagTypeKind(TagTypeKind Kind) {
   switch (Kind) {
   case TTK_Class: return ETK_Class;
   case TTK_Struct: return ETK_Struct;
+  case TTK_Interface: return ETK_Interface;
   case TTK_Union: return ETK_Union;
   case TTK_Enum: return ETK_Enum;
   }
@@ -1375,6 +1389,7 @@ TypeWithKeyword::getTagTypeKindForKeyword(ElaboratedTypeKeyword Keyword) {
   switch (Keyword) {
   case ETK_Class: return TTK_Class;
   case ETK_Struct: return TTK_Struct;
+  case ETK_Interface: return TTK_Interface;
   case ETK_Union: return TTK_Union;
   case ETK_Enum: return TTK_Enum;
   case ETK_None: // Fall through.
@@ -1392,6 +1407,7 @@ TypeWithKeyword::KeywordIsTagTypeKind(ElaboratedTypeKeyword Keyword) {
     return false;
   case ETK_Class:
   case ETK_Struct:
+  case ETK_Interface:
   case ETK_Union:
   case ETK_Enum:
     return true;
@@ -1406,6 +1422,7 @@ TypeWithKeyword::getKeywordName(ElaboratedTypeKeyword Keyword) {
   case ETK_Typename: return "typename";
   case ETK_Class:  return "class";
   case ETK_Struct: return "struct";
+  case ETK_Interface: return "__interface";
   case ETK_Union:  return "union";
   case ETK_Enum:   return "enum";
   }
@@ -1505,6 +1522,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Dependent:         return "<dependent type>";
   case UnknownAny:        return "<unknown type>";
   case ARCUnbridgedCast:  return "<ARC unbridged cast type>";
+  case BuiltinFn:         return "<builtin fn type>";
   case ObjCId:            return "id";
   case ObjCClass:         return "Class";
   case ObjCSel:           return "SEL";

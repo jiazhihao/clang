@@ -1123,7 +1123,9 @@ void Sema::EmitRelatedResultTypeNote(const Expr *E) {
 
 bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
                                      Expr **Args, unsigned NumArgs,
-                                     Selector Sel, ObjCMethodDecl *Method,
+                                     Selector Sel, 
+                                     ArrayRef<SourceLocation> SelectorLocs,
+                                     ObjCMethodDecl *Method,
                                      bool isClassMessage, bool isSuperMessage,
                                      SourceLocation lbrac, SourceLocation rbrac,
                                      QualType &ReturnType, ExprValueKind &VK) {
@@ -1147,7 +1149,8 @@ bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
                               : diag::warn_inst_method_not_found;
     if (!getLangOpts().DebuggerSupport)
       Diag(lbrac, DiagID)
-        << Sel << isClassMessage << SourceRange(lbrac, rbrac);
+        << Sel << isClassMessage << SourceRange(SelectorLocs.front(), 
+                                                SelectorLocs.back());
 
     // In debuggers, we want to use __unknown_anytype for these
     // results so that clients can cast them.
@@ -1338,21 +1341,22 @@ static void DiagnoseARCUseOfWeakReceiver(Sema &S, Expr *Receiver) {
     }
   }
   
-  if (T.getObjCLifetime() == Qualifiers::OCL_Weak) {
-    S.Diag(Loc, diag::warn_receiver_is_weak) 
-      << ((!PDecl && !GDecl) ? 0 : (PDecl ? 1 : 2));
-    if (PDecl)
-      S.Diag(PDecl->getLocation(), diag::note_property_declare);
-    else if (GDecl)
-      S.Diag(GDecl->getLocation(), diag::note_method_declared_at) << GDecl;
-    return;
+  if (T.getObjCLifetime() != Qualifiers::OCL_Weak) {
+    if (!PDecl)
+      return;
+    if (!(PDecl->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_weak))
+      return;
   }
-  
-  if (PDecl && 
-      (PDecl->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_weak)) {
-    S.Diag(Loc, diag::warn_receiver_is_weak) << 1;
+
+  S.Diag(Loc, diag::warn_receiver_is_weak)
+    << ((!PDecl && !GDecl) ? 0 : (PDecl ? 1 : 2));
+
+  if (PDecl)
     S.Diag(PDecl->getLocation(), diag::note_property_declare);
-  }
+  else if (GDecl)
+    S.Diag(GDecl->getLocation(), diag::note_method_declared_at) << GDecl;
+
+  S.Diag(Loc, diag::note_arc_assign_to_strong);
 }
 
 /// HandleExprPropertyRefExpr - Handle foo.bar where foo is a pointer to an
@@ -1777,6 +1781,14 @@ ExprResult Sema::ActOnSuperMessage(Scope *S,
   if (Method->isInstanceMethod()) {
     if (Sel.getMethodFamily() == OMF_dealloc)
       getCurFunction()->ObjCShouldCallSuperDealloc = false;
+    else if (const ObjCMethodDecl *IMD =
+               Class->lookupMethod(Method->getSelector(), 
+                                   Method->isInstanceMethod()))
+          // Must check for name of message since the method could
+          // be another method with objc_requires_super attribute set.
+          if (IMD->hasAttr<ObjCRequiresSuperAttr>() && 
+              Sel == IMD->getSelector())
+            getCurFunction()->ObjCShouldCallSuperDealloc = false;
     if (Sel.getMethodFamily() == OMF_finalize)
       getCurFunction()->ObjCShouldCallSuperFinalize = false;
 
@@ -1964,7 +1976,8 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
 
   unsigned NumArgs = ArgsIn.size();
   Expr **Args = ArgsIn.data();
-  if (CheckMessageArgumentTypes(ReceiverType, Args, NumArgs, Sel, Method, true,
+  if (CheckMessageArgumentTypes(ReceiverType, Args, NumArgs, Sel, SelectorLocs,
+                                Method, true,
                                 SuperLoc.isValid(), LBracLoc, RBracLoc, 
                                 ReturnType, VK))
     return ExprError();
@@ -2298,7 +2311,8 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
   ExprValueKind VK = VK_RValue;
   bool ClassMessage = (ReceiverType->isObjCClassType() ||
                        ReceiverType->isObjCQualifiedClassType());
-  if (CheckMessageArgumentTypes(ReceiverType, Args, NumArgs, Sel, Method, 
+  if (CheckMessageArgumentTypes(ReceiverType, Args, NumArgs, Sel,
+                                SelectorLocs, Method, 
                                 ClassMessage, SuperLoc.isValid(), 
                                 LBracLoc, RBracLoc, ReturnType, VK))
     return ExprError();

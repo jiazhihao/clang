@@ -65,37 +65,32 @@ namespace ast_matchers {
 class BoundNodes {
 public:
   /// \brief Returns the AST node bound to \c ID.
+  ///
   /// Returns NULL if there was no node bound to \c ID or if there is a node but
   /// it cannot be converted to the specified type.
-  /// FIXME: We'll need one of those for every base type.
+  template <typename T>
+  const T *getNodeAs(StringRef ID) const {
+    return MyBoundNodes.getNodeAs<T>(ID);
+  }
+
+  /// \brief Deprecated. Please use \c getNodeAs instead.
   /// @{
   template <typename T>
   const T *getDeclAs(StringRef ID) const {
-    return getNodeAs<T>(DeclBindings, ID);
+    return getNodeAs<T>(ID);
   }
   template <typename T>
   const T *getStmtAs(StringRef ID) const {
-    return getNodeAs<T>(StmtBindings, ID);
+    return getNodeAs<T>(ID);
   }
   /// @}
 
 private:
   /// \brief Create BoundNodes from a pre-filled map of bindings.
-  BoundNodes(const std::map<std::string, const Decl*> &DeclBindings,
-             const std::map<std::string, const Stmt*> &StmtBindings)
-      : DeclBindings(DeclBindings), StmtBindings(StmtBindings) {}
+  BoundNodes(internal::BoundNodesMap &MyBoundNodes)
+      : MyBoundNodes(MyBoundNodes) {}
 
-  template <typename T, typename MapT>
-  const T *getNodeAs(const MapT &Bindings, StringRef ID) const {
-    typename MapT::const_iterator It = Bindings.find(ID);
-    if (It == Bindings.end()) {
-      return NULL;
-    }
-    return llvm::dyn_cast<T>(It->second);
-  }
-
-  std::map<std::string, const Decl*> DeclBindings;
-  std::map<std::string, const Stmt*> StmtBindings;
+  internal::BoundNodesMap MyBoundNodes;
 
   friend class internal::BoundNodesTree;
 };
@@ -115,6 +110,8 @@ internal::Matcher<T> id(const std::string &ID,
 typedef internal::Matcher<Decl> DeclarationMatcher;
 typedef internal::Matcher<QualType> TypeMatcher;
 typedef internal::Matcher<Stmt> StatementMatcher;
+typedef internal::Matcher<NestedNameSpecifier> NestedNameSpecifierMatcher;
+typedef internal::Matcher<NestedNameSpecifierLoc> NestedNameSpecifierLocMatcher;
 /// @}
 
 /// \brief Matches any node.
@@ -345,8 +342,8 @@ AST_MATCHER_P(TemplateArgument, refersToType,
 ///     \c B::next
 AST_MATCHER_P(TemplateArgument, refersToDeclaration,
               internal::Matcher<Decl>, InnerMatcher) {
-  if (const Decl *Declaration = Node.getAsDecl())
-    return InnerMatcher.matches(*Declaration, Finder, Builder);
+  if (Node.getKind() == TemplateArgument::Declaration)
+    return InnerMatcher.matches(*Node.getAsDecl(), Finder, Builder);
   return false;
 }
 
@@ -491,6 +488,14 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, MemberExpr> memberExpr;
 ///   y();
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<Stmt, CallExpr> callExpr;
+
+/// \brief Matches lambda expressions.
+///
+/// Example matches [&](){return 5;}
+/// \code
+///   [&](){return 5;}
+/// \endcode
+const internal::VariadicDynCastAllOfMatcher<Stmt, LambdaExpr> lambdaExpr;
 
 /// \brief Matches member call expressions.
 ///
@@ -667,8 +672,18 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, IfStmt> ifStmt;
 /// Example matches 'for (;;) {}'
 /// \code
 ///   for (;;) {}
+///   int i[] =  {1, 2, 3}; for (auto a : i);
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<Stmt, ForStmt> forStmt;
+
+/// \brief Matches range-based for statements.
+///
+/// forRangeStmt() matches 'for (auto a : i)'
+/// \code
+///   int i[] =  {1, 2, 3}; for (auto a : i);
+///   for(int j = 0; j < 5; ++j);
+/// \endcode
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXForRangeStmt> forRangeStmt;
 
 /// \brief Matches the increment statement of a for loop.
 ///
@@ -719,6 +734,68 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, WhileStmt> whileStmt;
 ///   matches 'do {} while(true)'
 const internal::VariadicDynCastAllOfMatcher<Stmt, DoStmt> doStmt;
 
+/// \brief Matches break statements.
+///
+/// Given
+/// \code
+///   while (true) { break; }
+/// \endcode
+/// breakStmt()
+///   matches 'break'
+const internal::VariadicDynCastAllOfMatcher<Stmt, BreakStmt> breakStmt;
+
+/// \brief Matches continue statements.
+///
+/// Given
+/// \code
+///   while (true) { continue; }
+/// \endcode
+/// continueStmt()
+///   matches 'continue'
+const internal::VariadicDynCastAllOfMatcher<Stmt, ContinueStmt> continueStmt;
+
+/// \brief Matches return statements.
+///
+/// Given
+/// \code
+///   return 1;
+/// \endcode
+/// returnStmt()
+///   matches 'return 1'
+const internal::VariadicDynCastAllOfMatcher<Stmt, ReturnStmt> returnStmt;
+
+/// \brief Matches goto statements.
+///
+/// Given
+/// \code
+///   goto FOO;
+///   FOO: bar();
+/// \endcode
+/// gotoStmt()
+///   matches 'goto FOO'
+const internal::VariadicDynCastAllOfMatcher<Stmt, GotoStmt> gotoStmt;
+
+/// \brief Matches label statements.
+///
+/// Given
+/// \code
+///   goto FOO;
+///   FOO: bar();
+/// \endcode
+/// labelStmt()
+///   matches 'FOO:'
+const internal::VariadicDynCastAllOfMatcher<Stmt, LabelStmt> labelStmt;
+
+/// \brief Matches switch statements.
+///
+/// Given
+/// \code
+///   switch(a) { case 42: break; default: break; }
+/// \endcode
+/// switchStmt()
+///   matches 'switch(a)'.
+const internal::VariadicDynCastAllOfMatcher<Stmt, SwitchStmt> switchStmt;
+
 /// \brief Matches case and default statements inside switch statements.
 ///
 /// Given
@@ -737,6 +814,52 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, SwitchCase> switchCase;
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundStmt> compoundStmt;
 
+/// \brief Matches catch statements.
+///
+/// \code
+///   try {} catch(int i) {}
+/// \endcode
+/// catchStmt()
+///   matches 'catch(int i)'
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXCatchStmt> catchStmt;
+
+/// \brief Matches try statements.
+///
+/// \code
+///   try {} catch(int i) {}
+/// \endcode
+/// tryStmt()
+///   matches 'try {}'
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXTryStmt> tryStmt;
+
+/// \brief Matches throw expressions.
+///
+/// \code
+///   try { throw 5; } catch(int i) {}
+/// \endcode
+/// throwExpr()
+///   matches 'throw 5'
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXThrowExpr> throwExpr;
+
+/// \brief Matches null statements.
+///
+/// \code
+///   foo();;
+/// \endcode
+/// nullStmt()
+///   matches the second ';'
+const internal::VariadicDynCastAllOfMatcher<Stmt, NullStmt> nullStmt;
+
+/// \brief Matches asm statements.
+///
+/// \code
+///  int i = 100;
+///   __asm("mov al, 2");
+/// \endcode
+/// asmStmt()
+///   matches '__asm("mov al, 2")'
+const internal::VariadicDynCastAllOfMatcher<Stmt, AsmStmt> asmStmt;
+
 /// \brief Matches bool literals.
 ///
 /// Example matches true
@@ -744,7 +867,7 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundStmt> compoundStmt;
 ///   true
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXBoolLiteralExpr> boolLiteral;
 
 /// \brief Matches string literals (also matches wide string literals).
@@ -754,7 +877,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   char *s = "abcd"; wchar_t *ws = L"abcd"
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   StringLiteral> stringLiteral;
 
 /// \brief Matches character literals (also matches wchar_t).
@@ -767,7 +890,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   char ch = 'a'; wchar_t chw = L'a';
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CharacterLiteral> characterLiteral;
 
 /// \brief Matches integer literals of all sizes / encodings.
@@ -776,8 +899,20 @@ const internal::VariadicDynCastAllOfMatcher<
 ///
 /// Example matches 1, 1L, 0x1, 1U
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   IntegerLiteral> integerLiteral;
+
+/// \brief Matches user defined literal operator call.
+///
+/// Example match: "foo"_suffix
+const internal::VariadicDynCastAllOfMatcher<
+  Stmt,
+  UserDefinedLiteral> userDefinedLiteral;
+
+/// \brief Matches nullptr literal.
+const internal::VariadicDynCastAllOfMatcher<
+  Stmt,
+  CXXNullPtrLiteralExpr> nullPtrLiteralExpr;
 
 /// \brief Matches binary operator expressions.
 ///
@@ -820,7 +955,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   void* p = reinterpret_cast<char*>(&p);
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXReinterpretCastExpr> reinterpretCastExpr;
 
 /// \brief Matches a C++ static_cast expression.
@@ -837,7 +972,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   long eight(static_cast<long>(8));
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXStaticCastExpr> staticCastExpr;
 
 /// \brief Matches a dynamic_cast expression.
@@ -853,7 +988,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   D* p = dynamic_cast<D*>(&b);
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXDynamicCastExpr> dynamicCastExpr;
 
 /// \brief Matches a const_cast expression.
@@ -865,8 +1000,18 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   int* p = const_cast<int*>(&r);
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXConstCastExpr> constCastExpr;
+
+/// \brief Matches a C-style cast expression.
+///
+/// Example: Matches (int*) 2.2f in
+/// \code
+///   int i = (int) 2.2f;
+/// \endcode
+const internal::VariadicDynCastAllOfMatcher<
+  Stmt,
+  CStyleCastExpr> cStyleCastExpr;
 
 /// \brief Matches explicit cast expressions.
 ///
@@ -890,7 +1035,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   long ell = 42;
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   ExplicitCastExpr> explicitCastExpr;
 
 /// \brief Matches the implicit cast nodes of Clang's AST.
@@ -898,7 +1043,7 @@ const internal::VariadicDynCastAllOfMatcher<
 /// This matches many different places, including function call return value
 /// eliding, as well as any type conversions.
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   ImplicitCastExpr> implicitCastExpr;
 
 /// \brief Matches any cast nodes of Clang's AST.
@@ -914,7 +1059,7 @@ const internal::VariadicDynCastAllOfMatcher<
 ///   int i = (0);
 ///   int k = 0;
 /// \endcode
-const internal::VariadicDynCastAllOfMatcher<Expr, CastExpr> castExpr;
+const internal::VariadicDynCastAllOfMatcher<Stmt, CastExpr> castExpr;
 
 /// \brief Matches functional cast expressions
 ///
@@ -925,7 +1070,7 @@ const internal::VariadicDynCastAllOfMatcher<Expr, CastExpr> castExpr;
 ///   Foo h = Foo(bar);
 /// \endcode
 const internal::VariadicDynCastAllOfMatcher<
-  Expr,
+  Stmt,
   CXXFunctionalCastExpr> functionalCastExpr;
 
 /// \brief Various overloads for the anyOf matcher.
@@ -1113,11 +1258,11 @@ AST_MATCHER_P(CXXOperatorCallExpr,
 /// \brief Matches C++ classes that are directly or indirectly derived from
 /// a class matching \c Base.
 ///
-/// Note that a class is considered to be also derived from itself.
+/// Note that a class is not considered to be derived from itself.
 ///
-/// Example matches X, Y, Z, C (Base == hasName("X"))
+/// Example matches Y, Z, C (Base == hasName("X"))
 /// \code
-///   class X;                // A class is considered to be derived from itself
+///   class X;
 ///   class Y : public X {};  // directly derived
 ///   class Z : public Y {};  // indirectly derived
 ///   typedef X A;
@@ -1140,6 +1285,21 @@ AST_MATCHER_P(CXXRecordDecl, isDerivedFrom,
 inline internal::Matcher<CXXRecordDecl> isDerivedFrom(StringRef BaseName) {
   assert(!BaseName.empty());
   return isDerivedFrom(hasName(BaseName));
+}
+
+/// \brief Similar to \c isDerivedFrom(), but also matches classes that directly
+/// match \c Base.
+inline internal::Matcher<CXXRecordDecl> isSameOrDerivedFrom(
+    internal::Matcher<NamedDecl> Base) {
+  return anyOf(Base, isDerivedFrom(Base));
+}
+
+/// \brief Overloaded method as shortcut for
+/// \c isSameOrDerivedFrom(hasName(...)).
+inline internal::Matcher<CXXRecordDecl> isSameOrDerivedFrom(
+    StringRef BaseName) {
+  assert(!BaseName.empty());
+  return isSameOrDerivedFrom(hasName(BaseName));
 }
 
 /// \brief Matches AST nodes that have child AST nodes that match the
@@ -1183,7 +1343,6 @@ hasDescendant(const internal::Matcher<DescendantT> &DescendantMatcher) {
     internal::HasDescendantMatcher,
     DescendantT>(DescendantMatcher);
 }
-
 
 /// \brief Matches AST nodes that have child AST nodes that match the
 /// provided matcher.
@@ -1240,6 +1399,25 @@ forEachDescendant(
   return internal::ArgumentAdaptingMatcher<
     internal::ForEachDescendantMatcher,
     DescendantT>(DescendantMatcher);
+}
+
+/// \brief Matches AST nodes that have an ancestor that matches the provided
+/// matcher.
+///
+/// Given
+/// \code
+/// void f() { if (true) { int x = 42; } }
+/// void g() { for (;;) { int x = 43; } }
+/// \endcode
+/// \c expr(integerLiteral(hasAncsestor(ifStmt()))) matches \c 42, but not 43.
+///
+/// Usable as: Any Matcher
+template <typename AncestorT>
+internal::ArgumentAdaptingMatcher<internal::HasAncestorMatcher, AncestorT>
+hasAncestor(const internal::Matcher<AncestorT> &AncestorMatcher) {
+  return internal::ArgumentAdaptingMatcher<
+    internal::HasAncestorMatcher,
+    AncestorT>(AncestorMatcher);
 }
 
 /// \brief Matches if the provided matcher does not match.
@@ -1976,7 +2154,7 @@ inline internal::Matcher<BinaryOperator> hasEitherOperand(
 
 /// \brief Matches if the operand of a unary operator matches.
 ///
-/// Example matches true (matcher = hasOperand(boolLiteral(equals(true))))
+/// Example matches true (matcher = hasUnaryOperand(boolLiteral(equals(true))))
 /// \code
 ///   !true
 /// \endcode
@@ -2258,6 +2436,83 @@ inline internal::PolymorphicMatcherWithParam0<
 isExplicitTemplateSpecialization() {
   return internal::PolymorphicMatcherWithParam0<
     internal::IsExplicitTemplateSpecializationMatcher>();
+}
+
+/// \brief Matches nested name specifiers.
+///
+/// Given
+/// \code
+///   namespace ns {
+///     struct A { static void f(); };
+///     void A::f() {}
+///     void g() { A::f(); }
+///   }
+///   ns::A a;
+/// \endcode
+/// nestedNameSpecifier()
+///   matches "ns::" and both "A::"
+const internal::VariadicAllOfMatcher<NestedNameSpecifier> nestedNameSpecifier;
+
+/// \brief Same as \c nestedNameSpecifier but matches \c NestedNameSpecifierLoc.
+const internal::VariadicAllOfMatcher<
+  NestedNameSpecifierLoc> nestedNameSpecifierLoc;
+
+/// \brief Matches \c NestedNameSpecifierLocs for which the given inner
+/// NestedNameSpecifier-matcher matches.
+inline internal::BindableMatcher<NestedNameSpecifierLoc> loc(
+    const internal::Matcher<NestedNameSpecifier> &InnerMatcher) {
+  return internal::BindableMatcher<NestedNameSpecifierLoc>(
+      new internal::LocMatcher<NestedNameSpecifierLoc, NestedNameSpecifier>(
+          InnerMatcher));
+}
+
+/// \brief Matches nested name specifiers that specify a type matching the
+/// given \c QualType matcher without qualifiers.
+/// FIXME: This is a temporary solution. Switch to using Type-matchers as soon
+/// as we have those.
+///
+/// Given
+/// \code
+///   struct A { struct B { struct C {}; }; };
+///   A::B::C c;
+/// \endcode
+/// nestedNameSpecifier(specifiesType(hasDeclaration(recordDecl(hasName("A")))))
+///   matches "A::"
+AST_MATCHER_P(NestedNameSpecifier, specifiesType,
+              internal::Matcher<QualType>, InnerMatcher) {
+  if (Node.getAsType() == NULL)
+    return false;
+  return InnerMatcher.matches(QualType(Node.getAsType(), 0), Finder, Builder);
+}
+
+/// \brief Matches on the prefix of a \c NestedNameSpecifier or
+/// \c NestedNameSpecifierLoc.
+///
+/// Given
+/// \code
+///   struct A { struct B { struct C {}; }; };
+///   A::B::C c;
+/// \endcode
+/// nestedNameSpecifier(hasPrefix(specifiesType(asString("struct A")))) and
+/// nestedNameSpecifierLoc(hasPrefix(loc(specifiesType(asString("struct A")))))
+///   both match "A::"
+LOC_TRAVERSE_MATCHER(hasPrefix, NestedNameSpecifier, getPrefix)
+
+/// \brief Matches nested name specifiers that specify a namespace matching the
+/// given namespace matcher.
+///
+/// Given
+/// \code
+///   namespace ns { struct A {}; }
+///   ns::A a;
+/// \endcode
+/// nestedNameSpecifier(specifiesNamespace(hasName("ns")))
+///   matches "ns::"
+AST_MATCHER_P(NestedNameSpecifier, specifiesNamespace,
+              internal::Matcher<NamespaceDecl>, InnerMatcher) {
+  if (Node.getAsNamespace() == NULL)
+    return false;
+  return InnerMatcher.matches(*Node.getAsNamespace(), Finder, Builder);
 }
 
 } // end namespace ast_matchers

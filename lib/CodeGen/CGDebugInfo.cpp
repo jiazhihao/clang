@@ -157,7 +157,7 @@ StringRef CGDebugInfo::getObjCMethodName(const ObjCMethodDecl *OMD) {
       OS << OID->getName();
   } else if (const ObjCCategoryImplDecl *OCD = 
              dyn_cast<const ObjCCategoryImplDecl>(DC)){
-      OS << ((NamedDecl *)OCD)->getIdentifier()->getNameStart() << '(' <<
+      OS << ((const NamedDecl *)OCD)->getIdentifier()->getNameStart() << '(' <<
           OCD->getIdentifier()->getNameStart() << ')';
   }
   OS << ' ' << OMD->getSelector().getAsString() << ']';
@@ -535,7 +535,7 @@ llvm::DIType CGDebugInfo::createRecordFwdDecl(const RecordDecl *RD,
     RDName = getClassName(RD);
     Tag = llvm::dwarf::DW_TAG_class_type;
   }
-  else if (RD->isStruct())
+  else if (RD->isStruct() || RD->isInterface())
     Tag = llvm::dwarf::DW_TAG_structure_type;
   else if (RD->isUnion())
     Tag = llvm::dwarf::DW_TAG_union_type;
@@ -805,8 +805,6 @@ CollectRecordFields(const RecordDecl *record, llvm::DIFile tunit,
     for (CXXRecordDecl::capture_const_iterator I = CXXDecl->captures_begin(),
            E = CXXDecl->captures_end(); I != E; ++I, ++Field, ++fieldno) {
       const LambdaExpr::Capture C = *I;
-      // TODO: Need to handle 'this' in some way by probably renaming the
-      // this of the lambda class and having a field member of 'this'.
       if (C.capturesVariable()) {
         VarDecl *V = C.getCapturedVar();
         llvm::DIFile VUnit = getOrCreateFile(C.getLocation());
@@ -820,6 +818,20 @@ CollectRecordFields(const RecordDecl *record, llvm::DIFile tunit,
           = createFieldType(VName, Field->getType(), SizeInBitsOverride, C.getLocation(),
                             Field->getAccess(), layout.getFieldOffset(fieldno),
                             VUnit, RecordTy);
+        elements.push_back(fieldType);
+      } else {
+        // TODO: Need to handle 'this' in some way by probably renaming the
+        // this of the lambda class and having a field member of 'this' or
+        // by using AT_object_pointer for the function and having that be
+        // used as 'this' for semantic references.
+        assert(C.capturesThis() && "Field that isn't captured and isn't this?");
+        FieldDecl *f = *Field;
+        llvm::DIFile VUnit = getOrCreateFile(f->getLocation());
+        QualType type = f->getType();
+        llvm::DIType fieldType
+          = createFieldType("this", type, 0, f->getLocation(), f->getAccess(),
+                            layout.getFieldOffset(fieldNo), VUnit, RecordTy);
+
         elements.push_back(fieldType);
       }
     }
@@ -903,12 +915,12 @@ CGDebugInfo::getOrCreateMethodType(const CXXMethodDecl *Method,
       // TODO: This and the artificial type below are misleading, the
       // types aren't artificial the argument is, but the current
       // metadata doesn't represent that.
-      ThisPtrType = DBuilder.createArtificialType(ThisPtrType);
+      ThisPtrType = DBuilder.createObjectPointerType(ThisPtrType);
       Elts.push_back(ThisPtrType);
     } else {
       llvm::DIType ThisPtrType = getOrCreateType(ThisPtr, Unit);
       TypeCache[ThisPtr.getAsOpaquePtr()] = ThisPtrType;
-      ThisPtrType = DBuilder.createArtificialType(ThisPtrType);
+      ThisPtrType = DBuilder.createObjectPointerType(ThisPtrType);
       Elts.push_back(ThisPtrType);
     }
   }
@@ -1999,7 +2011,7 @@ llvm::DISubprogram CGDebugInfo::getFunctionDeclaration(const Decl *D) {
 
 // getOrCreateFunctionType - Construct DIType. If it is a c++ method, include
 // implicit parameter "this".
-llvm::DIType CGDebugInfo::getOrCreateFunctionType(const Decl * D,
+llvm::DIType CGDebugInfo::getOrCreateFunctionType(const Decl *D,
                                                   QualType FnType,
                                                   llvm::DIFile F) {
 
@@ -2012,9 +2024,11 @@ llvm::DIType CGDebugInfo::getOrCreateFunctionType(const Decl * D,
     // First element is always return type. For 'void' functions it is NULL.
     Elts.push_back(getOrCreateType(OMethod->getResultType(), F));
     // "self" pointer is always first argument.
-    Elts.push_back(getOrCreateType(OMethod->getSelfDecl()->getType(), F));
-    // "cmd" pointer is always second argument.
-    Elts.push_back(getOrCreateType(OMethod->getCmdDecl()->getType(), F));
+    llvm::DIType SelfTy = getOrCreateType(OMethod->getSelfDecl()->getType(), F);
+    Elts.push_back(DBuilder.createObjectPointerType(SelfTy));
+    // "_cmd" pointer is always second argument.
+    llvm::DIType CmdTy = getOrCreateType(OMethod->getCmdDecl()->getType(), F);
+    Elts.push_back(DBuilder.createArtificialType(CmdTy));
     // Get rest of the arguments.
     for (ObjCMethodDecl::param_const_iterator PI = OMethod->param_begin(), 
            PE = OMethod->param_end(); PI != PE; ++PI)
@@ -2283,7 +2297,7 @@ void CGDebugInfo::EmitDeclare(const VarDecl *VD, unsigned Tag,
   else 
     Ty = getOrCreateType(VD->getType(), Unit);
 
-  // If there is not any debug info for type then do not emit debug info
+  // If there is no debug info for this type then do not emit debug info
   // for this variable.
   if (!Ty)
     return;
@@ -2309,8 +2323,16 @@ void CGDebugInfo::EmitDeclare(const VarDecl *VD, unsigned Tag,
   unsigned Flags = 0;
   if (VD->isImplicit())
     Flags |= llvm::DIDescriptor::FlagArtificial;
+  // If this is the first argument and it is implicit then
+  // give it an object pointer flag.
+  // FIXME: There has to be a better way to do this, but for static
+  // functions there won't be an implicit param at arg1 and
+  // otherwise it is 'self' or 'this'.
+  if (isa<ImplicitParamDecl>(VD) && ArgNo == 1)
+    Flags |= llvm::DIDescriptor::FlagObjectPointer;
+
   llvm::MDNode *Scope = LexicalBlockStack.back();
-    
+
   StringRef Name = VD->getName();
   if (!Name.empty()) {
     if (VD->hasAttr<BlocksAttr>()) {
@@ -2410,9 +2432,10 @@ void CGDebugInfo::EmitDeclareOfAutoVariable(const VarDecl *VD,
   EmitDeclare(VD, llvm::dwarf::DW_TAG_auto_variable, Storage, 0, Builder);
 }
 
-void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
-  const VarDecl *VD, llvm::Value *Storage, CGBuilderTy &Builder,
-  const CGBlockInfo &blockInfo) {
+void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(const VarDecl *VD,
+                                                    llvm::Value *Storage,
+                                                    CGBuilderTy &Builder,
+                                                 const CGBlockInfo &blockInfo) {
   assert(CGM.getCodeGenOpts().DebugInfo >= CodeGenOptions::LimitedDebugInfo);
   assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
   
@@ -2428,6 +2451,11 @@ void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
     Ty = EmitTypeForVarWithBlocksAttr(VD, &XOffset);
   else 
     Ty = getOrCreateType(VD->getType(), Unit);
+
+  // Self is passed along as an implicit non-arg variable in a
+  // block. Mark it as the object pointer.
+  if (isa<ImplicitParamDecl>(VD) && VD->getName() == "self")
+    Ty = DBuilder.createObjectPointerType(Ty);
 
   // Get location information.
   unsigned Line = getLineNumber(VD->getLocation());

@@ -80,10 +80,6 @@ private:
   /// usually because it could not reason about something.
   BlocksAborted blocksAborted;
 
-  /// The functions which have been analyzed through inlining. This is owned by
-  /// AnalysisConsumer. It can be null.
-  SetOfConstDecls *AnalyzedCallees;
-
   /// The information about functions shared by the whole translation unit.
   /// (This data is owned by AnalysisConsumer.)
   FunctionSummariesTy *FunctionSummaries;
@@ -101,19 +97,18 @@ private:
                     ExplodedNode *Pred);
 
 private:
-  CoreEngine(const CoreEngine&); // Do not implement.
-  CoreEngine& operator=(const CoreEngine&);
+  CoreEngine(const CoreEngine &) LLVM_DELETED_FUNCTION;
+  void operator=(const CoreEngine &) LLVM_DELETED_FUNCTION;
 
   ExplodedNode *generateCallExitBeginNode(ExplodedNode *N);
 
 public:
   /// Construct a CoreEngine object to analyze the provided CFG.
-  CoreEngine(SubEngine& subengine, SetOfConstDecls *VisitedCallees,
+  CoreEngine(SubEngine& subengine,
              FunctionSummariesTy *FS)
     : SubEng(subengine), G(new ExplodedGraph()),
       WList(WorkList::makeDFS()),
       BCounterFactory(G->getAllocator()),
-      AnalyzedCallees(VisitedCallees),
       FunctionSummaries(FS){}
 
   /// getGraph - Returns the exploded graph.

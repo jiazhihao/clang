@@ -25,13 +25,14 @@
 namespace clang {
 class Decl;
 class SourceMgr;
+class Preprocessor;
 
 namespace comments {
 class CommandTraits;
 
 class Sema {
-  Sema(const Sema&);           // DO NOT IMPLEMENT
-  void operator=(const Sema&); // DO NOT IMPLEMENT
+  Sema(const Sema &) LLVM_DELETED_FUNCTION;
+  void operator=(const Sema &) LLVM_DELETED_FUNCTION;
 
   /// Allocator for AST nodes.
   llvm::BumpPtrAllocator &Allocator;
@@ -41,7 +42,9 @@ class Sema {
 
   DiagnosticsEngine &Diags;
 
-  const CommandTraits &Traits;
+  CommandTraits &Traits;
+
+  const Preprocessor *PP;
 
   /// Information about the declaration this comment is attached to.
   DeclInfo *ThisDeclInfo;
@@ -68,7 +71,8 @@ class Sema {
 
 public:
   Sema(llvm::BumpPtrAllocator &Allocator, const SourceManager &SourceMgr,
-       DiagnosticsEngine &Diags, const CommandTraits &Traits);
+       DiagnosticsEngine &Diags, CommandTraits &Traits,
+       const Preprocessor *PP);
 
   void setDecl(const Decl *D);
 
@@ -89,7 +93,7 @@ public:
 
   BlockCommandComment *actOnBlockCommandStart(SourceLocation LocBegin,
                                               SourceLocation LocEnd,
-                                              StringRef Name);
+                                              unsigned CommandID);
 
   void actOnBlockCommandArgs(BlockCommandComment *Command,
                              ArrayRef<BlockCommandComment::Argument> Args);
@@ -99,7 +103,7 @@ public:
 
   ParamCommandComment *actOnParamCommandStart(SourceLocation LocBegin,
                                               SourceLocation LocEnd,
-                                              StringRef Name);
+                                              unsigned CommandID);
 
   void actOnParamCommandDirectionArg(ParamCommandComment *Command,
                                      SourceLocation ArgLocBegin,
@@ -116,7 +120,7 @@ public:
 
   TParamCommandComment *actOnTParamCommandStart(SourceLocation LocBegin,
                                                 SourceLocation LocEnd,
-                                                StringRef Name);
+                                                unsigned CommandID);
 
   void actOnTParamCommandParamNameArg(TParamCommandComment *Command,
                                       SourceLocation ArgLocBegin,
@@ -128,25 +132,29 @@ public:
 
   InlineCommandComment *actOnInlineCommand(SourceLocation CommandLocBegin,
                                            SourceLocation CommandLocEnd,
-                                           StringRef CommandName);
+                                           unsigned CommandID);
 
   InlineCommandComment *actOnInlineCommand(SourceLocation CommandLocBegin,
                                            SourceLocation CommandLocEnd,
-                                           StringRef CommandName,
+                                           unsigned CommandID,
                                            SourceLocation ArgLocBegin,
                                            SourceLocation ArgLocEnd,
                                            StringRef Arg);
 
   InlineContentComment *actOnUnknownCommand(SourceLocation LocBegin,
                                             SourceLocation LocEnd,
-                                            StringRef Name);
+                                            StringRef CommandName);
+
+  InlineContentComment *actOnUnknownCommand(SourceLocation LocBegin,
+                                            SourceLocation LocEnd,
+                                            unsigned CommandID);
 
   TextComment *actOnText(SourceLocation LocBegin,
                          SourceLocation LocEnd,
                          StringRef Text);
 
   VerbatimBlockComment *actOnVerbatimBlockStart(SourceLocation Loc,
-                                                StringRef Name);
+                                                unsigned CommandID);
 
   VerbatimBlockLineComment *actOnVerbatimBlockLine(SourceLocation Loc,
                                                    StringRef Text);
@@ -157,7 +165,7 @@ public:
                                 ArrayRef<VerbatimBlockLineComment *> Lines);
 
   VerbatimLineComment *actOnVerbatimLine(SourceLocation LocBegin,
-                                         StringRef Name,
+                                         unsigned CommandID,
                                          SourceLocation TextBegin,
                                          StringRef Text);
 
@@ -182,6 +190,8 @@ public:
   /// Emit diagnostics about duplicate block commands that should be
   /// used only once per comment, e.g., \\brief and \\returns.
   void checkBlockCommandDuplicate(const BlockCommandComment *Command);
+
+  void checkDeprecatedCommand(const BlockCommandComment *Comment);
 
   /// Resolve parameter names to parameter indexes in function declaration.
   /// Emit diagnostics about unknown parametrs.
@@ -215,9 +225,6 @@ public:
 
   InlineCommandComment::RenderKind
   getInlineCommandRenderKind(StringRef Name) const;
-
-  bool isHTMLEndTagOptional(StringRef Name);
-  bool isHTMLEndTagForbidden(StringRef Name);
 };
 
 } // end namespace comments

@@ -1,7 +1,17 @@
-// RUN: %clang_cc1 -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-ipa=inlining -verify %s
+// RUN: %clang_cc1 -analyze -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-ipa=inlining -verify %s
 
 void clang_analyzer_eval(bool);
 void clang_analyzer_checkInlined(bool);
+
+typedef __typeof__(sizeof(int)) size_t;
+extern "C" void *malloc(size_t);
+
+// This is the standard placement new.
+inline void* operator new(size_t, void* __p) throw()
+{
+  return __p;
+}
+
 
 class A {
 public:
@@ -226,4 +236,107 @@ namespace DefaultArgs {
     clang_analyzer_eval(Secret::value == 42); // expected-warning{{TRUE}}
     clang_analyzer_eval(obj.get() == 42); // expected-warning{{UNKNOWN}}
   }
+}
+
+namespace OperatorNew {
+  class IntWrapper {
+  public:
+    int value;
+
+    IntWrapper(int input) : value(input) {
+      // We don't want this constructor to be inlined unless we can actually
+      // use the proper region for operator new.
+      // See PR12014 and <rdar://problem/12180598>.
+      clang_analyzer_checkInlined(false); // no-warning
+    }
+  };
+
+  void test() {
+    IntWrapper *obj = new IntWrapper(42);
+    // should be TRUE
+    clang_analyzer_eval(obj->value == 42); // expected-warning{{UNKNOWN}}
+  }
+
+  void testPlacement() {
+    IntWrapper *obj = static_cast<IntWrapper *>(malloc(sizeof(IntWrapper)));
+    IntWrapper *alias = new (obj) IntWrapper(42);
+
+    clang_analyzer_eval(alias == obj); // expected-warning{{TRUE}}
+
+    // should be TRUE
+    clang_analyzer_eval(obj->value == 42); // expected-warning{{UNKNOWN}}
+  }
+}
+
+
+namespace VirtualWithSisterCasts {
+  // This entire set of tests exercises casts from sister classes and
+  // from classes outside the hierarchy, which can very much confuse
+  // code that uses DynamicTypeInfo or needs to construct CXXBaseObjectRegions.
+  // These examples used to cause crashes in +Asserts builds.
+  struct Parent {
+    virtual int foo();
+    int x;
+  };
+
+  struct A : Parent {
+    virtual int foo() { return 42; }
+  };
+
+  struct B : Parent {
+    virtual int foo();
+  };
+
+  struct Grandchild : public A {};
+
+  struct Unrelated {};
+
+  void testDowncast(Parent *b) {
+    A *a = (A *)(void *)b;
+    clang_analyzer_eval(a->foo() == 42); // expected-warning{{UNKNOWN}}
+
+    a->x = 42;
+    clang_analyzer_eval(a->x == 42); // expected-warning{{TRUE}}
+  }
+
+  void testRelated(B *b) {
+    A *a = (A *)(void *)b;
+    clang_analyzer_eval(a->foo() == 42); // expected-warning{{UNKNOWN}}
+
+    a->x = 42;
+    clang_analyzer_eval(a->x == 42); // expected-warning{{TRUE}}
+  }
+
+  void testUnrelated(Unrelated *b) {
+    A *a = (A *)(void *)b;
+    clang_analyzer_eval(a->foo() == 42); // expected-warning{{UNKNOWN}}
+
+    a->x = 42;
+    clang_analyzer_eval(a->x == 42); // expected-warning{{TRUE}}
+  }
+
+  void testCastViaNew(B *b) {
+    Grandchild *g = new (b) Grandchild();
+    // FIXME: We actually now have perfect type info because of 'new'.
+    // This should be TRUE.
+    clang_analyzer_eval(g->foo() == 42); // expected-warning{{UNKNOWN}}
+
+    g->x = 42;
+    clang_analyzer_eval(g->x == 42); // expected-warning{{TRUE}}
+  }
+}
+
+
+namespace QualifiedCalls {
+  void test(One *object) {
+    // This uses the One class from the top of the file.
+    clang_analyzer_eval(object->getNum() == 1); // expected-warning{{UNKNOWN}}
+    clang_analyzer_eval(object->One::getNum() == 1); // expected-warning{{TRUE}}
+    clang_analyzer_eval(object->A::getNum() == 0); // expected-warning{{TRUE}}
+
+    // getZero is non-virtual.
+    clang_analyzer_eval(object->getZero() == 0); // expected-warning{{TRUE}}
+    clang_analyzer_eval(object->One::getZero() == 0); // expected-warning{{TRUE}}
+    clang_analyzer_eval(object->A::getZero() == 0); // expected-warning{{TRUE}}
+}
 }

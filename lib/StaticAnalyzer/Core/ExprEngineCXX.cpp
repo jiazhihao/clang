@@ -32,13 +32,21 @@ void ExprEngine::CreateCXXTemporaryObject(const MaterializeTemporaryExpr *ME,
 
   // Bind the temporary object to the value of the expression. Then bind
   // the expression to the location of the object.
-  SVal V = state->getSVal(tempExpr, Pred->getLocationContext());
+  SVal V = state->getSVal(tempExpr, LCtx);
 
-  const MemRegion *R =
-    svalBuilder.getRegionManager().getCXXTempObjectRegion(ME, LCtx);
+  // If the value is already a CXXTempObjectRegion, it is fine as it is.
+  // Otherwise, create a new CXXTempObjectRegion, and copy the value into it.
+  const MemRegion *MR = V.getAsRegion();
+  if (!MR || !isa<CXXTempObjectRegion>(MR)) {
+    const MemRegion *R =
+      svalBuilder.getRegionManager().getCXXTempObjectRegion(ME, LCtx);
 
-  state = state->bindLoc(loc::MemRegionVal(R), V);
-  Bldr.generateNode(ME, Pred, state->BindExpr(ME, LCtx, loc::MemRegionVal(R)));
+    SVal L = loc::MemRegionVal(R);
+    state = state->bindLoc(L, V);
+    V = L;
+  }
+
+  Bldr.generateNode(ME, Pred, state->BindExpr(ME, LCtx, V));
 }
 
 void ExprEngine::VisitCXXConstructExpr(const CXXConstructExpr *CE,
@@ -101,8 +109,12 @@ void ExprEngine::VisitCXXConstructExpr(const CXXConstructExpr *CE,
       // FIXME: This will eventually need to handle new-expressions as well.
     }
 
-    // If we couldn't find an existing region to construct into, we'll just
-    // generate a symbolic region, which is fine.
+    // If we couldn't find an existing region to construct into, assume we're
+    // constructing a temporary.
+    if (!Target) {
+      MemRegionManager &MRMgr = getSValBuilder().getRegionManager();
+      Target = MRMgr.getCXXTempObjectRegion(CE, LCtx);
+    }
 
     break;
   }
@@ -151,6 +163,7 @@ void ExprEngine::VisitCXXConstructExpr(const CXXConstructExpr *CE,
 void ExprEngine::VisitCXXDestructor(QualType ObjectType,
                                     const MemRegion *Dest,
                                     const Stmt *S,
+                                    bool IsBaseDtor,
                                     ExplodedNode *Pred, 
                                     ExplodedNodeSet &Dst) {
   const LocationContext *LCtx = Pred->getLocationContext();
@@ -171,7 +184,7 @@ void ExprEngine::VisitCXXDestructor(QualType ObjectType,
 
   CallEventManager &CEMgr = getStateManager().getCallEventManager();
   CallEventRef<CXXDestructorCall> Call =
-    CEMgr.getCXXDestructorCall(DtorDecl, S, Dest, State, LCtx);
+    CEMgr.getCXXDestructorCall(DtorDecl, S, Dest, IsBaseDtor, State, LCtx);
 
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
                                 Call->getSourceRange().getBegin(),
@@ -237,7 +250,9 @@ void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
   if (FD && FD->isReservedGlobalPlacementOperator()) {
     // Non-array placement new should always return the placement location.
     SVal PlacementLoc = State->getSVal(CNE->getPlacementArg(0), LCtx);
-    State = State->BindExpr(CNE, LCtx, PlacementLoc);
+    SVal Result = svalBuilder.evalCast(PlacementLoc, CNE->getType(),
+                                       CNE->getPlacementArg(0)->getType());
+    State = State->BindExpr(CNE, LCtx, Result);
   } else {
     State = State->BindExpr(CNE, LCtx, symVal);
   }

@@ -164,6 +164,10 @@ class Parser : public CodeCompletionHandler {
   mutable IdentifierInfo *Ident_final;
   mutable IdentifierInfo *Ident_override;
 
+  // C++ type trait keywords that have can be reverted to identifiers and
+  // still used as type traits.
+  llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertableTypeTraits;
+
   OwningPtr<PragmaHandler> AlignHandler;
   OwningPtr<PragmaHandler> GCCVisibilityHandler;
   OwningPtr<PragmaHandler> OptionsHandler;
@@ -282,6 +286,23 @@ public:
   /// the EOF was encountered.
   bool ParseTopLevelDecl(DeclGroupPtrTy &Result);
 
+  /// ConsumeToken - Consume the current 'peek token' and lex the next one.
+  /// This does not work with all kinds of tokens: strings and specific other
+  /// tokens must be consumed with custom methods below.  This returns the
+  /// location of the consumed token.
+  SourceLocation ConsumeToken() {
+    assert(!isTokenStringLiteral() && !isTokenParen() && !isTokenBracket() &&
+           !isTokenBrace() &&
+           "Should consume special tokens with Consume*Token");
+
+    if (Tok.is(tok::code_completion))
+      return handleUnexpectedCodeCompletionToken();
+
+    PrevTokLocation = Tok.getLocation();
+    PP.Lex(Tok);
+    return PrevTokLocation;
+  }
+
 private:
   //===--------------------------------------------------------------------===//
   // Low-Level token peeking and consumption methods.
@@ -313,23 +334,6 @@ private:
   /// \brief Returns true if the current token is '=' or is a type of '='.
   /// For typos, give a fixit to '='
   bool isTokenEqualOrEqualTypo();
-
-  /// ConsumeToken - Consume the current 'peek token' and lex the next one.
-  /// This does not work with all kinds of tokens: strings and specific other
-  /// tokens must be consumed with custom methods below.  This returns the
-  /// location of the consumed token.
-  SourceLocation ConsumeToken() {
-    assert(!isTokenStringLiteral() && !isTokenParen() && !isTokenBracket() &&
-           !isTokenBrace() &&
-           "Should consume special tokens with Consume*Token");
-
-    if (Tok.is(tok::code_completion))
-      return handleUnexpectedCodeCompletionToken();
-
-    PrevTokLocation = Tok.getLocation();
-    PP.Lex(Tok);
-    return PrevTokLocation;
-  }
 
   /// ConsumeAnyToken - Dispatch to the right Consume* method based on the
   /// current token type.  This should only be used in cases where the type of
@@ -449,6 +453,7 @@ private:
     return PP.LookAhead(N-1);
   }
 
+public:
   /// NextToken - This peeks ahead one token and returns it without
   /// consuming it.
   const Token &NextToken() {
@@ -460,6 +465,7 @@ private:
     return ParsedType::getFromOpaquePtr(Tok.getAnnotationValue());
   }
 
+private:
   static void setTypeAnnotation(Token &Tok, ParsedType T) {
     Tok.setAnnotationValue(T.getAsOpaquePtr());
   }
@@ -482,6 +488,7 @@ private:
       Tok.setAnnotationValue(ER.get());
   }
 
+public:
   // If NeedType is true, then TryAnnotateTypeOrScopeToken will try harder to
   // find a type name by attempting typo correction.
   bool TryAnnotateTypeOrScopeToken(bool EnteringContext = false,
@@ -491,6 +498,8 @@ private:
                                                  CXXScopeSpec &SS,
                                                  bool IsNewScope);
   bool TryAnnotateCXXScopeToken(bool EnteringContext = false);
+
+private:
   enum AnnotatedNameKind {
     /// Annotation has failed and emitted an error.
     ANK_Error,
@@ -640,6 +649,7 @@ private:
   /// \brief Consume any extra semi-colons until the end of the line.
   void ConsumeExtraSemi(ExtraSemiKind Kind, unsigned TST = TST_unspecified);
 
+public:
   //===--------------------------------------------------------------------===//
   // Scope manipulation
 
@@ -651,8 +661,8 @@ private:
   /// the parser will exit the scope.
   class ParseScope {
     Parser *Self;
-    ParseScope(const ParseScope&); // do not implement
-    ParseScope& operator=(const ParseScope&); // do not implement
+    ParseScope(const ParseScope &) LLVM_DELETED_FUNCTION;
+    void operator=(const ParseScope &) LLVM_DELETED_FUNCTION;
 
   public:
     // ParseScope - Construct a new object to manage a scope in the
@@ -687,12 +697,13 @@ private:
   /// ExitScope - Pop a scope off the scope stack.
   void ExitScope();
 
+private:
   /// \brief RAII object used to modify the scope flags for the current scope.
   class ParseScopeFlags {
     Scope *CurScope;
     unsigned OldFlags;
-    ParseScopeFlags(const ParseScopeFlags &); // do not implement
-    void operator=(const ParseScopeFlags &); // do not implement
+    ParseScopeFlags(const ParseScopeFlags &) LLVM_DELETED_FUNCTION;
+    void operator=(const ParseScopeFlags &) LLVM_DELETED_FUNCTION;
 
   public:
     ParseScopeFlags(Parser *Self, unsigned ScopeFlags, bool ManageFlags = true);
@@ -714,6 +725,7 @@ private:
                           SourceRange ParenRange);
   void CheckNestedObjCContexts(SourceLocation AtLoc);
 
+public:
   /// SkipUntil - Read tokens until we get to the specified token, then consume
   /// it (unless DontConsume is true).  Because we cannot guarantee that the
   /// token will ever occur, this skips to the next token, or to some likely
@@ -745,6 +757,7 @@ private:
   /// point for skipping past a simple-declaration.
   void SkipMalformedDecl();
 
+private:
   //===--------------------------------------------------------------------===//
   // Lexing and parsing of C++ inline methods.
 
@@ -912,9 +925,9 @@ private:
   /// any member function declarations or definitions that need to be
   /// parsed after the corresponding top-level class is complete.
   struct ParsingClass {
-    ParsingClass(Decl *TagOrTemplate, bool TopLevelClass)
+    ParsingClass(Decl *TagOrTemplate, bool TopLevelClass, bool IsInterface)
       : TopLevelClass(TopLevelClass), TemplateScope(false),
-        TagOrTemplate(TagOrTemplate) { }
+        IsInterface(IsInterface), TagOrTemplate(TagOrTemplate) { }
 
     /// \brief Whether this is a "top-level" class, meaning that it is
     /// not nested within another class.
@@ -924,6 +937,9 @@ private:
     /// scope. When true, TagOrTemplate is a template declaration;
     /// othewise, it is a tag declaration.
     bool TemplateScope : 1;
+
+    /// \brief Whether this class is an __interface.
+    bool IsInterface : 1;
 
     /// \brief The class or class template whose definition we are parsing.
     Decl *TagOrTemplate;
@@ -951,9 +967,10 @@ private:
     Sema::ParsingClassState State;
 
   public:
-    ParsingClassDefinition(Parser &P, Decl *TagOrTemplate, bool TopLevelClass)
+    ParsingClassDefinition(Parser &P, Decl *TagOrTemplate, bool TopLevelClass,
+                           bool IsInterface)
       : P(P), Popped(false),
-        State(P.PushParsingClass(TagOrTemplate, TopLevelClass)) {
+        State(P.PushParsingClass(TagOrTemplate, TopLevelClass, IsInterface)) {
     }
 
     /// \brief Pop this class of the stack.
@@ -1041,7 +1058,7 @@ private:
   void LateTemplateParser(const FunctionDecl *FD);
 
   Sema::ParsingClassState
-  PushParsingClass(Decl *TagOrTemplate, bool TopLevelClass);
+  PushParsingClass(Decl *TagOrTemplate, bool TopLevelClass, bool IsInterface);
   void DeallocateParsedClasses(ParsingClass *Class);
   void PopParsingClass(Sema::ParsingClassState);
 
@@ -1177,6 +1194,7 @@ private:
 
   Decl *ParseObjCMethodDefinition();
 
+public:
   //===--------------------------------------------------------------------===//
   // C99 6.5: Expressions.
 
@@ -1192,6 +1210,7 @@ private:
   // Expr that doesn't include commas.
   ExprResult ParseAssignmentExpression(TypeCastState isTypeCast = NotTypeCast);
 
+private:
   ExprResult ParseExpressionWithLeadingAt(SourceLocation AtLoc);
 
   ExprResult ParseExpressionWithLeadingExtension(SourceLocation ExtLoc);
@@ -1205,6 +1224,9 @@ private:
   ExprResult ParseCastExpression(bool isUnaryExpression,
                                  bool isAddressOfOperand = false,
                                  TypeCastState isTypeCast = NotTypeCast);
+
+  /// Returns true if the next token cannot start an expression.
+  bool isNotExpressionStart();
 
   /// Returns true if the next token would start a postfix-expression
   /// suffix.
@@ -1618,6 +1640,15 @@ private:
   /// specifier or if we're not sure.
   bool isKnownToBeTypeSpecifier(const Token &Tok) const;
 
+  /// \brief Return true if we know that we are definitely looking at a
+  /// decl-specifier, and isn't part of an expression such as a function-style
+  /// cast. Return false if it's no a decl-specifier, or we're not sure.
+  bool isKnownToBeDeclarationSpecifier() {
+    if (getLangOpts().CPlusPlus)
+      return isCXXDeclarationSpecifier() == TPResult::True();
+    return isDeclarationSpecifier(true);
+  }
+
   /// isDeclarationStatement - Disambiguates between a declaration or an
   /// expression statement, when parsing function bodies.
   /// Returns true for declaration, false for expression.
@@ -1769,11 +1800,14 @@ private:
   TPResult TryParseFunctionDeclarator();
   TPResult TryParseBracketDeclarator();
 
+public:
   TypeResult ParseTypeName(SourceRange *Range = 0,
                            Declarator::TheContext Context
                              = Declarator::TypeNameContext,
                            AccessSpecifier AS = AS_none,
                            Decl **OwnedType = 0);
+
+private:
   void ParseBlockId(SourceLocation CaretLoc);
 
   // Check for the start of a C++11 attribute-specifier-seq in a context where
@@ -1901,7 +1935,7 @@ private:
   VirtSpecifiers::Specifier isCXX0XVirtSpecifier() const {
     return isCXX0XVirtSpecifier(Tok);
   }
-  void ParseOptionalCXX0XVirtSpecifierSeq(VirtSpecifiers &VS);
+  void ParseOptionalCXX0XVirtSpecifierSeq(VirtSpecifiers &VS, bool IsInterface);
 
   bool isCXX0XFinalKeyword() const;
 
@@ -2049,6 +2083,8 @@ private:
   bool ParseUnqualifiedIdOperator(CXXScopeSpec &SS, bool EnteringContext,
                                   ParsedType ObjectType,
                                   UnqualifiedId &Result);
+
+public:
   bool ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
                           bool AllowDestructorName,
                           bool AllowConstructorName,
@@ -2056,6 +2092,7 @@ private:
                           SourceLocation& TemplateKWLoc,
                           UnqualifiedId &Result);
 
+private:
   //===--------------------------------------------------------------------===//
   // C++ 14: Templates [temp]
 

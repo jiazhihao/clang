@@ -68,7 +68,7 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // (5) The 'store' is the same as the predecessor.
   // (6) The 'GDM' is the same as the predecessor.
   // (7) The LocationContext is the same as the predecessor.
-  // (8) The PostStmt is for a non-consumed Stmt or Expr.
+  // (8) The PostStmt isn't for a non-consumed Stmt or Expr.
   // (9) The successor is not a CallExpr StmtPoint (so that we would be able to
   //     find it when retrying a call with no inlining).
   // FIXME: It may be safe to reclaim PreCall and PostCall nodes as well.
@@ -94,9 +94,6 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   PostStmt ps = cast<PostStmt>(progPoint);
   if (ps.getTag())
     return false;
-  
-  if (isa<BinaryOperator>(ps.getStmt()))
-    return false;
 
   // Conditions 5, 6, and 7.
   ProgramStateRef state = node->getState();
@@ -106,6 +103,12 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
     return false;
   
   // Condition 8.
+  // Do not collect nodes for non-consumed Stmt or Expr to ensure precise
+  // diagnostic generation; specifically, so that we could anchor arrows
+  // pointing to the beginning of statements (as written in code).
+  if (!isa<Expr>(ps.getStmt()))
+    return false;
+  
   if (const Expr *Ex = dyn_cast<Expr>(ps.getStmt())) {
     ParentMap &PM = progPoint.getLocationContext()->getParentMap();
     if (!PM.isConsumedExpr(Ex))
@@ -115,7 +118,7 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // Condition 9.
   const ProgramPoint SuccLoc = succ->getLocation();
   if (const StmtPoint *SP = dyn_cast<StmtPoint>(&SuccLoc))
-    if (CallEvent::mayBeInlined(SP->getStmt()))
+    if (CallEvent::isCallStmt(SP->getStmt()))
       return false;
 
   return true;
@@ -329,8 +332,8 @@ ExplodedGraph::TrimInternal(const ExplodedNode* const* BeginSources,
 
   // ===- Pass 1 (reverse DFS) -===
   for (const ExplodedNode* const* I = BeginSources; I != EndSources; ++I) {
-    assert(*I);
-    WL1.push_back(*I);
+    if (*I)
+      WL1.push_back(*I);
   }
 
   // Process the first worklist until it is empty.  Because it is a std::list

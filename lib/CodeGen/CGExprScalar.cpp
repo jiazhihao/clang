@@ -45,6 +45,7 @@ struct BinOpInfo {
   Value *RHS;
   QualType Ty;  // Computation Type.
   BinaryOperator::Opcode Opcode; // Opcode of BinOp to perform
+  bool FPContractable;
   const Expr *E;      // Entire expr, for error unsupported.  May not be binop.
 };
 
@@ -80,8 +81,8 @@ public:
 
   llvm::Type *ConvertType(QualType T) { return CGF.ConvertType(T); }
   LValue EmitLValue(const Expr *E) { return CGF.EmitLValue(E); }
-  LValue EmitCheckedLValue(const Expr *E, CodeGenFunction::CheckType CT) {
-    return CGF.EmitCheckedLValue(E, CT);
+  LValue EmitCheckedLValue(const Expr *E, CodeGenFunction::TypeCheckKind TCK) {
+    return CGF.EmitCheckedLValue(E, TCK);
   }
 
   Value *EmitLoadOfLValue(LValue LV) {
@@ -92,7 +93,7 @@ public:
   /// value l-value, this method emits the address of the l-value, then loads
   /// and returns the result.
   Value *EmitLoadOfLValue(const Expr *E) {
-    return EmitLoadOfLValue(EmitCheckedLValue(E, CodeGenFunction::CT_Load));
+    return EmitLoadOfLValue(EmitCheckedLValue(E, CodeGenFunction::TCK_Load));
   }
 
   /// EmitConversionToBool - Convert the specified expression value to a
@@ -452,13 +453,7 @@ public:
   /// Create a binary op that checks for overflow.
   /// Currently only supports +, - and *.
   Value *EmitOverflowCheckedBinOp(const BinOpInfo &Ops);
-  // Emit the overflow BB when -ftrapv option is activated. 
-  void EmitOverflowBB(llvm::BasicBlock *overflowBB) {
-    Builder.SetInsertPoint(overflowBB);
-    llvm::Function *Trap = CGF.CGM.getIntrinsic(llvm::Intrinsic::trap);
-    Builder.CreateCall(Trap);
-    Builder.CreateUnreachable();
-  }
+
   // Check for undefined division and modulus behaviors.
   void EmitUndefinedBehaviorIntegerDivAndRemCheck(const BinOpInfo &Ops, 
                                                   llvm::Value *Zero,bool isDiv);
@@ -1142,7 +1137,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   //printf("VisitCastExpr: Kind = %d\n", (int)Kind);
   switch (Kind) {
   case CK_Dependent: llvm_unreachable("dependent cast kind in IR gen!");
-      
+  case CK_BuiltinFnToFnPtr:
+    llvm_unreachable("builtin functions are handled elsewhere");
+
   case CK_LValueBitCast: 
   case CK_ObjCObjectLValueCast: {
     Value *V = EmitLValue(E).getAddress();
@@ -1417,7 +1414,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   // Most common case by far: integer increment.
   } else if (type->isIntegerType()) {
 
-    llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount);
+    llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount, true);
 
     // Note that signed integer inc/dec with width less than int can't
     // overflow because of promotion rules; we're just eliding a few steps here.
@@ -1788,6 +1785,7 @@ BinOpInfo ScalarExprEmitter::EmitBinOps(const BinaryOperator *E) {
   Result.RHS = Visit(E->getRHS());
   Result.Ty  = E->getType();
   Result.Opcode = E->getOpcode();
+  Result.FPContractable = E->isFPContractable();
   Result.E = E;
   return Result;
 }
@@ -1816,7 +1814,7 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   OpInfo.Opcode = E->getOpcode();
   OpInfo.E = E;
   // Load/convert the LHS.
-  LValue LHSLV = EmitCheckedLValue(E->getLHS(), CodeGenFunction::CT_Store);
+  LValue LHSLV = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
   OpInfo.LHS = EmitLoadOfLValue(LHSLV);
 
   llvm::PHINode *atomicPHI = 0;
@@ -1888,14 +1886,7 @@ Value *ScalarExprEmitter::EmitCompoundAssign(const CompoundAssignOperator *E,
 }
 
 void ScalarExprEmitter::EmitUndefinedBehaviorIntegerDivAndRemCheck(
-     					    const BinOpInfo &Ops, 
-				     	    llvm::Value *Zero, bool isDiv) {
-  llvm::Function::iterator insertPt = Builder.GetInsertBlock();
-  llvm::BasicBlock *contBB =
-    CGF.createBasicBlock(isDiv ? "div.cont" : "rem.cont", CGF.CurFn,
-                         llvm::next(insertPt));
-  llvm::BasicBlock *overflowBB = CGF.createBasicBlock("overflow", CGF.CurFn);
-
+    const BinOpInfo &Ops, llvm::Value *Zero, bool isDiv) {
   llvm::IntegerType *Ty = cast<llvm::IntegerType>(Zero->getType());
 
   if (Ops.Ty->hasSignedIntegerRepresentation()) {
@@ -1903,38 +1894,24 @@ void ScalarExprEmitter::EmitUndefinedBehaviorIntegerDivAndRemCheck(
       Builder.getInt(llvm::APInt::getSignedMinValue(Ty->getBitWidth()));
     llvm::Value *NegOne = llvm::ConstantInt::get(Ty, -1ULL);
 
-    llvm::Value *Cond1 = Builder.CreateICmpEQ(Ops.RHS, Zero);
-    llvm::Value *LHSCmp = Builder.CreateICmpEQ(Ops.LHS, IntMin);
-    llvm::Value *RHSCmp = Builder.CreateICmpEQ(Ops.RHS, NegOne);
-    llvm::Value *Cond2 = Builder.CreateAnd(LHSCmp, RHSCmp, "and");
-    Builder.CreateCondBr(Builder.CreateOr(Cond1, Cond2, "or"), 
-                         overflowBB, contBB);
+    llvm::Value *Cond1 = Builder.CreateICmpNE(Ops.RHS, Zero);
+    llvm::Value *LHSCmp = Builder.CreateICmpNE(Ops.LHS, IntMin);
+    llvm::Value *RHSCmp = Builder.CreateICmpNE(Ops.RHS, NegOne);
+    llvm::Value *Cond2 = Builder.CreateOr(LHSCmp, RHSCmp, "or");
+    CGF.EmitCheck(Builder.CreateAnd(Cond1, Cond2, "and"));
   } else {
-    CGF.Builder.CreateCondBr(Builder.CreateICmpEQ(Ops.RHS, Zero), 
-                             overflowBB, contBB);
+    CGF.EmitCheck(Builder.CreateICmpNE(Ops.RHS, Zero));
   }
-  EmitOverflowBB(overflowBB);
-  Builder.SetInsertPoint(contBB);
 }
 
 Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
-  // Consider using code in EmitUndefinedBehaviorIntegerDivAndRemCheck
-  if (isTrapvOverflowBehavior()) { 
+  if (isTrapvOverflowBehavior()) {
     llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
 
     if (Ops.Ty->isIntegerType())
       EmitUndefinedBehaviorIntegerDivAndRemCheck(Ops, Zero, true);
-    else if (Ops.Ty->isRealFloatingType()) {
-      llvm::Function::iterator insertPt = Builder.GetInsertBlock();
-      llvm::BasicBlock *DivCont = CGF.createBasicBlock("div.cont", CGF.CurFn,
-                                                       llvm::next(insertPt));
-      llvm::BasicBlock *overflowBB = CGF.createBasicBlock("overflow",
-                                                          CGF.CurFn);
-      CGF.Builder.CreateCondBr(Builder.CreateFCmpOEQ(Ops.RHS, Zero), 
-                               overflowBB, DivCont);
-      EmitOverflowBB(overflowBB);
-      Builder.SetInsertPoint(DivCont);
-    }
+    else if (Ops.Ty->isRealFloatingType())
+      CGF.EmitCheck(Builder.CreateFCmpUNE(Ops.RHS, Zero));
   }
   if (Ops.Ty->isNanType()) {
     QualType T = Ops.Ty;
@@ -2056,6 +2033,14 @@ Value *ScalarExprEmitter::EmitOverflowCheckedBinOp(const BinOpInfo &Ops) {
   Value *result = Builder.CreateExtractValue(resultAndOverflow, 0);
   Value *overflow = Builder.CreateExtractValue(resultAndOverflow, 1);
 
+  // Handle overflow with llvm.trap if no custom handler has been specified.
+  const std::string *handlerName =
+    &CGF.getContext().getLangOpts().OverflowHandler;
+  if (handlerName->empty()) {
+    CGF.EmitCheck(Builder.CreateNot(overflow));
+    return result;
+  }
+
   // Branch in case of overflow.
   llvm::BasicBlock *initialBB = Builder.GetInsertBlock();
   llvm::Function::iterator insertPt = initialBB;
@@ -2064,15 +2049,6 @@ Value *ScalarExprEmitter::EmitOverflowCheckedBinOp(const BinOpInfo &Ops) {
   llvm::BasicBlock *overflowBB = CGF.createBasicBlock("overflow", CGF.CurFn);
 
   Builder.CreateCondBr(overflow, overflowBB, continueBB);
-
-  // Handle overflow with llvm.trap.
-  const std::string *handlerName = 
-    &CGF.getContext().getLangOpts().OverflowHandler;
-  if (handlerName->empty()) {
-    EmitOverflowBB(overflowBB);
-    Builder.SetInsertPoint(continueBB);
-    return result;
-  }
 
   // If an overflow handler is set, then we want to call it and then use its
   // result, if it returns.
@@ -2191,6 +2167,77 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   return CGF.Builder.CreateInBoundsGEP(pointer, index, "add.ptr");
 }
 
+// Construct an fmuladd intrinsic to represent a fused mul-add of MulOp and
+// Addend. Use negMul and negAdd to negate the first operand of the Mul or
+// the add operand respectively. This allows fmuladd to represent a*b-c, or
+// c-a*b. Patterns in LLVM should catch the negated forms and translate them to
+// efficient operations.
+static Value* buildFMulAdd(llvm::BinaryOperator *MulOp, Value *Addend,
+                           const CodeGenFunction &CGF, CGBuilderTy &Builder,
+                           bool negMul, bool negAdd) {
+  assert(!(negMul && negAdd) && "Only one of negMul and negAdd should be set.");
+ 
+  Value *MulOp0 = MulOp->getOperand(0);
+  Value *MulOp1 = MulOp->getOperand(1);
+  if (negMul) {
+    MulOp0 =
+      Builder.CreateFSub(
+        llvm::ConstantFP::getZeroValueForNegation(MulOp0->getType()), MulOp0,
+        "neg");
+  } else if (negAdd) {
+    Addend =
+      Builder.CreateFSub(
+        llvm::ConstantFP::getZeroValueForNegation(Addend->getType()), Addend,
+        "neg");
+  }
+
+  Value *FMulAdd =
+    Builder.CreateCall3(
+      CGF.CGM.getIntrinsic(llvm::Intrinsic::fmuladd, Addend->getType()),
+                           MulOp0, MulOp1, Addend);
+   MulOp->eraseFromParent();
+
+   return FMulAdd;
+}
+
+// Check whether it would be legal to emit an fmuladd intrinsic call to
+// represent op and if so, build the fmuladd.
+//
+// Checks that (a) the operation is fusable, and (b) -ffp-contract=on.
+// Does NOT check the type of the operation - it's assumed that this function
+// will be called from contexts where it's known that the type is contractable.
+static Value* tryEmitFMulAdd(const BinOpInfo &op, 
+                         const CodeGenFunction &CGF, CGBuilderTy &Builder,
+                         bool isSub=false) {
+
+  assert((op.Opcode == BO_Add || op.Opcode == BO_AddAssign ||
+          op.Opcode == BO_Sub || op.Opcode == BO_SubAssign) &&
+         "Only fadd/fsub can be the root of an fmuladd.");
+
+  // Check whether this op is marked as fusable.
+  if (!op.FPContractable)
+    return 0;
+
+  // Check whether -ffp-contract=on. (If -ffp-contract=off/fast, fusing is
+  // either disabled, or handled entirely by the LLVM backend).
+  if (CGF.getContext().getLangOpts().getFPContractMode() != LangOptions::FPC_On)
+    return 0;
+
+  // We have a potentially fusable op. Look for a mul on one of the operands.
+  if (llvm::BinaryOperator* LHSBinOp = dyn_cast<llvm::BinaryOperator>(op.LHS)) {
+    if (LHSBinOp->getOpcode() == llvm::Instruction::FMul) {
+      return buildFMulAdd(LHSBinOp, op.RHS, CGF, Builder, false, isSub);
+    }
+  } else if (llvm::BinaryOperator* RHSBinOp =
+               dyn_cast<llvm::BinaryOperator>(op.RHS)) {
+    if (RHSBinOp->getOpcode() == llvm::Instruction::FMul) {
+      return buildFMulAdd(RHSBinOp, op.LHS, CGF, Builder, isSub, false);
+    }
+  }
+
+  return 0;
+}
+
 Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
   if (op.Ty->isNanType()) {
     //op.Ty->dump();
@@ -2247,8 +2294,13 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     }
   }
     
-  if (op.LHS->getType()->isFPOrFPVectorTy())
+  if (op.LHS->getType()->isFPOrFPVectorTy()) {
+    // Try to form an fmuladd.
+    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
+      return FMulAdd;
+
     return Builder.CreateFAdd(op.LHS, op.RHS, "add");
+  }
 
   return Builder.CreateAdd(op.LHS, op.RHS, "add");
 }
@@ -2307,8 +2359,12 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
       }
     }
     
-    if (op.LHS->getType()->isFPOrFPVectorTy())
+    if (op.LHS->getType()->isFPOrFPVectorTy()) {
+      // Try to form an fmuladd.
+      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
+        return FMulAdd;
       return Builder.CreateFSub(op.LHS, op.RHS, "sub");
+    }
 
     return Builder.CreateSub(op.LHS, op.RHS, "sub");
   }
@@ -2380,18 +2436,13 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
 
   if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
-    llvm::BasicBlock *Cont = CGF.createBasicBlock("shl.cont");
-    llvm::BasicBlock *Trap = CGF.getTrapBB();
     llvm::Value *WidthMinusOne =
       llvm::ConstantInt::get(RHS->getType(), Width - 1);
-    CGF.Builder.CreateCondBr(Builder.CreateICmpULE(RHS, WidthMinusOne),
-                             Cont, Trap);
-    CGF.EmitBlock(Cont);
+    CGF.EmitCheck(Builder.CreateICmpULE(RHS, WidthMinusOne));
 
     if (Ops.Ty->hasSignedIntegerRepresentation()) {
       // Check whether we are shifting any non-zero bits off the top of the
       // integer.
-      Cont = CGF.createBasicBlock("shl.ok");
       llvm::Value *BitsShiftedOff =
         Builder.CreateLShr(Ops.LHS,
                            Builder.CreateSub(WidthMinusOne, RHS, "shl.zeros",
@@ -2406,9 +2457,7 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
         BitsShiftedOff = Builder.CreateLShr(BitsShiftedOff, One);
       }
       llvm::Value *Zero = llvm::ConstantInt::get(BitsShiftedOff->getType(), 0);
-      Builder.CreateCondBr(Builder.CreateICmpEQ(BitsShiftedOff, Zero),
-                           Cont, Trap);
-      CGF.EmitBlock(Cont);
+      CGF.EmitCheck(Builder.CreateICmpEQ(BitsShiftedOff, Zero));
     }
   }
 
@@ -2424,11 +2473,8 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
 
   if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
-    llvm::BasicBlock *Cont = CGF.createBasicBlock("cont");
-    CGF.Builder.CreateCondBr(Builder.CreateICmpULT(RHS,
-                                 llvm::ConstantInt::get(RHS->getType(), Width)),
-                             Cont, CGF.getTrapBB());
-    CGF.EmitBlock(Cont);
+    llvm::Value *WidthVal = llvm::ConstantInt::get(RHS->getType(), Width);
+    CGF.EmitCheck(Builder.CreateICmpULT(RHS, WidthVal));
   }
 
   if (Ops.Ty->hasUnsignedIntegerRepresentation())
@@ -2619,7 +2665,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
 
   case Qualifiers::OCL_Weak:
     RHS = Visit(E->getRHS());
-    LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::CT_Store);
+    LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
     RHS = CGF.EmitARCStoreWeak(LHS.getAddress(), RHS, Ignore);
     break;
 
@@ -2629,7 +2675,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     // __block variables need to have the rhs evaluated first, plus
     // this should improve codegen just a little.
     RHS = Visit(E->getRHS());
-    LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::CT_Store);
+    LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
 
     // Store the value into the LHS.  Bit-fields are handled specially
     // because the result is altered by the store, i.e., [C99 6.5.16p1]

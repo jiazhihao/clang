@@ -36,6 +36,7 @@
 #include "llvm/MC/MCTargetAsmParser.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
+#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
@@ -391,7 +392,7 @@ static bool isSimpleMSAsm(std::vector<std::vector<StringRef> > Pieces,
   return true;
 }
 
-// Break the AsmSting into pieces (i.e., mnemonic and operands).
+// Break the AsmString into pieces (i.e., mnemonic and operands).
 static void buildMSAsmPieces(StringRef Asm, std::vector<StringRef> &Pieces) {
   std::pair<StringRef,StringRef> Split = Asm.split(' ');
 
@@ -413,76 +414,105 @@ static void buildMSAsmPieces(std::vector<std::string> &AsmStrings,
     buildMSAsmPieces(AsmStrings[i], Pieces[i]);
 }
 
-// Build the unmodified AsmString used by the IR.  Also build the individual
-// asm instruction(s) and place them in the AsmStrings vector; these are fed
-// to the AsmParser.
-static std::string buildMSAsmString(Sema &SemaRef, ArrayRef<Token> AsmToks,
-                                    std::vector<std::string> &AsmStrings,
+// Build the individual assembly instruction(s) and place them in the AsmStrings
+// vector.  These strings are fed to the AsmParser.  Returns true on error.
+static bool buildMSAsmStrings(Sema &SemaRef,
+                              SourceLocation AsmLoc,
+                              ArrayRef<Token> AsmToks,
+                              std::vector<std::string> &AsmStrings,
                      std::vector<std::pair<unsigned,unsigned> > &AsmTokRanges) {
   assert (!AsmToks.empty() && "Didn't expect an empty AsmToks!");
 
-  SmallString<512> Res;
   SmallString<512> Asm;
   unsigned startTok = 0;
   for (unsigned i = 0, e = AsmToks.size(); i < e; ++i) {
-    bool isNewAsm = i == 0 || AsmToks[i].isAtStartOfLine() ||
-      AsmToks[i].is(tok::kw_asm);
+    bool isNewAsm = ((i == 0) ||
+                     AsmToks[i].isAtStartOfLine() ||
+                     AsmToks[i].is(tok::kw_asm));
 
     if (isNewAsm) {
       if (i) {
         AsmStrings.push_back(Asm.str());
         AsmTokRanges.push_back(std::make_pair(startTok, i-1));
         startTok = i;
-        Res += Asm;
         Asm.clear();
-        Res += '\n';
       }
       if (AsmToks[i].is(tok::kw_asm)) {
         i++; // Skip __asm
-        assert (i != e && "Expected another token");
+        if (i == e) {
+          SemaRef.Diag(AsmLoc, diag::err_asm_empty);
+          return true;
+        }
       }
     }
 
     if (i && AsmToks[i].hasLeadingSpace() && !isNewAsm)
       Asm += ' ';
 
-    Asm += getSpelling(SemaRef, AsmToks[i]);
+    StringRef Spelling = getSpelling(SemaRef, AsmToks[i]);
+    Asm += Spelling;
   }
   AsmStrings.push_back(Asm.str());
   AsmTokRanges.push_back(std::make_pair(startTok, AsmToks.size()-1));
-  Res += Asm;
-  return Res.str();
+
+  return false;
 }
 
-#define DEF_SIMPLE_MSASM                                                   \
-  MSAsmStmt *NS =                                                          \
-    new (Context) MSAsmStmt(Context, AsmLoc, LBraceLoc, /*IsSimple*/ true, \
-                            /*IsVolatile*/ true, AsmToks, Inputs, Outputs, \
-                            InputExprs, OutputExprs, AsmString, Clobbers,  \
-                            EndLoc);
+// Check to see if the expression is a substring of the asm operand.
+static StringRef getMSInlineAsmExprName(StringRef Name) {
+  // Strip off the size directives.
+  // E.g., DWORD PTR [V] -> V
+  if (Name.startswith("BYTE") || Name.startswith("byte") ||
+      Name.startswith("WORD") || Name.startswith("word") ||
+      Name.startswith("DWORD") || Name.startswith("dword") ||
+      Name.startswith("QWORD") || Name.startswith("qword") ||
+      Name.startswith("XWORD") || Name.startswith("xword") ||
+      Name.startswith("XMMWORD") || Name.startswith("xmmword") ||
+      Name.startswith("YMMWORD") || Name.startswith("ymmword")) {
+    std::pair< StringRef, StringRef > SplitName = Name.split(' ');
+    assert((SplitName.second.startswith("PTR") ||
+            SplitName.second.startswith("ptr")) &&
+           "Expected PTR/ptr!");
+    SplitName = SplitName.second.split('[');
+    SplitName = SplitName.second.split(']');
+    return SplitName.first;
+  }
+  return Name;
+}
 
-StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc,
-                                SourceLocation LBraceLoc,
-                                ArrayRef<Token> AsmToks,
-                                SourceLocation EndLoc) {
-  SmallVector<StringRef,4> Clobbers;
+#define DEF_SIMPLE_MSASM(STR)                                                \
+  MSAsmStmt *NS =                                                            \
+    new (Context) MSAsmStmt(Context, AsmLoc, LBraceLoc, /*IsSimple*/ true,   \
+                            /*IsVolatile*/ true, AsmToks, Inputs, Outputs,   \
+                            InputExprs, OutputExprs, STR, Constraints,       \
+                            Clobbers, EndLoc);
+
+StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc, SourceLocation LBraceLoc,
+                                ArrayRef<Token> AsmToks,SourceLocation EndLoc) {
+  SmallVector<StringRef, 4> Constraints;
+  std::vector<std::string> InputConstraints;
+  std::vector<std::string> OutputConstraints;
+  SmallVector<StringRef, 4> Clobbers;
   std::set<std::string> ClobberRegs;
+
+  // FIXME: Use a struct to hold the various expression information.
   SmallVector<IdentifierInfo*, 4> Inputs;
   SmallVector<IdentifierInfo*, 4> Outputs;
   SmallVector<Expr*, 4> InputExprs;
   SmallVector<Expr*, 4> OutputExprs;
+  SmallVector<std::string, 4> InputExprNames;
+  SmallVector<std::string, 4> OutputExprNames;
+  SmallVector<unsigned, 4> InputExprStrIdx;
+  SmallVector<unsigned, 4> OutputExprStrIdx;
 
   // Empty asm statements don't need to instantiate the AsmParser, etc.
-  if (AsmToks.empty()) {
-    StringRef AsmString;
-    DEF_SIMPLE_MSASM;
-    return Owned(NS);
-  }
+  StringRef EmptyAsmStr;
+  if (AsmToks.empty()) { DEF_SIMPLE_MSASM(EmptyAsmStr); return Owned(NS); }
 
   std::vector<std::string> AsmStrings;
   std::vector<std::pair<unsigned,unsigned> > AsmTokRanges;
-  std::string AsmString = buildMSAsmString(*this, AsmToks, AsmStrings,
-                                           AsmTokRanges);
+  if (buildMSAsmStrings(*this, AsmLoc, AsmToks, AsmStrings, AsmTokRanges))
+    return StmtError();
 
   std::vector<std::vector<StringRef> > Pieces(AsmStrings.size());
   buildMSAsmPieces(AsmStrings, Pieces);
@@ -490,7 +520,7 @@ StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc,
   bool IsSimple = isSimpleMSAsm(Pieces, Context.getTargetInfo());
 
   // AsmParser doesn't fully support these asm statements.
-  if (bailOnMSAsm(Pieces)) { DEF_SIMPLE_MSASM; return Owned(NS); }
+  if (bailOnMSAsm(Pieces)) { DEF_SIMPLE_MSASM(EmptyAsmStr); return Owned(NS); }
 
   // Initialize targets and assembly printers/parsers.
   llvm::InitializeAllTargetInfos();
@@ -534,83 +564,96 @@ StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc,
     Parser->ParseIdentifier(IDVal);
 
     // Canonicalize the opcode to lower case.
-    SmallString<128> Opcode;
-    for (unsigned j = 0, e = IDVal.size(); j != e; ++j)
-      Opcode.push_back(tolower(IDVal[j]));
+    SmallString<128> OpcodeStr;
+    for (unsigned i = 0, e = IDVal.size(); i != e; ++i)
+      OpcodeStr.push_back(tolower(IDVal[i]));
+    // FIXME: Convert to a StmtError.
+    assert(TargetParser->mnemonicIsValid(OpcodeStr) && "Invalid mnemonic!");
 
     // Parse the operands.
     llvm::SMLoc IDLoc;
     SmallVector<llvm::MCParsedAsmOperand*, 8> Operands;
-    bool HadError = TargetParser->ParseInstruction(Opcode.str(), IDLoc,
+    bool HadError = TargetParser->ParseInstruction(OpcodeStr.str(), IDLoc,
                                                    Operands);
     // If we had an error parsing the operands, fail gracefully.
-    if (HadError) { DEF_SIMPLE_MSASM; return Owned(NS); }
+    if (HadError) { DEF_SIMPLE_MSASM(EmptyAsmStr); return Owned(NS); }
 
     // Match the MCInstr.
+    unsigned Kind;
+    unsigned Opcode;
     unsigned ErrorInfo;
-    SmallVector<llvm::MCInst, 2> Instrs;
-    HadError = TargetParser->MatchInstruction(IDLoc, Operands, Instrs,
+    SmallVector<std::pair< unsigned, std::string >, 4> MapAndConstraints;
+    HadError = TargetParser->MatchInstruction(IDLoc, Operands, *Str.get(), Kind,
+                                              Opcode, MapAndConstraints,
                                               ErrorInfo,
                                               /*matchingInlineAsm*/ true);
     // If we had an error parsing the operands, fail gracefully.
-    if (HadError) { DEF_SIMPLE_MSASM; return Owned(NS); }
+    if (HadError) { DEF_SIMPLE_MSASM(EmptyAsmStr); return Owned(NS); }
 
     // Get the instruction descriptor.
-    llvm::MCInst Inst = Instrs[0];
     const llvm::MCInstrInfo *MII = TheTarget->createMCInstrInfo();
-    const llvm::MCInstrDesc &Desc = MII->get(Inst.getOpcode());
+    const llvm::MCInstrDesc &Desc = MII->get(Opcode);
     llvm::MCInstPrinter *IP =
       TheTarget->createMCInstPrinter(1, *MAI, *MII, *MRI, *STI);
 
     // Build the list of clobbers, outputs and inputs.
     unsigned NumDefs = Desc.getNumDefs();
-    for (unsigned i = 0, e = Inst.getNumOperands(); i != e; ++i) {
-      const llvm::MCOperand &Op = Inst.getOperand(i);
-
-      // Immediate.
-      if (Op.isImm() || Op.isFPImm())
+    for (unsigned i = 1, e = Operands.size(); i != e; ++i) {
+      // Skip immediates.
+      if (Operands[i]->isImm())
         continue;
 
-      bool isDef = NumDefs && (i < NumDefs);
-
-      // Register/Clobber.
-      if (Op.isReg() && isDef) {
-        std::string Reg;
-        llvm::raw_string_ostream OS(Reg);
-        IP->printRegName(OS, Op.getReg());
-
-        StringRef Clobber(OS.str());
-        if (!Context.getTargetInfo().isValidClobber(Clobber))
-          return StmtError(Diag(AsmLoc, diag::err_asm_unknown_register_name) <<
-                           Clobber);
-        ClobberRegs.insert(Reg);
+      // Register.
+      if (Operands[i]->isReg()) {
+        // Clobber.
+        if (NumDefs && (MapAndConstraints[i-1].first < NumDefs)) {
+          std::string Reg;
+          llvm::raw_string_ostream OS(Reg);
+          IP->printRegName(OS, Operands[i]->getReg());
+          StringRef Clobber(OS.str());
+          if (!Context.getTargetInfo().isValidClobber(Clobber))
+            return StmtError(
+              Diag(AsmLoc, diag::err_asm_unknown_register_name) << Clobber);
+          ClobberRegs.insert(Reg);
+        }
         continue;
       }
+
       // Expr/Input or Output.
-      if (Op.isExpr()) {
-        const llvm::MCExpr *Expr = Op.getExpr();
-        const llvm::MCSymbolRefExpr *SymRef;
-        if ((SymRef = dyn_cast<llvm::MCSymbolRefExpr>(Expr))) {
-          StringRef Name = SymRef->getSymbol().getName();
-          IdentifierInfo *II = getIdentifierInfo(Name, AsmToks,
-                                                 AsmTokRanges[StrIdx].first,
-                                                 AsmTokRanges[StrIdx].second);
-          if (II) {
-            CXXScopeSpec SS;
-            UnqualifiedId Id;
-            SourceLocation Loc;
-            Id.setIdentifier(II, AsmLoc);
-            ExprResult Result = ActOnIdExpression(getCurScope(), SS, Loc, Id,
-                                                  false, false);
-            if (!Result.isInvalid()) {
-              if (isDef) {
-                Outputs.push_back(II);
-                OutputExprs.push_back(Result.take());
-              } else {
-                Inputs.push_back(II);
-                InputExprs.push_back(Result.take());
-              }
-            }
+      StringRef Name = getMSInlineAsmExprName(Pieces[StrIdx][i]);
+
+      // The expr may be a register.
+      // E.g., DWORD PTR [eax]
+      if (Context.getTargetInfo().isValidGCCRegisterName(Name))
+        continue;
+
+      IdentifierInfo *II = getIdentifierInfo(Name, AsmToks,
+                                             AsmTokRanges[StrIdx].first,
+                                             AsmTokRanges[StrIdx].second);
+      if (II) {
+        CXXScopeSpec SS;
+        UnqualifiedId Id;
+        SourceLocation Loc;
+        Id.setIdentifier(II, AsmLoc);
+        ExprResult Result = ActOnIdExpression(getCurScope(), SS, Loc, Id,
+                                              false, false);
+        if (!Result.isInvalid()) {
+          // FIXME: Determine the proper constraints.
+          bool isMemDef = (i == 1) && Desc.mayStore();
+          if (isMemDef) {
+            Outputs.push_back(II);
+            OutputExprs.push_back(Result.take());
+            OutputExprNames.push_back(Name.str());
+            OutputExprStrIdx.push_back(StrIdx);
+
+            std::string Constraint = "=" + MapAndConstraints[i-1].second;
+            OutputConstraints.push_back(Constraint);
+          } else {
+            Inputs.push_back(II);
+            InputExprs.push_back(Result.take());
+            InputExprNames.push_back(Name.str());
+            InputExprStrIdx.push_back(StrIdx);
+            InputConstraints.push_back(MapAndConstraints[i-1].second);
           }
         }
       }
@@ -620,10 +663,118 @@ StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc,
          E = ClobberRegs.end(); I != E; ++I)
     Clobbers.push_back(*I);
 
+  // Merge the output and input constraints.  Output constraints are expected
+  // first.
+  for (std::vector<std::string>::iterator I = OutputConstraints.begin(),
+         E = OutputConstraints.end(); I != E; ++I)
+    Constraints.push_back(*I);
+
+  for (std::vector<std::string>::iterator I = InputConstraints.begin(),
+         E = InputConstraints.end(); I != E; ++I)
+    Constraints.push_back(*I);
+
+  // Enumerate the AsmString expressions.
+  unsigned OpNum = 0;
+  for (unsigned i = 0, e = OutputExprNames.size(); i != e; ++i, ++OpNum) {
+    unsigned StrIdx = OutputExprStrIdx[i];
+    // Iterate over the assembly instruction pieces, skipping the mnemonic.
+    for (unsigned j = 1, f = Pieces[StrIdx].size(); j != f; ++j) {
+      // If the operand and the expression name match, then rewrite the operand.
+      if (OutputExprNames[i] == Pieces[StrIdx][j]) {
+        SmallString<32> Res;
+        llvm::raw_svector_ostream OS(Res);
+        OS << '$' << OpNum;
+        OutputExprNames[i] = OS.str();
+        Pieces[StrIdx][j] = OutputExprNames[i];
+        break;
+      }
+      // Check to see if the expression is a substring of the asm piece.
+      std::pair< StringRef, StringRef > Split =	Pieces[StrIdx][j].split(' ');
+      bool isKeyword = llvm::StringSwitch<bool>(Split.first)
+        .Cases("BYTE", "byte", "WORD", "word", "DWORD", true)
+        .Cases("dword", "QWORD", "qword", "XWORD", "xword", true)
+        .Cases("XMMWORD", "xmmword", "YMMWORD", "ymmword", true)
+        .Default(false);
+      if (isKeyword &&
+          Split.second.find_first_of(OutputExprNames[i]) != StringRef::npos) {
+        // Is is a substring, do the replacement.
+        SmallString<32> Res;
+        llvm::raw_svector_ostream OS(Res);
+        OS << '$' << OpNum;
+        std::string piece = Pieces[StrIdx][j].str();
+        size_t found = piece.find(InputExprNames[i]);
+        piece.replace(found, InputExprNames[i].size(), OS.str());
+        OutputExprNames[i] = piece;
+        Pieces[StrIdx][j] = OutputExprNames[i];
+        break;
+      }
+    }
+  }
+  for (unsigned i = 0, e = InputExprNames.size(); i != e; ++i, ++OpNum) {
+    unsigned StrIdx = InputExprStrIdx[i];
+    // Iterate over the assembly instruction pieces, skipping the mnemonic.
+    for (unsigned j = 1, f = Pieces[StrIdx].size(); j != f; ++j) {
+      // If the operand and the expression name match, then rewrite the operand.
+      if (InputExprNames[i] == Pieces[StrIdx][j]) {
+        SmallString<32> Res;
+        llvm::raw_svector_ostream OS(Res);
+        OS << '$' << OpNum;
+        InputExprNames[i] = OS.str();
+        Pieces[StrIdx][j] = InputExprNames[i];
+        break;
+      }
+      // Check to see if the expression is a substring of the asm piece.
+      std::pair< StringRef, StringRef > Split =	Pieces[StrIdx][j].split(' ');
+      bool isKeyword = llvm::StringSwitch<bool>(Split.first)
+        .Cases("BYTE", "byte", "WORD", "word", "DWORD", true)
+        .Cases("dword", "QWORD", "qword", "XWORD", "xword", true)
+        .Cases("XMMWORD", "xmmword", "YMMWORD", "ymmword", true)
+        .Default(false);
+      if (isKeyword &&
+          Split.second.find_first_of(InputExprNames[i]) != StringRef::npos) {
+        // It is a substring, do the replacement.
+        SmallString<32> Res;
+        llvm::raw_svector_ostream OS(Res);
+        OS << '$' << OpNum;
+        std::string piece = Pieces[StrIdx][j].str();
+        size_t found = piece.find(InputExprNames[i]);
+        piece.replace(found, InputExprNames[i].size(), OS.str());
+        InputExprNames[i] = piece;
+        Pieces[StrIdx][j] = InputExprNames[i];
+        break;
+      }
+    }
+  }
+
+  // Emit the IR assembly string.
+  std::string AsmString;
+  for (unsigned i = 0, e = Pieces.size(); i != e; ++i) {
+    // Skip empty asm stmts.
+    if (Pieces[i].empty()) continue;
+
+    if (i > 0)
+      AsmString += "\n\t";
+
+    // Emit the mnemonic.
+    AsmString += Pieces[i][0];
+    if (Pieces[i].size() > 1)
+      AsmString += ' ';
+
+    // Emit the operands adding $$ to constants.
+    for (unsigned j = 1, f = Pieces[i].size(); j != f; ++j) {
+      if (j > 1) AsmString += ", ";
+      unsigned Val;
+      if (!Pieces[i][j].getAsInteger(0, Val))
+        AsmString += "$$";
+
+      AsmString += Pieces[i][j];
+    }
+  }
+
   MSAsmStmt *NS =
     new (Context) MSAsmStmt(Context, AsmLoc, LBraceLoc, IsSimple,
                             /*IsVolatile*/ true, AsmToks, Inputs, Outputs,
-                            InputExprs, OutputExprs, AsmString, Clobbers,
-                            EndLoc);
+                            InputExprs, OutputExprs, AsmString, Constraints,
+                            Clobbers, EndLoc);
   return Owned(NS);
 }

@@ -60,10 +60,6 @@ def CallAndMessageChecker : Checker<"CallAndMessage">,
   HelpText<"Check for logical errors for function calls and Objective-C message expressions (e.g., uninitialized arguments, null function pointers)">,
   DescFile<"CallAndMessageChecker.cpp">;
 
-def AdjustedReturnValueChecker : Checker<"AdjustedReturnValue">,
-  HelpText<"Check to see if the return value of a function call is different than the caller expects (e.g., from calls through function pointers)">,
-  DescFile<"AdjustedReturnValueChecker.cpp">;
-
 def AttrNonNullChecker : Checker<"AttributeNonNull">,
   HelpText<"Check for null pointers passed as arguments to a function whose arguments are marked with the 'nonnull' attribute">,
   DescFile<"AttrNonNullChecker.cpp">;
@@ -120,7 +116,7 @@ def SizeofPointerChecker : Checker<"SizeofPtr">,
   HelpText<"Warn about unintended use of sizeof() on pointer expressions">,
   DescFile<"CheckSizeofPointer.cpp">;
 
-} // end "core.experimental"
+} // end "alpha.core"
 
 //===----------------------------------------------------------------------===//
 // Evaluate "builtin" functions.
@@ -176,7 +172,7 @@ def VirtualCallChecker : Checker<"VirtualCall">,
   HelpText<"Check virtual function calls during construction or destruction">, 
   DescFile<"VirtualCallChecker.cpp">;
 
-} // end: "cplusplus.experimental"
+} // end: "alpha.cplusplus"
 
 //===----------------------------------------------------------------------===//
 // Deadcode checkers.
@@ -199,7 +195,7 @@ def UnreachableCodeChecker : Checker<"UnreachableCode">,
   HelpText<"Check unreachable code">,
   DescFile<"UnreachableCodeChecker.cpp">;
 
-} // end "deadcode.experimental"
+} // end "alpha.deadcode"
 
 //===----------------------------------------------------------------------===//
 // Security checkers.
@@ -255,7 +251,7 @@ def MallocOverflowSecurityChecker : Checker<"MallocOverflow">,
   HelpText<"Check for overflows in the arguments to malloc()">,
   DescFile<"MallocOverflowSecurityChecker.cpp">;
 
-} // end "security.experimental"
+} // end "alpha.security"
 
 //===----------------------------------------------------------------------===//
 // Taint checkers.
@@ -267,7 +263,7 @@ def GenericTaintChecker : Checker<"TaintPropagation">,
   HelpText<"Generate taint information used by other checkers">,
   DescFile<"GenericTaintChecker.cpp">;
 
-} // end "experimental.security.taint"
+} // end "alpha.security.taint"
 
 //===----------------------------------------------------------------------===//
 // Unix API checkers.
@@ -307,7 +303,7 @@ def StreamChecker : Checker<"Stream">,
   HelpText<"Check stream handling functions">,
   DescFile<"StreamChecker.cpp">;
 
-} // end "unix.experimental"
+} // end "alpha.unix"
 
 let ParentPackage = CString in {
 
@@ -417,7 +413,15 @@ def ObjCDeallocChecker : Checker<"Dealloc">,
   HelpText<"Warn about Objective-C classes that lack a correct implementation of -dealloc">,
   DescFile<"CheckObjCDealloc.cpp">;
 
-} // end "cocoa.alpha"
+def IvarInvalidationChecker : Checker<"InstanceVariableInvalidation">,
+  HelpText<"Check that the invalidatable instance variables are invalidated in the methods annotated with objc_instance_variable_invalidator">,
+  DescFile<"IvarInvalidationChecker.cpp">;
+
+def DirectIvarAssignment : Checker<"DirectIvarAssignment">,
+  HelpText<"Check that the invalidatable instance variables are invalidated in the methods annotated with objc_instance_variable_invalidator">,
+  DescFile<"DirectIvarAssignment.cpp">;
+
+} // end "alpha.osx.cocoa"
 
 let ParentPackage = CoreFoundation in {
 
@@ -481,6 +485,10 @@ def CallGraphViewer : Checker<"ViewCallGraph">,
 
 def CallGraphDumper : Checker<"DumpCallGraph">,
   HelpText<"Display Call Graph">,
+  DescFile<"DebugCheckers.cpp">;
+
+def ConfigDumper : Checker<"ConfigDumper">,
+  HelpText<"Dump config table">,
   DescFile<"DebugCheckers.cpp">;
 
 def TraversalDumper : Checker<"DumpTraversal">,

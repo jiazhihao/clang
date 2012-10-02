@@ -265,6 +265,17 @@ ExprResult Parser::ParseConstantExpression(TypeCastState isTypeCast) {
   return Actions.ActOnConstantExpression(Res);
 }
 
+bool Parser::isNotExpressionStart() {
+  tok::TokenKind K = Tok.getKind();
+  if (K == tok::l_brace || K == tok::r_brace  ||
+      K == tok::kw_for  || K == tok::kw_while ||
+      K == tok::kw_if   || K == tok::kw_else  ||
+      K == tok::kw_goto || K == tok::kw_try)
+    return true;
+  // If this is a decl-specifier, we can't be at the start of an expression.
+  return isKnownToBeDeclarationSpecifier();
+}
+
 /// \brief Parse a binary expression that starts with \p LHS and has a
 /// precedence of at least \p MinPrec.
 ExprResult
@@ -284,6 +295,17 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
     // Consume the operator, saving the operator token for error reporting.
     Token OpToken = Tok;
     ConsumeToken();
+
+    // Bail out when encountering a comma followed by a token which can't
+    // possibly be the start of an expression. For instance:
+    //   int f() { return 1, }
+    // We can't do this before consuming the comma, because
+    // isNotExpressionStart() looks at the token stream.
+    if (OpToken.is(tok::comma) && isNotExpressionStart()) {
+      PP.EnterToken(Tok);
+      Tok = OpToken;
+      return LHS;
+    }
 
     // Special case handling for the ternary operator.
     ExprResult TernaryMiddle(true);
@@ -741,6 +763,53 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
       // Avoid the unnecessary parse-time lookup in the common case
       // where the syntax forbids a type.
       const Token &Next = NextToken();
+
+      // If this identifier was reverted from a token ID, and the next token
+      // is a parenthesis, this is likely to be a use of a type trait. Check
+      // those tokens.
+      if (Next.is(tok::l_paren) &&
+          Tok.is(tok::identifier) &&
+          Tok.getIdentifierInfo()->hasRevertedTokenIDToIdentifier()) {
+        IdentifierInfo *II = Tok.getIdentifierInfo();
+        // Build up the mapping of revertable type traits, for future use.
+        if (RevertableTypeTraits.empty()) {
+#define RTT_JOIN(X,Y) X##Y
+#define REVERTABLE_TYPE_TRAIT(Name)                         \
+          RevertableTypeTraits[PP.getIdentifierInfo(#Name)] \
+            = RTT_JOIN(tok::kw_,Name)
+
+          REVERTABLE_TYPE_TRAIT(__is_arithmetic);
+          REVERTABLE_TYPE_TRAIT(__is_convertible);
+          REVERTABLE_TYPE_TRAIT(__is_empty);
+          REVERTABLE_TYPE_TRAIT(__is_floating_point);
+          REVERTABLE_TYPE_TRAIT(__is_function);
+          REVERTABLE_TYPE_TRAIT(__is_fundamental);
+          REVERTABLE_TYPE_TRAIT(__is_integral);
+          REVERTABLE_TYPE_TRAIT(__is_member_function_pointer);
+          REVERTABLE_TYPE_TRAIT(__is_member_pointer);
+          REVERTABLE_TYPE_TRAIT(__is_pod);
+          REVERTABLE_TYPE_TRAIT(__is_pointer);
+          REVERTABLE_TYPE_TRAIT(__is_same);
+          REVERTABLE_TYPE_TRAIT(__is_scalar);
+          REVERTABLE_TYPE_TRAIT(__is_signed);
+          REVERTABLE_TYPE_TRAIT(__is_unsigned);
+          REVERTABLE_TYPE_TRAIT(__is_void);
+#undef REVERTABLE_TYPE_TRAIT
+#undef RTT_JOIN
+          }
+
+          // If we find that this is in fact the name of a type trait,
+          // update the token kind in place and parse again to treat it as
+          // the appropriate kind of type trait.
+          llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind>::iterator Known
+            = RevertableTypeTraits.find(II);
+          if (Known != RevertableTypeTraits.end()) {
+            Tok.setKind(Known->second);
+            return ParseCastExpression(isUnaryExpression, isAddressOfOperand,
+                                       NotCastExpr, isTypeCast);
+          }
+        }
+
       if (Next.is(tok::coloncolon) ||
           (!ColonIsSacred && Next.is(tok::colon)) ||
           Next.is(tok::less) ||
@@ -758,7 +827,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     // '.'.
     IdentifierInfo &II = *Tok.getIdentifierInfo();
     SourceLocation ILoc = ConsumeToken();
-    
+
     // Support 'Class.property' and 'super.property' notation.
     if (getLangOpts().ObjC1 && Tok.is(tok::period) &&
         (Actions.getTypeName(II, ILoc, getCurScope()) ||
@@ -1139,6 +1208,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw___is_class:
   case tok::kw___is_empty:
   case tok::kw___is_enum:
+  case tok::kw___is_interface_class:
   case tok::kw___is_literal:
   case tok::kw___is_arithmetic:
   case tok::kw___is_integral:
@@ -1653,7 +1723,8 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
   if (OpTok.is(tok::kw_alignof) || OpTok.is(tok::kw__Alignof))
     Diag(OpTok, diag::warn_cxx98_compat_alignof);
 
-  EnterExpressionEvaluationContext Unevaluated(Actions, Sema::Unevaluated);
+  EnterExpressionEvaluationContext Unevaluated(Actions, Sema::Unevaluated,
+                                               Sema::ReuseLambdaContextDecl);
 
   bool isCastExpr;
   ParsedType CastTy;
