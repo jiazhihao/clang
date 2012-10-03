@@ -2424,7 +2424,11 @@ public:
   ComplexPairTy EmitComplexExpr(const Expr *E,
                                 bool IgnoreReal = false,
                                 bool IgnoreImag = false);
-
+  
+  /// EmitNanExpr - Emit the computation of the specified expression of
+  /// nan type, returning the result.
+  NanTy EmitNanExpr(const Expr *E);
+  
   /// EmitComplexExprIntoAddr - Emit the computation of the specified expression
   /// of complex type, storing into the specified Value*.
   void EmitComplexExprIntoAddr(const Expr *E, llvm::Value *DestAddr,

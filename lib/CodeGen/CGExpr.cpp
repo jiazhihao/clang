@@ -2431,9 +2431,13 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_FloatingComplexCast:
   case CK_FloatingComplexToIntegralComplex:
   case CK_IntegralRealToComplex:
+  case CK_IntegralToNan:
   case CK_IntegralComplexToReal:
+  case CK_NanToIntegral:
   case CK_IntegralComplexToBoolean:
+  case CK_IntegralToBoolean:
   case CK_IntegralComplexCast:
+  case CK_NanCast:
   case CK_IntegralComplexToFloatingComplex:
   case CK_DerivedToBaseMemberPointer:
   case CK_BaseToDerivedMemberPointer:
@@ -2454,10 +2458,6 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     return MakeAddrLValue(V, E->getType());
   }
       
-  case CK_IntegralToNan:
-  case CK_NanCast:
-    llvm_unreachable("will implement later");
-
   case CK_Dynamic: {
     LValue LV = EmitLValue(E->getSubExpr());
     llvm::Value *V = LV.getAddress();

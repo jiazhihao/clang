@@ -638,20 +638,21 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_FloatingComplexCast:
   case CK_FloatingComplexToIntegralComplex:
   case CK_IntegralRealToComplex:
+  case CK_IntegralToNan:
   case CK_IntegralComplexToReal:
+  case CK_NanToIntegral:
   case CK_IntegralComplexToBoolean:
+  case CK_NanToBoolean:
   case CK_IntegralComplexCast:
+  case CK_NaNCast:
   case CK_IntegralComplexToFloatingComplex:
   case CK_ARCProduceObject:
   case CK_ARCConsumeObject:
   case CK_ARCReclaimReturnedObject:
   case CK_ARCExtendBlockObject:
   case CK_CopyAndAutoreleaseBlockObject:
-  case CK_IntegralToNan:
   case CK_BuiltinFnToFnPtr:
     llvm_unreachable("cast kind invalid for aggregate types");
-  case CK_NanCast:
-    llvm_unreachable("cast kind invalid for aggregate types (nancast)");
   }
 }
 

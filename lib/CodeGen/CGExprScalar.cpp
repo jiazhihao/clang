@@ -783,6 +783,25 @@ EmitComplexToScalarConversion(CodeGenFunction::ComplexPairTy Src,
   return EmitScalarConversion(Src.first, SrcTy, DstTy);
 }
 
+/// EmitNanToScalarConversion - Emit a conversion from the specified nan
+/// type to the specified destination type, where the destination type is an
+/// LLVM scalar type.
+Value *ScalarExprEmitter::
+EmitNanToScalarConversion(CodeGenFunction::NanTy Src,
+                          QualType SrcTy, QualType DstTy) {
+  // Get the source element type.
+  SrcTy = SrcTy->getAs<NanType>()->getElementType();
+  
+  // Handle conversions to bool first, they are special: comparisons against 0.
+  if (DstTy->isBooleanType()) {
+    //  nan != 0  -> (Real != 0) | (Imag != 0)
+    Src.val  = EmitScalarConversion(Src.val, SrcTy, DstTy);
+    return Builder.CreateOr(Src.val, Src.val, "tobool");
+  }
+  
+  return EmitScalarConversion(Src.val, SrcTy, DstTy);
+}
+
 Value *ScalarExprEmitter::EmitNullValue(QualType Ty) {
   if (const MemberPointerType *MPT = Ty->getAs<MemberPointerType>())
     return CGF.CGM.getCXXABI().EmitNullMemberPointer(MPT);
@@ -1264,10 +1283,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
   
   case CK_IntegralToNan:
-    return EmitScalarConversion(Visit(E), E->getType(), DestTy);
   case CK_NanCast:
-    llvm_unreachable("will implement later");
-
+    return EmitScalarConversion(Visit(E), E->getType(), DestTy);
+  
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
@@ -1333,12 +1351,20 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_IntegralComplexToReal:
     return CGF.EmitComplexExpr(E, false, true).first;
 
+  case CK_NanToIntegral:
+    return CGF.EmitNanExpr(E).val;
+  
   case CK_FloatingComplexToBoolean:
   case CK_IntegralComplexToBoolean: {
     CodeGenFunction::ComplexPairTy V = CGF.EmitComplexExpr(E);
 
     // TODO: kill this function off, inline appropriate case here
     return EmitComplexToScalarConversion(V, E->getType(), DestTy);
+  }
+       
+  case CK_NanToBoolean: {
+    CodeGenFunction::NanTy V = CGF.EmitNanExpr(E);
+    return EmitNanToScalarConversion(V, E->getType(), DestTy);
   }
 
   }
@@ -3108,6 +3134,15 @@ Value *CodeGenFunction::EmitComplexToScalarConversion(ComplexPairTy Src,
   assert(SrcTy->isAnyComplexType() && !hasAggregateLLVMType(DstTy) &&
          "Invalid complex -> scalar conversion");
   return ScalarExprEmitter(*this).EmitComplexToScalarConversion(Src, SrcTy,
+                                                                DstTy);
+}
+
+Value *CodeGenFunction::EmitNanToScalarConversion(NanTy Src,
+                                                  QualType SrcTy,
+                                                  QualType DstTy) {
+  assert(SrcTy->isNanType() && !hasAggregateLLVMType(DstTy) &&
+         "Invalid nan -> scalar conversion");
+  return ScalarExprEmitter(*this).EmitNanToScalarConversion(Src, SrcTy,
                                                                 DstTy);
 }
 
