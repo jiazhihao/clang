@@ -5465,7 +5465,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_IntegralToBoolean:
   case CK_FloatingToBoolean:
   case CK_FloatingComplexToBoolean:
-  case CK_IntegralComplexToBoolean: {
+  case CK_IntegralComplexToBoolean: 
+  case CK_NanToBoolean: {
     bool BoolResult;
     if (!EvaluateAsBooleanCondition(SubExpr, BoolResult, Info))
       return false;
@@ -5525,7 +5526,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   }
       
   case CK_IntegralToNan:
-  case CK_NanCast: {
+  case CK_NanCast:
+  case CK_NanToIntegral: {
     NanValue N;
     if (!EvaluateNan(SubExpr, N, Info))
       return false;
@@ -5947,6 +5949,8 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_CopyAndAutoreleaseBlockObject:
   case CK_IntegralToNan:
   case CK_NanCast:
+  case CK_NanToIntegral:
+  case CK_NanToBoolean:  
   case CK_BuiltinFnToFnPtr:
     llvm_unreachable("invalid cast kind for complex value");
 
@@ -6303,6 +6307,7 @@ bool NanExprEvaluator::VisitCastExpr(const CastExpr *E) {
     case CK_FloatingComplexToBoolean:
     case CK_IntegralComplexToReal:
     case CK_IntegralComplexToBoolean:
+    case CK_NanToBoolean:
     case CK_ARCProduceObject:
     case CK_ARCConsumeObject:
     case CK_ARCReclaimReturnedObject:
@@ -6344,6 +6349,14 @@ bool NanExprEvaluator::VisitCastExpr(const CastExpr *E) {
       = E->getSubExpr()->getType()->getAs<NanType>()->getElementType();
       
       Result.Val = HandleIntToIntCast(Info, E, To, From, Result.Val);
+      return true;
+    }
+    case CK_IntegralToNan: {
+      APSInt &Real = Result.Val;
+      if (!EvaluateInteger(E->getSubExpr(), Real, Info))
+        return false;
+      
+      Result.Val = APSInt(Real.getBitWidth(), !Real.isSigned());
       return true;
     }
   }

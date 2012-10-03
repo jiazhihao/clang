@@ -1342,6 +1342,7 @@ void CastExpr::CheckCastConsistency() const {
   case CK_IntegralComplexToFloatingComplex:
   case CK_IntegralToNan:
   case CK_NanCast:
+  case CK_NanToIntegral:
   case CK_ARCProduceObject:
   case CK_ARCConsumeObject:
   case CK_ARCReclaimReturnedObject:
@@ -1360,6 +1361,7 @@ void CastExpr::CheckCastConsistency() const {
   case CK_MemberPointerToBoolean:
   case CK_FloatingComplexToBoolean:
   case CK_IntegralComplexToBoolean:
+  case CK_NanToBoolean:
   case CK_LValueBitCast:            // -> bool&
   case CK_UserDefinedConversion:    // operator bool()
   case CK_BuiltinFnToFnPtr:
@@ -1465,6 +1467,10 @@ const char *CastExpr::getCastKindName() const {
     return "IntegralToNan";
   case CK_NanCast:
     return "NanCast";
+  case CK_NanToIntegral:
+    return "NanToIntegral";
+  case CK_NanToBoolean:
+    return "NanToBoolean";
   case CK_ARCConsumeObject:
     return "ARCConsumeObject";
   case CK_ARCProduceObject:

@@ -4414,7 +4414,7 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
         case Type::STK_IntegralComplex:
           llvm_unreachable("valid nan->complex cast?");
         case Type::STK_Nan:
-          llvm_unreachable("valid integer complex->nan cast?");
+          return CK_NanCast;
         case Type::STK_Integral: {
           QualType ET = SrcTy->castAs<NanType>()->getElementType();
           if (Context.hasSameType(ET, DestTy))
@@ -4437,8 +4437,7 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
           llvm_unreachable("member pointer type in C");
       }
       llvm_unreachable("Should have returned before this");    
-  case Type::STK_Nan:
-      /*
+  /*case Type::STK_Nan:
     switch (DestTy->getScalarTypeKind()) {
       case Type::STK_CPointer:
       case Type::STK_ObjCObjectPointer:
@@ -4456,9 +4455,8 @@ CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
       case Type::STK_MemberPointer:
         llvm_unreachable("member pointer type in C");
     }
-      */
     llvm_unreachable("Shouldn't cast from a nan type");
-
+  */
   case Type::STK_Floating:
     switch (DestTy->getScalarTypeKind()) {
     case Type::STK_Floating:

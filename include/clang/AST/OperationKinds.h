@@ -258,6 +258,8 @@ enum CastKind {
   
   CK_IntegralToNan,
   CK_NanCast,
+  CK_NanToIntegral,
+  CK_NanToBoolean,
 
   /// \brief [ARC] Produces a retainable object pointer so that it may
   /// be consumed, e.g. by being passed to a consuming parameter.
