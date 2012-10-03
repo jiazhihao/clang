@@ -85,7 +85,7 @@ public:
 
       llvm::ConstantStruct *pair =
         cast<llvm::ConstantStruct>(result.getValue());
-      return NanTy(pair->getOperand(0), pair->getOperand(1));
+      return NanTy(pair->getOperand(0));
     }
     return EmitLoadOfLValue(E);
   }

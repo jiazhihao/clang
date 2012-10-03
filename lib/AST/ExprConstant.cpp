@@ -6308,6 +6308,7 @@ bool NanExprEvaluator::VisitCastExpr(const CastExpr *E) {
     case CK_IntegralComplexToReal:
     case CK_IntegralComplexToBoolean:
     case CK_NanToBoolean:
+    case CK_NanToIntegral:
     case CK_ARCProduceObject:
     case CK_ARCConsumeObject:
     case CK_ARCReclaimReturnedObject:
@@ -6349,14 +6350,6 @@ bool NanExprEvaluator::VisitCastExpr(const CastExpr *E) {
       = E->getSubExpr()->getType()->getAs<NanType>()->getElementType();
       
       Result.Val = HandleIntToIntCast(Info, E, To, From, Result.Val);
-      return true;
-    }
-    case CK_IntegralToNan: {
-      APSInt &Real = Result.Val;
-      if (!EvaluateInteger(E->getSubExpr(), Real, Info))
-        return false;
-      
-      Result.Val = APSInt(Real.getBitWidth(), !Real.isSigned());
       return true;
     }
   }

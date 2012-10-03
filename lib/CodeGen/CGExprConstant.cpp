@@ -733,9 +733,13 @@ public:
     case CK_FloatingComplexCast:
     case CK_FloatingComplexToIntegralComplex:
     case CK_IntegralRealToComplex:
+    case CK_IntegralToNan:
     case CK_IntegralComplexToReal:
+    case CK_NanToIntegral:
     case CK_IntegralComplexToBoolean:
+    case CK_NanToBoolean:
     case CK_IntegralComplexCast:
+    case CK_NanCast:
     case CK_IntegralComplexToFloatingComplex:
     case CK_PointerToIntegral:
     case CK_PointerToBoolean:
@@ -748,9 +752,6 @@ public:
     case CK_FloatingToBoolean:
     case CK_FloatingCast:
       return 0;
-    case CK_IntegralToNan:
-    case CK_NanCast:
-      llvm_unreachable("will implement later.");
     }
     llvm_unreachable("Invalid CastKind");
   }

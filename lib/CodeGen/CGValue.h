@@ -59,6 +59,12 @@ public:
   std::pair<llvm::Value *, llvm::Value *> getComplexVal() const {
     return std::make_pair(V1.getPointer(), V2.getPointer());
   }
+  
+  /// getNanVal - Return the real/imag components of this complex value.
+  ///
+  llvm::Value* getNanVal() const {
+    return V1.getPointer();
+  }
 
   /// getAggregateAddr() - Return the Value* of the address of the aggregate.
   llvm::Value *getAggregateAddr() const {

@@ -2435,7 +2435,7 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_IntegralComplexToReal:
   case CK_NanToIntegral:
   case CK_IntegralComplexToBoolean:
-  case CK_IntegralToBoolean:
+  case CK_NanToBoolean:
   case CK_IntegralComplexCast:
   case CK_NanCast:
   case CK_IntegralComplexToFloatingComplex:
