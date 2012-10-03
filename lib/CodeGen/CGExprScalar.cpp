@@ -109,6 +109,9 @@ public:
   /// is an LLVM scalar type.
   Value *EmitComplexToScalarConversion(CodeGenFunction::ComplexPairTy Src,
                                        QualType SrcTy, QualType DstTy);
+    
+  Value *EmitNanToScalarConversion(CodeGenFunction::NanTy Src,
+                                   QualType SrcTy, QualType DstTy);
 
   /// EmitNullValue - Emit a value that corresponds to null for the given type.
   Value *EmitNullValue(QualType Ty);
@@ -795,11 +798,11 @@ EmitNanToScalarConversion(CodeGenFunction::NanTy Src,
   // Handle conversions to bool first, they are special: comparisons against 0.
   if (DstTy->isBooleanType()) {
     //  nan != 0  -> (Real != 0) | (Imag != 0)
-    Src.val  = EmitScalarConversion(Src.val, SrcTy, DstTy);
-    return Builder.CreateOr(Src.val, Src.val, "tobool");
+    Src  = EmitScalarConversion(Src, SrcTy, DstTy);
+    return Builder.CreateOr(Src, Src, "tobool");
   }
   
-  return EmitScalarConversion(Src.val, SrcTy, DstTy);
+  return EmitScalarConversion(Src, SrcTy, DstTy);
 }
 
 Value *ScalarExprEmitter::EmitNullValue(QualType Ty) {
@@ -1352,7 +1355,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitComplexExpr(E, false, true).first;
 
   case CK_NanToIntegral:
-    return CGF.EmitNanExpr(E).val;
+    return CGF.EmitNanExpr(E);
   
   case CK_FloatingComplexToBoolean:
   case CK_IntegralComplexToBoolean: {
