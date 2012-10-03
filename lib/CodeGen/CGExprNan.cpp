@@ -20,7 +20,7 @@ class NanExprEmitter
   CodeGenFunction &CGF;
   CGBuilderTy &Builder;
 public:
-  ComplexExprEmitter(CodeGenFunction &cgf)
+  NanExprEmitter(CodeGenFunction &cgf)
     : CGF(cgf), Builder(CGF.Builder) {
   }
 
@@ -40,7 +40,7 @@ public:
   /// the val piece.
   NanTy EmitLoadOfNan(llvm::Value *SrcPtr, bool isVolatile);
 
-  /// EmitStoreThroughLValue - Given an l-value of complex type, store
+  /// EmitStoreThroughLValue - Given an l-value of Nan type, store
   /// a nan number into it.
   void EmitStoreThroughLValue(NanTy Val, LValue LV) {
     assert(LV.isSimple() && "nan l-value must be simple");
@@ -217,10 +217,10 @@ public:
     return EmitCompoundAssign(E, &NanExprEmitter::EmitBinDiv);
   }
 
-  // GCC rejects rem/and/or/xor for integer complex.
-  // Logical and/or always return int, never complex.
+  // GCC rejects rem/and/or/xor for integer Nan.
+  // Logical and/or always return int, never Nan.
 
-  // No comparisons produce a complex result.
+  // No comparisons produce a Nan result.
 
   LValue EmitBinAssignLValue(const BinaryOperator *E,
                              NanTy &Val);
@@ -364,23 +364,23 @@ NanTy NanExprEmitter::EmitCast(CastExpr::CastKind CK, Expr *Op,
   case CK_BlockPointerToObjCPointerCast:
   case CK_AnyPointerToBlockPointerCast:
   case CK_ObjCObjectLValueCast:
-  case CK_FloatingComplexToReal:
-  case CK_FloatingComplexToBoolean:
-  case CK_IntegralComplexToReal:
-  case CK_IntegralComplexToBoolean:
+  case CK_FloatingNanToReal:
+  case CK_FloatingNanToBoolean:
+  case CK_IntegralNanToReal:
+  case CK_IntegralNanToBoolean:
   case CK_ARCProduceObject:
   case CK_ARCConsumeObject:
   case CK_ARCReclaimReturnedObject:
   case CK_ARCExtendBlockObject:
   case CK_CopyAndAutoreleaseBlockObject:
-  case CK_FloatingRealToComplex:
-  case CK_IntegralRealToComplex:
+  case CK_FloatingRealToNan:
+  case CK_IntegralRealToNan:
   case CK_NanToIntegral:
   case CK_NanToBoolean:
-  case CK_FloatingComplexCast:
-  case CK_FloatingComplexToIntegralComplex:
-  case CK_IntegralComplexCast:
-  case CK_IntegralComplexToFloatingComplex:
+  case CK_FloatingNanCast:
+  case CK_FloatingNanToIntegralNan:
+  case CK_IntegralNanCast:
+  case CK_IntegralNanToFloatingNan:
       
   case CK_BuiltinFnToFnPtr:
     llvm_unreachable("invalid cast kind for nan value");
@@ -388,7 +388,7 @@ NanTy NanExprEmitter::EmitCast(CastExpr::CastKind CK, Expr *Op,
   case CK_IntegralToNan: {
     llvm::Value *Elt = CGF.EmitScalarExpr(Op);
 
-    // Convert the input element to the element type of the complex.
+    // Convert the input element to the element type of the Nan.
     DestTy = DestTy->getAs<NanType>()->getElementType();
     Elt = CGF.EmitScalarConversion(Elt, Op->getType(), DestTy);
 
@@ -414,7 +414,7 @@ NanTy NanExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
   // ~(a+ib) = a + i*-b
   NanTy Op = Visit(E->getSubExpr());
   llvm::Value *ResV;
-  ResV = Builder.CreateNeg(Op.val, "conj.i");
+  ResV = Builder.CreateNeg(Op.val, "conj.v");
 
   return NanTy(ResV);
 }
@@ -422,99 +422,41 @@ NanTy NanExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
 NanTy NanExprEmitter::EmitBinAdd(const BinOpInfo &Op) {
   llvm::Value *ResV;
 
-  ResV = Builder.CreateAdd(Op.LHS.val  Op.RHS.val,  "add.r");
+  ResV = Builder.CreateAdd(Op.LHS.val  Op.RHS.val,  "add.v");
   return NanTy(ResV);
 }
 
 NanTy NanExprEmitter::EmitBinSub(const BinOpInfo &Op) {
-  llvm::Value *ResR, *ResI;
-  if (Op.LHS.first->getType()->isFloatingPointTy()) {
-    ResR = Builder.CreateFSub(Op.LHS.first,  Op.RHS.first,  "sub.r");
-    ResI = Builder.CreateFSub(Op.LHS.second, Op.RHS.second, "sub.i");
-  } else {
-    ResR = Builder.CreateSub(Op.LHS.first,  Op.RHS.first,  "sub.r");
-    ResI = Builder.CreateSub(Op.LHS.second, Op.RHS.second, "sub.i");
-  }
-  return NanTy(ResR, ResI);
+  llvm::Value *ResV;
+  ResV = Builder.CreateSub(Op.LHS.val,  Op.RHS.val,  "sub.v");
+  return NanTy(ResV);
 }
 
-
-NanTy ComplexExprEmitter::EmitBinMul(const BinOpInfo &Op) {
+NanTy NanExprEmitter::EmitBinMul(const BinOpInfo &Op) {
   using llvm::Value;
-  Value *ResR, *ResI;
+  Value *ResV;
 
-  if (Op.LHS.first->getType()->isFloatingPointTy()) {
-    Value *ResRl = Builder.CreateFMul(Op.LHS.first, Op.RHS.first, "mul.rl");
-    Value *ResRr = Builder.CreateFMul(Op.LHS.second, Op.RHS.second,"mul.rr");
-    ResR  = Builder.CreateFSub(ResRl, ResRr, "mul.r");
+  ResV  = Builder.CreateMul(Op.LHS.val, Op.RHS.val, "mul.r");
 
-    Value *ResIl = Builder.CreateFMul(Op.LHS.second, Op.RHS.first, "mul.il");
-    Value *ResIr = Builder.CreateFMul(Op.LHS.first, Op.RHS.second, "mul.ir");
-    ResI  = Builder.CreateFAdd(ResIl, ResIr, "mul.i");
-  } else {
-    Value *ResRl = Builder.CreateMul(Op.LHS.first, Op.RHS.first, "mul.rl");
-    Value *ResRr = Builder.CreateMul(Op.LHS.second, Op.RHS.second,"mul.rr");
-    ResR  = Builder.CreateSub(ResRl, ResRr, "mul.r");
-
-    Value *ResIl = Builder.CreateMul(Op.LHS.second, Op.RHS.first, "mul.il");
-    Value *ResIr = Builder.CreateMul(Op.LHS.first, Op.RHS.second, "mul.ir");
-    ResI  = Builder.CreateAdd(ResIl, ResIr, "mul.i");
-  }
-  return NanTy(ResR, ResI);
+  return NanTy(ResV);
 }
 
-NanTy ComplexExprEmitter::EmitBinDiv(const BinOpInfo &Op) {
-  llvm::Value *LHSr = Op.LHS.first, *LHSi = Op.LHS.second;
-  llvm::Value *RHSr = Op.RHS.first, *RHSi = Op.RHS.second;
+NanTy NanExprEmitter::EmitBinDiv(const BinOpInfo &Op) {
+  llvm::Value *LHSv = Op.LHS.val;
+  llvm::Value *RHSv = Op.RHS.val;
 
-
-  llvm::Value *DSTr, *DSTi;
-  if (Op.LHS.first->getType()->isFloatingPointTy()) {
-    // (a+ib) / (c+id) = ((ac+bd)/(cc+dd)) + i((bc-ad)/(cc+dd))
-    llvm::Value *Tmp1 = Builder.CreateFMul(LHSr, RHSr); // a*c
-    llvm::Value *Tmp2 = Builder.CreateFMul(LHSi, RHSi); // b*d
-    llvm::Value *Tmp3 = Builder.CreateFAdd(Tmp1, Tmp2); // ac+bd
-
-    llvm::Value *Tmp4 = Builder.CreateFMul(RHSr, RHSr); // c*c
-    llvm::Value *Tmp5 = Builder.CreateFMul(RHSi, RHSi); // d*d
-    llvm::Value *Tmp6 = Builder.CreateFAdd(Tmp4, Tmp5); // cc+dd
-
-    llvm::Value *Tmp7 = Builder.CreateFMul(LHSi, RHSr); // b*c
-    llvm::Value *Tmp8 = Builder.CreateFMul(LHSr, RHSi); // a*d
-    llvm::Value *Tmp9 = Builder.CreateFSub(Tmp7, Tmp8); // bc-ad
-
-    DSTr = Builder.CreateFDiv(Tmp3, Tmp6);
-    DSTi = Builder.CreateFDiv(Tmp9, Tmp6);
+  llvm::Value *DSTv;
+  if (Op.Ty->getAs<NanType>()->getElementType()->isUnsignedIntegerType()) {
+    DSTv = Builder.CreateUDiv(LHSv, RHSv);
   } else {
-    // (a+ib) / (c+id) = ((ac+bd)/(cc+dd)) + i((bc-ad)/(cc+dd))
-    llvm::Value *Tmp1 = Builder.CreateMul(LHSr, RHSr); // a*c
-    llvm::Value *Tmp2 = Builder.CreateMul(LHSi, RHSi); // b*d
-    llvm::Value *Tmp3 = Builder.CreateAdd(Tmp1, Tmp2); // ac+bd
-
-    llvm::Value *Tmp4 = Builder.CreateMul(RHSr, RHSr); // c*c
-    llvm::Value *Tmp5 = Builder.CreateMul(RHSi, RHSi); // d*d
-    llvm::Value *Tmp6 = Builder.CreateAdd(Tmp4, Tmp5); // cc+dd
-
-    llvm::Value *Tmp7 = Builder.CreateMul(LHSi, RHSr); // b*c
-    llvm::Value *Tmp8 = Builder.CreateMul(LHSr, RHSi); // a*d
-    llvm::Value *Tmp9 = Builder.CreateSub(Tmp7, Tmp8); // bc-ad
-
-    if (Op.Ty->getAs<ComplexType>()->getElementType()->isUnsignedIntegerType()) {
-      DSTr = Builder.CreateUDiv(Tmp3, Tmp6);
-      DSTi = Builder.CreateUDiv(Tmp9, Tmp6);
-    } else {
-      DSTr = Builder.CreateSDiv(Tmp3, Tmp6);
-      DSTi = Builder.CreateSDiv(Tmp9, Tmp6);
-    }
+    DSTv = Builder.CreateSDiv(LHSv, RHSv);
   }
 
-  return NanTy(DSTr, DSTi);
+  return NanTy(DSTv);
 }
 
-ComplexExprEmitter::BinOpInfo
-ComplexExprEmitter::EmitBinOps(const BinaryOperator *E) {
-  TestAndClearIgnoreReal();
-  TestAndClearIgnoreImag();
+NanExprEmitter::BinOpInfo
+NanExprEmitter::EmitBinOps(const BinaryOperator *E) {
   BinOpInfo Ops;
   Ops.LHS = Visit(E->getLHS());
   Ops.RHS = Visit(E->getRHS());
@@ -523,23 +465,18 @@ ComplexExprEmitter::EmitBinOps(const BinaryOperator *E) {
 }
 
 
-LValue ComplexExprEmitter::
+LValue NanExprEmitter::
 EmitCompoundAssignLValue(const CompoundAssignOperator *E,
-          NanTy (ComplexExprEmitter::*Func)(const BinOpInfo&),
+                         NanTy (NanExprEmitter::*Func)(const BinOpInfo&),
                          NanTy &Val) {
-  TestAndClearIgnoreReal();
-  TestAndClearIgnoreImag();
   QualType LHSTy = E->getLHS()->getType();
 
   BinOpInfo OpInfo;
 
-  // Load the RHS and LHS operands.
-  // __block variables need to have the rhs evaluated first, plus this should
-  // improve codegen a little.
   OpInfo.Ty = E->getComputationResultType();
 
   // The RHS should have been converted to the computation type.
-  assert(OpInfo.Ty->isAnyComplexType());
+  assert(OpInfo.Ty->isNanType());
   assert(CGF.getContext().hasSameUnqualifiedType(OpInfo.Ty,
                                                  E->getRHS()->getType()));
   OpInfo.RHS = Visit(E->getRHS());
@@ -547,15 +484,15 @@ EmitCompoundAssignLValue(const CompoundAssignOperator *E,
   LValue LHS = CGF.EmitLValue(E->getLHS());
 
   // Load from the l-value.
-  NanTy LHSComplexPair = EmitLoadOfLValue(LHS);
+  NanTy LHSNan = EmitLoadOfLValue(LHS);
   
-  OpInfo.LHS = EmitComplexToComplexCast(LHSComplexPair, LHSTy, OpInfo.Ty);
+  OpInfo.LHS = EmitNanToNanCast(LHSNan, LHSTy, OpInfo.Ty);
 
   // Expand the binary operator.
   NanTy Result = (this->*Func)(OpInfo);
 
   // Truncate the result back to the LHS type.
-  Result = EmitComplexToComplexCast(Result, OpInfo.Ty, LHSTy);
+  Result = EmitNanToNanCast(Result, OpInfo.Ty, LHSTy);
   Val = Result;
 
   // Store the result value into the LHS lvalue.
@@ -565,9 +502,9 @@ EmitCompoundAssignLValue(const CompoundAssignOperator *E,
 }
 
 // Compound assignments.
-NanTy ComplexExprEmitter::
+NanTy NanExprEmitter::
 EmitCompoundAssign(const CompoundAssignOperator *E,
-                   NanTy (ComplexExprEmitter::*Func)(const BinOpInfo&)){
+                   NanTy (NanExprEmitter::*Func)(const BinOpInfo&)){
   NanTy Val;
   LValue LV = EmitCompoundAssignLValue(E, Func, Val);
 
@@ -579,10 +516,10 @@ EmitCompoundAssign(const CompoundAssignOperator *E,
   if (!LV.isVolatileQualified())
     return Val;
 
-  return EmitLoadOfComplex(LV.getAddress(), LV.isVolatileQualified());
+  return EmitLoadOfNan(LV.getAddress(), LV.isVolatileQualified());
 }
 
-LValue ComplexExprEmitter::EmitBinAssignLValue(const BinaryOperator *E,
+LValue NanExprEmitter::EmitBinAssignLValue(const BinaryOperator *E,
                                                NanTy &Val) {
   assert(CGF.getContext().hasSameUnqualifiedType(E->getLHS()->getType(), 
                                                  E->getRHS()->getType()) &&
@@ -602,7 +539,7 @@ LValue ComplexExprEmitter::EmitBinAssignLValue(const BinaryOperator *E,
   return LHS;
 }
 
-NanTy ComplexExprEmitter::VisitBinAssign(const BinaryOperator *E) {
+NanTy NanExprEmitter::VisitBinAssign(const BinaryOperator *E) {
   NanTy Val;
   LValue LV = EmitBinAssignLValue(E, Val);
 
@@ -614,18 +551,16 @@ NanTy ComplexExprEmitter::VisitBinAssign(const BinaryOperator *E) {
   if (!LV.isVolatileQualified())
     return Val;
 
-  return EmitLoadOfComplex(LV.getAddress(), LV.isVolatileQualified());
+  return EmitLoadOfNan(LV.getAddress(), LV.isVolatileQualified());
 }
 
-NanTy ComplexExprEmitter::VisitBinComma(const BinaryOperator *E) {
+NanTy NanExprEmitter::VisitBinComma(const BinaryOperator *E) {
   CGF.EmitIgnoredExpr(E->getLHS());
   return Visit(E->getRHS());
 }
 
-NanTy ComplexExprEmitter::
+NanTy NanExprEmitter::
 VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
-  TestAndClearIgnoreReal();
-  TestAndClearIgnoreImag();
   llvm::BasicBlock *LHSBlock = CGF.createBasicBlock("cond.true");
   llvm::BasicBlock *RHSBlock = CGF.createBasicBlock("cond.false");
   llvm::BasicBlock *ContBlock = CGF.createBasicBlock("cond.end");
@@ -651,121 +586,105 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   eval.end(CGF);
 
   // Create a PHI node for the real part.
-  llvm::PHINode *RealPN = Builder.CreatePHI(LHS.first->getType(), 2, "cond.r");
-  RealPN->addIncoming(LHS.first, LHSBlock);
-  RealPN->addIncoming(RHS.first, RHSBlock);
+  llvm::PHINode *ValPN = Builder.CreatePHI(LHS.val->getType(), 2, "cond.v");
+  ValPN->addIncoming(LHS.val, LHSBlock);
+  ValPN->addIncoming(RHS.val, RHSBlock);
 
-  // Create a PHI node for the imaginary part.
-  llvm::PHINode *ImagPN = Builder.CreatePHI(LHS.first->getType(), 2, "cond.i");
-  ImagPN->addIncoming(LHS.second, LHSBlock);
-  ImagPN->addIncoming(RHS.second, RHSBlock);
-
-  return NanTy(RealPN, ImagPN);
+  return NanTy(ValPN);
 }
 
-NanTy ComplexExprEmitter::VisitChooseExpr(ChooseExpr *E) {
+NanTy NanExprEmitter::VisitChooseExpr(ChooseExpr *E) {
   return Visit(E->getChosenSubExpr(CGF.getContext()));
 }
 
-NanTy ComplexExprEmitter::VisitInitListExpr(InitListExpr *E) {
-    bool Ignore = TestAndClearIgnoreReal();
-    (void)Ignore;
-    assert (Ignore == false && "init list ignored");
-    Ignore = TestAndClearIgnoreImag();
-    (void)Ignore;
-    assert (Ignore == false && "init list ignored");
-
-  if (E->getNumInits() == 2) {
-    llvm::Value *Real = CGF.EmitScalarExpr(E->getInit(0));
-    llvm::Value *Imag = CGF.EmitScalarExpr(E->getInit(1));
-    return NanTy(Real, Imag);
-  } else if (E->getNumInits() == 1) {
-    return Visit(E->getInit(0));
+NanTy NanExprEmitter::VisitInitListExpr(InitListExpr *E) {
+  if (E->getNumInits() == 1) {
+    llvm::Value *Val = CGF.EmitScalarExpr(E->getInit(0));
+    return NanTy(Val);
   }
 
   // Empty init list intializes to null
   assert(E->getNumInits() == 0 && "Unexpected number of inits");
-  QualType Ty = E->getType()->getAs<ComplexType>()->getElementType();
+  QualType Ty = E->getType()->getAs<NanType>()->getElementType();
   llvm::Type* LTy = CGF.ConvertType(Ty);
   llvm::Value* zeroConstant = llvm::Constant::getNullValue(LTy);
-  return NanTy(zeroConstant, zeroConstant);
+  return NanTy(zeroConstant);
 }
 
-NanTy ComplexExprEmitter::VisitVAArgExpr(VAArgExpr *E) {
+NanTy NanExprEmitter::VisitVAArgExpr(VAArgExpr *E) {
   llvm::Value *ArgValue = CGF.EmitVAListRef(E->getSubExpr());
   llvm::Value *ArgPtr = CGF.EmitVAArg(ArgValue, E->getType());
 
   if (!ArgPtr) {
-    CGF.ErrorUnsupported(E, "complex va_arg expression");
+    CGF.ErrorUnsupported(E, "Nan va_arg expression");
     llvm::Type *EltTy =
-      CGF.ConvertType(E->getType()->getAs<ComplexType>()->getElementType());
+      CGF.ConvertType(E->getType()->getAs<NanType>()->getElementType());
     llvm::Value *U = llvm::UndefValue::get(EltTy);
-    return NanTy(U, U);
+    return NanTy(U);
   }
 
   // FIXME Volatility.
-  return EmitLoadOfComplex(ArgPtr, false);
+  return EmitLoadOfNan(ArgPtr, false);
 }
 
 //===----------------------------------------------------------------------===//
 //                         Entry Point into this File
 //===----------------------------------------------------------------------===//
 
-/// EmitComplexExpr - Emit the computation of the specified expression of
-/// complex type, ignoring the result.
-NanTy CodeGenFunction::EmitComplexExpr(const Expr *E, bool IgnoreReal,
-                                               bool IgnoreImag) {
-  assert(E && E->getType()->isAnyComplexType() &&
-         "Invalid complex expression to emit");
+/// EmitNanExpr - Emit the computation of the specified expression of
+/// Nan type, ignoring the result.
+NanTy CodeGenFunction::EmitNanExpr(const Expr *E, bool IgnoreReal,
+                                   bool IgnoreImag) {
+  assert(E && E->getType()->isNanType() &&
+         "Invalid Nan expression to emit");
 
-  return ComplexExprEmitter(*this, IgnoreReal, IgnoreImag)
-    .Visit(const_cast<Expr*>(E));
+  return NanExprEmitter(*this).Visit(const_cast<Expr*>(E));
 }
 
-/// EmitComplexExprIntoAddr - Emit the computation of the specified expression
-/// of complex type, storing into the specified Value*.
-void CodeGenFunction::EmitComplexExprIntoAddr(const Expr *E,
-                                              llvm::Value *DestAddr,
-                                              bool DestIsVolatile) {
-  assert(E && E->getType()->isAnyComplexType() &&
-         "Invalid complex expression to emit");
-  ComplexExprEmitter Emitter(*this);
+/// EmitNanExprIntoAddr - Emit the computation of the specified expression
+/// of Nan type, storing into the specified Value*.
+void CodeGenFunction::EmitNanExprIntoAddr(const Expr *E,
+                                          llvm::Value *DestAddr,
+                                          bool DestIsVolatile) {
+  assert(E && E->getType()->isNanType() &&
+         "Invalid Nan expression to emit");
+  NanExprEmitter Emitter(*this);
   NanTy Val = Emitter.Visit(const_cast<Expr*>(E));
-  Emitter.EmitStoreOfComplex(Val, DestAddr, DestIsVolatile);
+  Emitter.EmitStoreOfNan(Val, DestAddr, DestIsVolatile);
 }
 
-/// StoreComplexToAddr - Store a complex number into the specified address.
-void CodeGenFunction::StoreComplexToAddr(NanTy V,
-                                         llvm::Value *DestAddr,
-                                         bool DestIsVolatile) {
-  ComplexExprEmitter(*this).EmitStoreOfComplex(V, DestAddr, DestIsVolatile);
+/// StoreNanToAddr - Store a Nan number into the specified address.
+void CodeGenFunction::StoreNanToAddr(NanTy V,
+                                     llvm::Value *DestAddr,
+                                     bool DestIsVolatile) {
+  NanExprEmitter(*this).EmitStoreOfNan(V, DestAddr, DestIsVolatile);
 }
 
-/// LoadComplexFromAddr - Load a complex number from the specified address.
-NanTy CodeGenFunction::LoadComplexFromAddr(llvm::Value *SrcAddr,
-                                                   bool SrcIsVolatile) {
-  return ComplexExprEmitter(*this).EmitLoadOfComplex(SrcAddr, SrcIsVolatile);
+/// LoadNanFromAddr - Load a Nan number from the specified address.
+NanTy CodeGenFunction::LoadNanFromAddr(llvm::Value *SrcAddr,
+                                       bool SrcIsVolatile) {
+  return NanExprEmitter(*this).EmitLoadOfNan(SrcAddr, SrcIsVolatile);
 }
 
-LValue CodeGenFunction::EmitComplexAssignmentLValue(const BinaryOperator *E) {
+LValue CodeGenFunction::EmitNanAssignmentLValue(const BinaryOperator *E) {
   assert(E->getOpcode() == BO_Assign);
   NanTy Val; // ignored
-  return ComplexExprEmitter(*this).EmitBinAssignLValue(E, Val);
+  return NanExprEmitter(*this).EmitBinAssignLValue(E, Val);
 }
 
 LValue CodeGenFunction::
-EmitComplexCompoundAssignmentLValue(const CompoundAssignOperator *E) {
-  NanTy(ComplexExprEmitter::*Op)(const ComplexExprEmitter::BinOpInfo &);
+EmitNanCompoundAssignmentLValue(const CompoundAssignOperator *E) {
+  NanTy(NanExprEmitter::*Op)(const NanExprEmitter::BinOpInfo &);
   switch (E->getOpcode()) {
-  case BO_MulAssign: Op = &ComplexExprEmitter::EmitBinMul; break;
-  case BO_DivAssign: Op = &ComplexExprEmitter::EmitBinDiv; break;
-  case BO_SubAssign: Op = &ComplexExprEmitter::EmitBinSub; break;
-  case BO_AddAssign: Op = &ComplexExprEmitter::EmitBinAdd; break;
+  case BO_MulAssign: Op = &NanExprEmitter::EmitBinMul; break;
+  case BO_DivAssign: Op = &NanExprEmitter::EmitBinDiv; break;
+  case BO_SubAssign: Op = &NanExprEmitter::EmitBinSub; break;
+  case BO_AddAssign: Op = &NanExprEmitter::EmitBinAdd; break;
 
   default:
-    llvm_unreachable("unexpected complex compound assignment");
+    llvm_unreachable("unexpected Nan compound assignment");
   }
 
   NanTy Val; // ignored
-  return ComplexExprEmitter(*this).EmitCompoundAssignLValue(E, Op, Val);
+  return NanExprEmitter(*this).EmitCompoundAssignLValue(E, Op, Val);
 }
