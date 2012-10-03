@@ -878,7 +878,9 @@ static bool rewriteToNumericBoxedExpression(const ObjCMessageExpr *Msg,
     case CK_FloatingComplexToReal:
     case CK_FloatingComplexToBoolean:
     case CK_IntegralComplexToReal:
+    case CK_NanToIntegral:
     case CK_IntegralComplexToBoolean:
+    case CK_NanToBoolean:
     case CK_AtomicToNonAtomic:
       needsCast = true;
       break;
@@ -912,10 +914,10 @@ static bool rewriteToNumericBoxedExpression(const ObjCMessageExpr *Msg,
     case CK_FloatingComplexCast:
     case CK_FloatingComplexToIntegralComplex:
     case CK_IntegralRealToComplex:
+    case CK_IntegralToNan:    
     case CK_IntegralComplexCast:
-    case CK_IntegralComplexToFloatingComplex:
-    case CK_IntegralToNan:
     case CK_NanCast:
+    case CK_IntegralComplexToFloatingComplex:
     case CK_ARCProduceObject:
     case CK_ARCConsumeObject:
     case CK_ARCReclaimReturnedObject:
