@@ -1286,9 +1286,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
   
   case CK_IntegralToNan:
-  case CK_NanCast:
     return EmitScalarConversion(Visit(E), E->getType(), DestTy);
-  
+    //return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
+  case CK_NanCast:
+    return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
+    
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
@@ -1355,7 +1357,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitComplexExpr(E, false, true).first;
 
   case CK_NanToIntegral:
-    return CGF.EmitNanExpr(E);
+    printf("NanToIntegral...\n");
+    return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
+    //Fixme: another way: return CGF.EmitNanExpr(E);
   
   case CK_FloatingComplexToBoolean:
   case CK_IntegralComplexToBoolean: {
