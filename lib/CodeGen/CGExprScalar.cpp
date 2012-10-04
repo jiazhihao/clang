@@ -1286,11 +1286,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
   
   case CK_IntegralToNan:
-    printf("CK_IntegralToNan...\n");
+    //printf("CK_IntegralToNan...\n");
     return EmitScalarConversion(Visit(E), E->getType(), DestTy);
     //return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
   case CK_NanCast:
-    printf("CK_NanCast...\n");
+    //printf("CK_NanCast...\n");
     return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
     
   case CK_LValueToRValue:
@@ -1359,7 +1359,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitComplexExpr(E, false, true).first;
 
   case CK_NanToIntegral:
-    printf("NanToIntegral...\n");
+    //printf("NanToIntegral...\n");
     return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
     //Fixme: another way: return CGF.EmitNanExpr(E);
   
