@@ -1875,6 +1875,8 @@ public:
                                        bool isInc, bool isPre);
   ComplexPairTy EmitComplexPrePostIncDec(const UnaryOperator *E, LValue LV,
                                          bool isInc, bool isPre);
+  NanTy EmitNanPrePostIncDec(const UnaryOperator *E, LValue LV,
+                             bool isInc, bool isPre);
   //===--------------------------------------------------------------------===//
   //                            Declaration Emission
   //===--------------------------------------------------------------------===//
@@ -2132,6 +2134,10 @@ public:
   /// Emit an l-value for an assignment (simple or compound) of complex type.
   LValue EmitComplexAssignmentLValue(const BinaryOperator *E);
   LValue EmitComplexCompoundAssignmentLValue(const CompoundAssignOperator *E);
+  
+  // Emit an l-value for an assignment of nan type.
+  LValue EmitNanAssignmentLValue(const BinaryOperator *E);
+  LValue EmitNanCompoundAssignmentLValue(const CompoundAssignOperator *E);
 
   // Note: only available for agg return types
   LValue EmitBinaryOperatorLValue(const BinaryOperator *E);
@@ -2399,7 +2405,12 @@ public:
   /// is an LLVM scalar type.
   llvm::Value *EmitComplexToScalarConversion(ComplexPairTy Src, QualType SrcTy,
                                              QualType DstTy);
-
+  
+  /// EmitNanToScalarConversion - Emit a conversion from the specified
+  /// nan type to the specified destination type, where the destination type
+  /// is an LLVM scalar type.
+  llvm::Value *EmitNanToScalarConversion(NanTy Src, QualType SrcTy,
+                                         QualType DstTy);
 
   /// EmitAggExpr - Emit the computation of the specified expression
   /// of aggregate type.  The result is computed into the given slot,
@@ -2433,12 +2444,25 @@ public:
   /// of complex type, storing into the specified Value*.
   void EmitComplexExprIntoAddr(const Expr *E, llvm::Value *DestAddr,
                                bool DestIsVolatile);
+  
+  /// EmitNanExprIntoAddr - Emit the computation of the specified expression
+  /// of nan type, storing into the specified Value*.
+  void EmitNanExprIntoAddr(const Expr *E, llvm::Value *DestAddr,
+                               bool DestIsVolatile);
 
   /// StoreComplexToAddr - Store a complex number into the specified address.
   void StoreComplexToAddr(ComplexPairTy V, llvm::Value *DestAddr,
                           bool DestIsVolatile);
+  
+  /// StoreNanToAddr - Store a nan number into the specified address.
+  void StoreNanToAddr(NanTy V, llvm::Value *DestAddr,
+                          bool DestIsVolatile);
+  
   /// LoadComplexFromAddr - Load a complex number from the specified address.
   ComplexPairTy LoadComplexFromAddr(llvm::Value *SrcAddr, bool SrcIsVolatile);
+  
+  /// LoadNanFromAddr - Load a nan number from the specified address.
+  NanTy LoadNanFromAddr(llvm::Value *SrcAddr, bool SrcIsVolatile);
 
   /// CreateStaticVarDecl - Create a zero-initialized LLVM global for
   /// a static local variable.

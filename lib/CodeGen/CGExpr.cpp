@@ -639,6 +639,29 @@ EmitComplexPrePostIncDec(const UnaryOperator *E, LValue LV,
   return isPre ? IncVal : InVal;
 }
 
+CodeGenFunction::NanTy CodeGenFunction::
+EmitNanPrePostIncDec(const UnaryOperator *E, LValue LV,
+                     bool isInc, bool isPre) {
+  NanTy InVal = LoadNanFromAddr(LV.getAddress(),
+                                LV.isVolatileQualified());
+  
+  llvm::Value *NextVal;
+  uint64_t AmountVal = isInc ? 1 : -1;
+  NextVal = llvm::ConstantInt::get(InVal->getType(), AmountVal, true);
+    
+  // Add the inc/dec to the real part.
+  NextVal = Builder.CreateAdd(InVal, NextVal, isInc ? "inc" : "dec");
+  
+  
+  NanTy IncVal(NextVal);
+  
+  // Store the updated result through the lvalue.
+  StoreNanToAddr(IncVal, LV.getAddress(), LV.isVolatileQualified());
+  
+  // If this is a postinc, return the value read from memory, otherwise use the
+  // updated value.
+  return isPre ? IncVal : InVal;
+}
 
 //===----------------------------------------------------------------------===//
 //                         LValue Expression Emission

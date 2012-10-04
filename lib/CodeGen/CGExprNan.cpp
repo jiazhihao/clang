@@ -160,14 +160,14 @@ public:
     assert(E->getType()->isNanType() && "Expected nan type!");
     QualType Elem = E->getType()->getAs<NanType>()->getElementType();
     llvm::Constant *Null = llvm::Constant::getNullValue(CGF.ConvertType(Elem));
-    return NanTy(Null, Null);
+    return NanTy(Null);
   }
   NanTy VisitImplicitValueInitExpr(ImplicitValueInitExpr *E) {
     assert(E->getType()->isNanType() && "Expected nan type!");
     QualType Elem = E->getType()->getAs<NanType>()->getElementType();
     llvm::Constant *Null =
                        llvm::Constant::getNullValue(CGF.ConvertType(Elem));
-    return NanTy(Null, Null);
+    return NanTy(Null);
   }
 
   struct BinOpInfo {
@@ -259,7 +259,7 @@ NanTy NanExprEmitter::EmitLoadOfNan(llvm::Value *SrcPtr,
   if (isVolatile) {
     llvm::Value *ValP = Builder.CreateStructGEP(SrcPtr, 0,
                                                 SrcPtr->getName() + ".valp");
-    Val = Builder.CreateLoad(RealP, isVolatile, SrcPtr->getName() + ".val");
+    Val = Builder.CreateLoad(ValP, isVolatile, SrcPtr->getName() + ".val");
   }
 
   return NanTy(Val);
@@ -271,7 +271,7 @@ void NanExprEmitter::EmitStoreOfNan(NanTy Val, llvm::Value *Ptr,
                                     bool isVolatile) {
   llvm::Value *ValPtr = Builder.CreateStructGEP(Ptr, 0, "val");
   
-  Builder.CreateStore(Val.val, ValPtr, isVolatile);
+  Builder.CreateStore(Val, ValPtr, isVolatile);
 }
 
 
@@ -301,14 +301,14 @@ NanTy NanExprEmitter::VisitStmtExpr(const StmtExpr *E) {
 }
 
 /// EmitNanToNanCast - Emit a cast from nan value Val to DestType.
-NanTy NanExprEmitter::EmiNanToNanCast(NanTy Val,
+NanTy NanExprEmitter::EmitNanToNanCast(NanTy Val,
                                       QualType SrcType,
                                       QualType DestType) {
   // Get the src/dest element type.
   SrcType = SrcType->getAs<NanType>()->getElementType();
   DestType = DestType->getAs<NanType>()->getElementType();
 
-  Val.val = CGF.EmitScalarConversion(Val.val, SrcType, DestType);
+  Val = CGF.EmitScalarConversion(Val, SrcType, DestType);
   return Val;
 }
 
@@ -364,23 +364,23 @@ NanTy NanExprEmitter::EmitCast(CastExpr::CastKind CK, Expr *Op,
   case CK_BlockPointerToObjCPointerCast:
   case CK_AnyPointerToBlockPointerCast:
   case CK_ObjCObjectLValueCast:
-  case CK_FloatingNanToReal:
-  case CK_FloatingNanToBoolean:
-  case CK_IntegralNanToReal:
-  case CK_IntegralNanToBoolean:
+  case CK_FloatingComplexToReal:
+  case CK_FloatingComplexToBoolean:
+  case CK_IntegralComplexToReal:
+  case CK_IntegralComplexToBoolean:
   case CK_ARCProduceObject:
   case CK_ARCConsumeObject:
   case CK_ARCReclaimReturnedObject:
   case CK_ARCExtendBlockObject:
   case CK_CopyAndAutoreleaseBlockObject:
-  case CK_FloatingRealToNan:
-  case CK_IntegralRealToNan:
+  case CK_FloatingRealToComplex:
+  case CK_IntegralRealToComplex:
   case CK_NanToIntegral:
   case CK_NanToBoolean:
-  case CK_FloatingNanCast:
-  case CK_FloatingNanToIntegralNan:
-  case CK_IntegralNanCast:
-  case CK_IntegralNanToFloatingNan:
+  case CK_FloatingComplexCast:
+  case CK_FloatingComplexToIntegralComplex:
+  case CK_IntegralComplexCast:
+  case CK_IntegralComplexToFloatingComplex:
       
   case CK_BuiltinFnToFnPtr:
     llvm_unreachable("invalid cast kind for nan value");
@@ -406,7 +406,7 @@ NanTy NanExprEmitter::VisitUnaryMinus(const UnaryOperator *E) {
   NanTy Op = Visit(E->getSubExpr());
 
   llvm::Value *ResV;
-  ResV = Builder.CreateNeg(Op.first,  "neg.v");
+  ResV = Builder.CreateNeg(Op,  "neg.v");
   return NanTy(ResV);
 }
 
@@ -414,7 +414,7 @@ NanTy NanExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
   // ~(a+ib) = a + i*-b
   NanTy Op = Visit(E->getSubExpr());
   llvm::Value *ResV;
-  ResV = Builder.CreateNeg(Op.val, "conj.v");
+  ResV = Builder.CreateNeg(Op, "conj.v");
 
   return NanTy(ResV);
 }
@@ -422,13 +422,13 @@ NanTy NanExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
 NanTy NanExprEmitter::EmitBinAdd(const BinOpInfo &Op) {
   llvm::Value *ResV;
 
-  ResV = Builder.CreateAdd(Op.LHS.val  Op.RHS.val,  "add.v");
+  ResV = Builder.CreateAdd(Op.LHS, Op.RHS,  "add.v");
   return NanTy(ResV);
 }
 
 NanTy NanExprEmitter::EmitBinSub(const BinOpInfo &Op) {
   llvm::Value *ResV;
-  ResV = Builder.CreateSub(Op.LHS.val,  Op.RHS.val,  "sub.v");
+  ResV = Builder.CreateSub(Op.LHS,  Op.RHS,  "sub.v");
   return NanTy(ResV);
 }
 
@@ -436,14 +436,14 @@ NanTy NanExprEmitter::EmitBinMul(const BinOpInfo &Op) {
   using llvm::Value;
   Value *ResV;
 
-  ResV  = Builder.CreateMul(Op.LHS.val, Op.RHS.val, "mul.r");
+  ResV  = Builder.CreateMul(Op.LHS, Op.RHS, "mul.r");
 
   return NanTy(ResV);
 }
 
 NanTy NanExprEmitter::EmitBinDiv(const BinOpInfo &Op) {
-  llvm::Value *LHSv = Op.LHS.val;
-  llvm::Value *RHSv = Op.RHS.val;
+  llvm::Value *LHSv = Op.LHS;
+  llvm::Value *RHSv = Op.RHS;
 
   llvm::Value *DSTv;
   if (Op.Ty->getAs<NanType>()->getElementType()->isUnsignedIntegerType()) {
@@ -524,8 +524,6 @@ LValue NanExprEmitter::EmitBinAssignLValue(const BinaryOperator *E,
   assert(CGF.getContext().hasSameUnqualifiedType(E->getLHS()->getType(), 
                                                  E->getRHS()->getType()) &&
          "Invalid assignment");
-  TestAndClearIgnoreReal();
-  TestAndClearIgnoreImag();
 
   // Emit the RHS.  __block variables need the RHS evaluated first.
   Val = Visit(E->getRHS());
@@ -586,9 +584,9 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   eval.end(CGF);
 
   // Create a PHI node for the real part.
-  llvm::PHINode *ValPN = Builder.CreatePHI(LHS.val->getType(), 2, "cond.v");
-  ValPN->addIncoming(LHS.val, LHSBlock);
-  ValPN->addIncoming(RHS.val, RHSBlock);
+  llvm::PHINode *ValPN = Builder.CreatePHI(LHS->getType(), 2, "cond.v");
+  ValPN->addIncoming(LHS, LHSBlock);
+  ValPN->addIncoming(RHS, RHSBlock);
 
   return NanTy(ValPN);
 }
@@ -633,8 +631,7 @@ NanTy NanExprEmitter::VisitVAArgExpr(VAArgExpr *E) {
 
 /// EmitNanExpr - Emit the computation of the specified expression of
 /// Nan type, ignoring the result.
-NanTy CodeGenFunction::EmitNanExpr(const Expr *E, bool IgnoreReal,
-                                   bool IgnoreImag) {
+NanTy CodeGenFunction::EmitNanExpr(const Expr *E) {
   assert(E && E->getType()->isNanType() &&
          "Invalid Nan expression to emit");
 
