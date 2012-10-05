@@ -1417,7 +1417,7 @@ EmitAddConsiderOverflowBehavior(const UnaryOperator *E,
 llvm::Value *
 ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                            bool isInc, bool isPre) {
-  
+  printf("EmitScalarPrePostIncDec...\n");
   QualType type = E->getSubExpr()->getType();
   llvm::Value *value = EmitLoadOfLValue(LV);
   llvm::Value *input = value;
@@ -1461,7 +1461,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       value = Builder.CreateAdd(value, amt, isInc ? "inc" : "dec");
   // Next is nan integer
   } else if (type->isNanType()) {
-    llvm_unreachable("EmitScalarPrePostIncDec");
+    //llvm_unreachable("EmitScalarPrePostIncDec");
     llvm::Value *amt = llvm::ConstantInt::get(value->getType(), amount);
     llvm::IntegerType *intType =
     llvm::IntegerType::get(CGF.getLLVMContext(),

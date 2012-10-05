@@ -7979,9 +7979,9 @@ static QualType CheckIncrementDecrementOperand(Sema &S, Expr *Op,
     S.Diag(OpLoc, diag::ext_integer_increment_complex)
       << ResType << Op->getSourceRange();
   } 
-  /*else if (ResType->isNanType()) {
-    return QualType();
-  }*/
+  else if (ResType->isNanType()) {
+    //return QualType();
+  }
   else if (ResType->isPlaceholderType()) {
     ExprResult PR = S.CheckPlaceholderExpr(Op);
     if (PR.isInvalid()) return QualType();
