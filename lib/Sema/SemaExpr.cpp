@@ -6550,7 +6550,6 @@ QualType Sema::CheckAdditionOperands( // C99 6.5.6
     }
   }
   assert(PExp->getType()->isAnyPointerType());
-
   if (!IExp->getType()->isIntegerType())
     return InvalidOperands(Loc, LHS, RHS);
 
@@ -6732,8 +6731,10 @@ QualType Sema::CheckShiftOperands(ExprResult &LHS, ExprResult &RHS,
   checkArithmeticNull(*this, LHS, RHS, Loc, /*isCompare=*/false);
 
   // C99 6.5.7p2: Each of the operands shall have integer type.
-  if (!LHS.get()->getType()->hasIntegerRepresentation() || 
-      !RHS.get()->getType()->hasIntegerRepresentation())
+  if ((!LHS.get()->getType()->hasIntegerRepresentation() || 
+       !RHS.get()->getType()->hasIntegerRepresentation())
+     &&!LHS.get()->getType()->isNanType()
+     &&!RHS.get()->getType()->isNanType())
     return InvalidOperands(Loc, LHS, RHS);
 
   // C++0x: Don't allow scoped enums. FIXME: Use something better than

@@ -2495,6 +2495,10 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
   if (Ops.Ty->isNanType()) {
+    unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
+    llvm::Value *WidthMinusOne =
+    llvm::ConstantInt::get(RHS->getType(), Width - 1);
+    
     llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(Ops.Ty));
@@ -2512,12 +2516,15 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
     }
     // InitCheck
     Value *InitCheck = Builder.CreateICmpNE(BackResult, Ops.LHS);
+    // CmpR = RHS < ValueWidth
+    Value *CmpR = Builder.CreateICmpUGT(RHS, WidthMinusOne);
     // Cmpy = y == NaN
     Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
     // Cmpx = x == NaN
     Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
     // Cond = Cmpx || Cmpy || InitCheck;
-    Value *Cond = Builder.CreateOr(InitCheck, Cmpy, "or");
+    Value *Cond = Builder.CreateOr(InitCheck, CmpR, "or");
+    Cond = Builder.CreateOr(Cond, Cmpy, "or");
     Cond = Builder.CreateOr(Cond, Cmpx, "or");
     // return Cond ? NaN : Result
     return Builder.CreateSelect(Cond, NaN, Result, "cond");
@@ -2561,6 +2568,9 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
   if (Ops.Ty->isNanType()) {
+    unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
+    llvm::Value *WidthMinusOne =
+    llvm::ConstantInt::get(RHS->getType(), Width - 1);
     llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(Ops.Ty));
@@ -2575,12 +2585,15 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
                                    llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       Result = Builder.CreateAShr(Ops.LHS, RHS, "shr");
     }
+    // CmpR = RHS < ValueWidth
+    Value *CmpR = Builder.CreateICmpUGT(RHS, WidthMinusOne);
     // Cmpy = y == NaN
     Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
     // Cmpx = x == NaN
     Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
     // Cond = Cmpx || Cmpy || InitCheck;
     Value *Cond = Builder.CreateOr(Cmpx, Cmpy, "or");
+    Cond = Builder.CreateOr(Cond, CmpR, "or");
     // return Cond ? NaN : Result
     return Builder.CreateSelect(Cond, NaN, Result, "cond");
   }
