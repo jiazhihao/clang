@@ -1,43 +1,41 @@
-//
-//  test-add.c
+//  
+//  test-uadd.c
 //  
 //
 //  Created by Zhihao Jia on 10/5/12.
-//  Copyright (c) 2012 __MyCompanyName__. All rights reserved.
-//
+//  
+//  nan semantics for unsigned integers.
+// 
 
 #include <stdio.h>
 #include <stdlib.h>
 
 int main(int argc, char** argv)
 {
-  _nan int a = atoi(argv[1]);
-  _nan int b = atoi(argv[2]);
-  int c = atoi(argv[3]);
-  _nan int d = a + b;
-  int ans;
+  _nan unsigned a = atoi(argv[1]);
+  _nan unsigned b = atoi(argv[2]);
+  unsigned c = atoi(argv[3]);
+  _nan unsigned d = a + b;
+  unsigned ans;
   if (isnan(d))
     ans = c;
   else
-    ans = (int) d;
+    ans = (unsigned) d;
   
-  printf("ans = %d\n", ans);
+  printf("ans = %u\n", ans);
 }
 
 /*
  examples:
- demo$ ./a.out 1 1 1  
+ demo$ ./a.out 1 1 1
  ans = 2
- demo$ ./a.out -2147483648 1 88 
+ demo$ ./a.out 2147483647 2147483647 88
+ ans = 4294967294
+ demo$ ./a.out 2147483647 2147483648 88
  ans = 88
- demo$ ./a.out 10 -2147483648 888 
- ans = 888
- demo$ ./a.out 2147483647 0 88
- ans = 2147483647
- demo$ ./a.out 2147483647 1 88 
+ demo$ ./a.out 3000000000 3000000000 88
  ans = 88
- demo$ ./a.out 0 2147483647 888
- ans = 2147483647
- demo$ ./a.out 1 2147483647 888
- ans = 88
-*/
+ demo$ ./a.out 4294967295 100 88
+ ans = 88 
+ */
+

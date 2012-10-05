@@ -37,6 +37,8 @@ int main(int argc, char** argv)
  ans = 2147483647
  demo$ ./a.out 2147483647 1 88
  ans = 88
+ demo$ ./a.out 2147483647 100 88
+ ans = 88
  demo$ ./a.out 0 2147483647 888
  ans = 2147483647
  demo$ ./a.out 1 2147483647 888
