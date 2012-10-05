@@ -16,11 +16,7 @@ int main(int argc, char** argv)
   _nan int b = atoi(argv[2]);
   int c = atoi(argv[3]);
   _nan int d = a - b;
-  int ans;
-  if (isnan(d))
-    ans = c;
-  else
-    ans = (int) d;
+  int ans = unnan(d, c);
   
   printf("ans = %d\n", ans);
 }

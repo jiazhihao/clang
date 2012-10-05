@@ -17,5 +17,7 @@ This branch also implements two built-in functions to handle NaN integers.
 	- T unnan(_nan T x, T v) 
 	returns v if x is NaN state, or (T)x otherwise.
 
+Several examples are available in nan_testcases folder.
+
 Contact us:
 If you find a bug in NaN compiler, please send email to jiazhih@gmail.com. Thanks in advance!
