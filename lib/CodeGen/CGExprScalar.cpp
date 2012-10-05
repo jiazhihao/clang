@@ -1949,30 +1949,55 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
       CGF.EmitCheck(Builder.CreateFCmpUNE(Ops.RHS, Zero));
   }
   if (Ops.Ty->isNanType()) {
+    llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
     QualType T = Ops.Ty;
     llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
                            CGF.getContext().getTypeSize(T));
     //llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
-    llvm::Value *NaN, *Result2;
+    llvm::Value *NaN, *Result, *InitCheck;
     if (Ops.Ty->isNanUnsignedIntegerType()) {
       NaN = llvm::Constant::getAllOnesValue(IntType);
-      Result2 = Builder.CreateUDiv(Ops.LHS, Ops.RHS, "div");
+      Result = Builder.CreateUDiv(Ops.LHS, Ops.RHS, "div");
+      InitCheck = Builder.CreateICmpEQ(Ops.RHS, Zero);
     }
     else {
       NaN = llvm::ConstantInt::get(IntType->getContext(),
                                    llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
-      Result2 = Builder.CreateSDiv(Ops.LHS, Ops.RHS, "div");
+      Result = Builder.CreateSDiv(Ops.LHS, Ops.RHS, "div");
+      InitCheck = Builder.CreateICmpEQ(Ops.RHS, Zero);
     }
     
-    // Cmp = y == NaN
-    llvm::Value *Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
-    // Result1 = Cmp ? NaN : Result2
-    llvm::Value *Result1 = Builder.CreateSelect(Cmp, NaN, Result2, "cond");
-    // Cmp = x == NaN
-    Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
-    // return Cmp ? NaN : Result1
-    return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
+    // Cmpy = y == NaN
+    llvm::Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
+    // Cmpx = x == NaN
+    llvm::Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
+    // Cond = Cmpx && InitCheck
+    llvm::Value *Cond = Builder.CreateOr(Cmpx, InitCheck, "or");
+    Cond = Builder.CreateOr(Cmpy, Cond, "or");
+    
+    llvm::Type *opTy = CGF.CGM.getTypes().ConvertType(Ops.Ty);
+    llvm::BasicBlock *initialBB = Builder.GetInsertBlock();
+    llvm::Function::iterator insertPt = initialBB;
+    llvm::BasicBlock *continueBB = CGF.createBasicBlock("nooverflow", CGF.CurFn,
+                                                        llvm::next(insertPt));
+    llvm::BasicBlock *overflowBB = CGF.createBasicBlock("overflow", CGF.CurFn);
+    
+    Builder.CreateCondBr(Cond, overflowBB, continueBB);
+    
+    // If an overflow handler is set, then we want to call it and then use its
+    // result, if it returns.
+    Builder.SetInsertPoint(overflowBB);
+    
+    Builder.CreateBr(continueBB);
+    
+    Builder.SetInsertPoint(continueBB);
+    llvm::PHINode *phi = Builder.CreatePHI(opTy, 2);
+    phi->addIncoming(Result, initialBB);
+    phi->addIncoming(NaN, overflowBB);
+    
+    return phi;
+    //return Builder.CreateSelect(Cond, NaN, Result, "cond");
   }
   if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
     llvm::Value *Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
@@ -2469,6 +2494,35 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
   if (Ops.LHS->getType() != RHS->getType())
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
+  if (Ops.Ty->isNanType()) {
+    llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(Ops.Ty));
+    Value *Result = Builder.CreateShl(Ops.LHS, RHS, "shl");
+    Value *NaN;
+    Value *BackResult;
+    if(Ops.Ty->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(IntType);
+      BackResult = Builder.CreateLShr(Result, RHS, "shr");
+    }
+    else {
+      NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                   llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
+      BackResult = Builder.CreateAShr(Result, RHS, "shr");
+    }
+    // InitCheck
+    Value *InitCheck = Builder.CreateICmpNE(BackResult, Ops.LHS);
+    // Cmpy = y == NaN
+    Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
+    // Cmpx = x == NaN
+    Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
+    // Cond = Cmpx || Cmpy || InitCheck;
+    Value *Cond = Builder.CreateOr(InitCheck, Cmpy, "or");
+    Cond = Builder.CreateOr(Cond, Cmpx, "or");
+    // return Cond ? NaN : Result
+    return Builder.CreateSelect(Cond, NaN, Result, "cond");
+  }
+  
   if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
     llvm::Value *WidthMinusOne =
@@ -2506,6 +2560,31 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
   if (Ops.LHS->getType() != RHS->getType())
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
+  if (Ops.Ty->isNanType()) {
+    llvm::IntegerType *IntType =
+    llvm::IntegerType::get(CGF.getLLVMContext(),
+                           CGF.getContext().getTypeSize(Ops.Ty));
+    Value *Result;
+    Value *NaN;
+    if(Ops.Ty->isNanUnsignedIntegerType()) {
+      NaN = llvm::Constant::getAllOnesValue(IntType);
+      Result = Builder.CreateLShr(Ops.LHS, RHS, "shr");
+    }
+    else {
+      NaN = llvm::ConstantInt::get(IntType->getContext(),
+                                   llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
+      Result = Builder.CreateAShr(Ops.LHS, RHS, "shr");
+    }
+    // Cmpy = y == NaN
+    Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
+    // Cmpx = x == NaN
+    Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
+    // Cond = Cmpx || Cmpy || InitCheck;
+    Value *Cond = Builder.CreateOr(Cmpx, Cmpy, "or");
+    // return Cond ? NaN : Result
+    return Builder.CreateSelect(Cond, NaN, Result, "cond");
+  }
+  
   if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
     llvm::Value *WidthVal = llvm::ConstantInt::get(RHS->getType(), Width);
