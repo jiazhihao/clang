@@ -17,10 +17,7 @@ int main(int argc, char** argv)
   unsigned c = atoi(argv[3]);
   _nan unsigned d = a - b;
   unsigned ans;
-  if (isnan(d))
-    ans = c;
-  else
-    ans = (unsigned) d;
+  ans = unnan(d, c);
   
   printf("ans = %u\n", ans);
 }
