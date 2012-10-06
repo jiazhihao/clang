@@ -6,18 +6,17 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#define TYPE int
 
 int main(int argc, char** argv)
 {
   if (argc < 5) printf("USAGE: input a, b, c, d.\nCalculate a * b + c * d\n");
   else
   {
-    _nan TYPE a = atol(argv[1]), b = atol(argv[2]), c = atol(argv[3]), d = atol(argv[4]);
-    _nan TYPE nresult = a * b + c * d;
+    _nan int a = atol(argv[1]), b = atol(argv[2]), c = atol(argv[3]), d = atol(argv[4]);
+    _nan int nresult = a * b + c * d;
     if (isnan(nresult)) printf("overflow!\n");
     else {
-      printf("result = %d\n", unnan(nresult, 0));
+      printf("result = %d\n", (int)nresult);
     }
   }
   return 0;
