@@ -2504,27 +2504,21 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
                            CGF.getContext().getTypeSize(Ops.Ty));
     Value *Result = Builder.CreateShl(Ops.LHS, RHS, "shl");
     Value *NaN;
-    Value *BackResult;
     if(Ops.Ty->isNanUnsignedIntegerType()) {
       NaN = llvm::Constant::getAllOnesValue(IntType);
-      BackResult = Builder.CreateLShr(Result, RHS, "shr");
     }
     else {
       NaN = llvm::ConstantInt::get(IntType->getContext(),
                                    llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
-      BackResult = Builder.CreateAShr(Result, RHS, "shr");
     }
-    // InitCheck
-    Value *InitCheck = Builder.CreateICmpNE(BackResult, Ops.LHS);
-    // CmpR = RHS < ValueWidth
+    // CmpR = RHS <= WidthMinusOne
     Value *CmpR = Builder.CreateICmpUGT(RHS, WidthMinusOne);
     // Cmpy = y == NaN
     Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
     // Cmpx = x == NaN
     Value *Cmpx = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.LHS, NaN, "cmp");
     // Cond = Cmpx || Cmpy || InitCheck;
-    Value *Cond = Builder.CreateOr(InitCheck, CmpR, "or");
-    Cond = Builder.CreateOr(Cond, Cmpy, "or");
+    Value *Cond = Builder.CreateOr(CmpR, Cmpy, "or");
     Cond = Builder.CreateOr(Cond, Cmpx, "or");
     // return Cond ? NaN : Result
     return Builder.CreateSelect(Cond, NaN, Result, "cond");
@@ -2585,7 +2579,7 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
                                    llvm::APInt::getSignedMinValue(IntType->getBitWidth()));
       Result = Builder.CreateAShr(Ops.LHS, RHS, "shr");
     }
-    // CmpR = RHS < ValueWidth
+    // CmpR = RHS <= WidthMinusOne
     Value *CmpR = Builder.CreateICmpUGT(RHS, WidthMinusOne);
     // Cmpy = y == NaN
     Value *Cmpy = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Ops.RHS, NaN, "cmp");
