@@ -33,16 +33,11 @@ int main(int argc, char** argv)
 {
   printf("signed shl:\n");
   sshl(1, 1);
-  sshl(10, 27);
-  sshl(10, 28);
+  sshl(10, 31);
   sshl(-2147483648, 1);
-  sshl(1, 30);
-  sshl(1, 31);
   sshl(1, 40);
   printf("unsigned shl:\n");
-  ushl(1, 30);
   ushl(1, 31);
-  ushl(1, 32);
   ushl(1, 40);
 }
 
@@ -50,15 +45,10 @@ int main(int argc, char** argv)
  output:
  signed shl:
  1 << 1 = 2
- 10 << 27 = 1342177280
- 10 << 28 = overflow!
+ 10 << 31 = 0
  -2147483648 << 1 = overflow!
- 1 << 30 = 1073741824
- 1 << 31 = overflow!
  1 << 40 = overflow!
  unsigned shl:
- 1 << 30 = 1073741824
  1 << 31 = 2147483648
- 1 << 32 = overflow!
  1 << 40 = overflow!
 */
