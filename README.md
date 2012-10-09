@@ -33,17 +33,17 @@ We also give a demo to show how our NaN compiler works.
 
 mq_attr_ok (testcases\test-mq_attr_ok.c) is simplified from an overflow check in mq_attr_ok function in the Linux kernel. The original check in mq_attr_ok tries to make sure the addition of two multiplications will not overflow. mq_attr_ok reads four integers (i.e. a, b, c, d) of type int, outputs the mathematical result of (a * b + c * d) if no overflow happens, otherwise outputs "overflow!".
 
-One possible run of Demo 1 looks like
+One possible run of mq_attr_ok looks like
 
-demo jia$ ./a.out 32768 32768 32768 32768
+demo jia$ ./mq_attr_ok 32768 32768 32768 32768
 
 overflow!
 
-demo jia$ ./a.out 32768 32768 32767 32765
+demo jia$ ./mq_attr_ok 32768 32768 32767 32765
 
 result = 2147352579
 
-demo jia$ ./a.out -32768 32768 -32768 32768
+demo jia$ ./mq_attr_ok -32768 32768 -32768 32768
 
 overflow!
 

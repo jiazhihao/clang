@@ -12,7 +12,7 @@ int main(int argc, char** argv)
   if (argc < 5) printf("USAGE: input a, b, c, d.\nCalculate a * b + c * d\n");
   else
   {
-    _nan int a = atol(argv[1]), b = atol(argv[2]), c = atol(argv[3]), d = atol(argv[4]);
+    _nan int a = atoi(argv[1]), b = atoi(argv[2]), c = atoi(argv[3]), d = atoi(argv[4]);
     _nan int nresult = a * b + c * d;
     if (isnan(nresult)) printf("overflow!\n");
     else {
