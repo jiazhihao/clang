@@ -295,7 +295,7 @@ CastKind Sema::ScalarTypeToBooleanCastKind(QualType ScalarTy) {
   case Type::STK_Floating: return CK_FloatingToBoolean;
   case Type::STK_IntegralComplex: return CK_IntegralComplexToBoolean;
   case Type::STK_Nan: 
-    printf("Mistake in ScalarTypeToBooleanCastKind\n");
+    llvm_unreachable("Mistake in ScalarTypeToBooleanCastKind\n");
     return CK_IntegralToBoolean;
   case Type::STK_FloatingComplex: return CK_FloatingComplexToBoolean;
   }

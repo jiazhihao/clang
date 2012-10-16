@@ -427,10 +427,6 @@ public:
       // return Cmp ? NaN : Result1
       return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
     }
-    else {
-      //printf("EmitMul_Other : \n");
-      //Ops.E->dump();
-    }
     
     if (Ops.Ty->isSignedIntegerOrEnumerationType()) {
       switch (CGF.getContext().getLangOpts().getSignedOverflowBehavior()) {
@@ -1156,7 +1152,6 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   // Since almost all cast kinds apply to scalars, this switch doesn't have
   // a default case, so the compiler will warn on a missing case.  The cases
   // are in the same order as in the CastKind enum.
-  //printf("VisitCastExpr: Kind = %d\n", (int)Kind);
   switch (Kind) {
   case CK_Dependent: llvm_unreachable("dependent cast kind in IR gen!");
   case CK_BuiltinFnToFnPtr:
@@ -1286,11 +1281,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
   
   case CK_IntegralToNan:
-    //printf("CK_IntegralToNan...\n");
     return EmitScalarConversion(Visit(E), E->getType(), DestTy);
-    //return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
   case CK_NanCast:
-    //printf("CK_NanCast...\n");
     return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
     
   case CK_LValueToRValue:
@@ -1359,9 +1351,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitComplexExpr(E, false, true).first;
 
   case CK_NanToIntegral:
-    //printf("NanToIntegral...\n");
     return EmitScalarConversion(Visit(E), E->getType()->getAs<NanType>()->getElementType(), DestTy);
-    //Fixme: another way: return CGF.EmitNanExpr(E);
+    //FIXME: another way: return CGF.EmitNanExpr(E);
   
   case CK_FloatingComplexToBoolean:
   case CK_IntegralComplexToBoolean: {
@@ -1417,7 +1408,6 @@ EmitAddConsiderOverflowBehavior(const UnaryOperator *E,
 llvm::Value *
 ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                            bool isInc, bool isPre) {
-  printf("EmitScalarPrePostIncDec...\n");
   QualType type = E->getSubExpr()->getType();
   llvm::Value *value = EmitLoadOfLValue(LV);
   llvm::Value *input = value;
@@ -2332,10 +2322,6 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     // return Cmp ? NaN : Result1
     return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
   }
-  else {
-    //printf("EmitAdd_Other : \n");
-    //Ops.E->dump();
-  }
   
   if (op.LHS->getType()->isPointerTy() ||
       op.RHS->getType()->isPointerTy())
@@ -2398,10 +2384,6 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
     Cmp = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, op.LHS, NaN, "cmp");
     // return Cmp ? NaN : Result1
     return Builder.CreateSelect(Cmp, NaN, Result1, "cond");
-  }
-  else {
-    //printf("EmitSub_Other : \n");
-    //Ops.E->dump();
   }
   
   // The LHS is always a pointer if either side is.
