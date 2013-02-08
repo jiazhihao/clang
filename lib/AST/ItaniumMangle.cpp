@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 #include "clang/AST/Mangle.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
@@ -27,8 +28,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define MANGLE_CHECKER 0
 
@@ -656,7 +657,7 @@ void CXXNameMangler::mangleFloat(const llvm::APFloat &f) {
   assert(numCharacters != 0);
 
   // Allocate a buffer of the right number of characters.
-  llvm::SmallVector<char, 20> buffer;
+  SmallVector<char, 20> buffer;
   buffer.set_size(numCharacters);
 
   // Fill the buffer left-to-right.
@@ -1118,7 +1119,16 @@ void CXXNameMangler::mangleUnqualifiedName(const NamedDecl *ND,
         break;
       }
     }
-        
+
+    int UnnamedMangle = Context.getASTContext().getUnnamedTagManglingNumber(TD);
+    if (UnnamedMangle != -1) {
+      Out << "Ut";
+      if (UnnamedMangle != 0)
+        Out << llvm::utostr(UnnamedMangle - 1);
+      Out << '_';
+      break;
+    }
+
     // Get a unique id for the anonymous struct.
     uint64_t AnonStructId = Context.getAnonymousStructId(TD);
 
@@ -1659,7 +1669,8 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals) {
     // where <address-space-number> is a source name consisting of 'AS' 
     // followed by the address space <number>.
     SmallString<64> ASString;
-    ASString = "AS" + llvm::utostr_32(Quals.getAddressSpace());
+    ASString = "AS" + llvm::utostr_32(
+        Context.getASTContext().getTargetAddressSpace(Quals.getAddressSpace()));
     Out << 'U' << ASString.size() << ASString;
   }
   
@@ -1871,6 +1882,14 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
   case BuiltinType::ObjCId: Out << "11objc_object"; break;
   case BuiltinType::ObjCClass: Out << "10objc_class"; break;
   case BuiltinType::ObjCSel: Out << "13objc_selector"; break;
+  case BuiltinType::OCLImage1d: Out << "11ocl_image1d"; break;
+  case BuiltinType::OCLImage1dArray: Out << "16ocl_image1darray"; break;
+  case BuiltinType::OCLImage1dBuffer: Out << "17ocl_image1dbuffer"; break;
+  case BuiltinType::OCLImage2d: Out << "11ocl_image2d"; break;
+  case BuiltinType::OCLImage2dArray: Out << "16ocl_image2darray"; break;
+  case BuiltinType::OCLImage3d: Out << "11ocl_image3d"; break;
+  case BuiltinType::OCLSampler: Out << "11ocl_sampler"; break;
+  case BuiltinType::OCLEvent: Out << "9ocl_event"; break;
   }
 }
 
@@ -2101,6 +2120,7 @@ void CXXNameMangler::mangleNeonVectorType(const VectorType *T) {
 //                         ::= Dv [<dimension expression>] _ <element type>
 // <extended element type> ::= <element type>
 //                         ::= p # AltiVec vector pixel
+//                         ::= b # Altivec vector bool
 void CXXNameMangler::mangleType(const VectorType *T) {
   if ((T->getVectorKind() == VectorType::NeonVector ||
        T->getVectorKind() == VectorType::NeonPolyVector)) {

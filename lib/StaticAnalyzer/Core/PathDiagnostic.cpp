@@ -12,16 +12,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/AST/Expr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/Basic/SourceManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace ento;
@@ -106,12 +107,16 @@ PathDiagnostic::~PathDiagnostic() {}
 
 PathDiagnostic::PathDiagnostic(const Decl *declWithIssue,
                                StringRef bugtype, StringRef verboseDesc,
-                               StringRef shortDesc, StringRef category)
+                               StringRef shortDesc, StringRef category,
+                               PathDiagnosticLocation LocationToUnique,
+                               const Decl *DeclToUnique)
   : DeclWithIssue(declWithIssue),
     BugType(StripTrailingDots(bugtype)),
     VerboseDesc(StripTrailingDots(verboseDesc)),
     ShortDesc(StripTrailingDots(shortDesc)),
     Category(StripTrailingDots(category)),
+    UniqueingLoc(LocationToUnique),
+    UniqueingDecl(DeclToUnique),
     path(pathImpl) {}
 
 void PathDiagnosticConsumer::anchor() { }
@@ -125,7 +130,7 @@ PathDiagnosticConsumer::~PathDiagnosticConsumer() {
 }
 
 void PathDiagnosticConsumer::HandlePathDiagnostic(PathDiagnostic *D) {
-  llvm::OwningPtr<PathDiagnostic> OwningD(D);
+  OwningPtr<PathDiagnostic> OwningD(D);
   
   if (!D || D->path.empty())
     return;
@@ -141,7 +146,7 @@ void PathDiagnosticConsumer::HandlePathDiagnostic(PathDiagnostic *D) {
     // Verify that the entire path is from the same FileID.
     FileID FID;
     const SourceManager &SMgr = (*D->path.begin())->getLocation().getManager();
-    llvm::SmallVector<const PathPieces *, 5> WorkList;
+    SmallVector<const PathPieces *, 5> WorkList;
     WorkList.push_back(&D->path);
 
     while (!WorkList.empty()) {
@@ -586,8 +591,10 @@ PathDiagnosticLocation
     const CFGBlock *BSrc = BE->getSrc();
     S = BSrc->getTerminatorCondition();
   }
-  else if (const PostStmt *PS = dyn_cast<PostStmt>(&P)) {
-    S = PS->getStmt();
+  else if (const StmtPoint *SP = dyn_cast<StmtPoint>(&P)) {
+    S = SP->getStmt();
+    if (isa<PostStmtPurgeDeadSymbols>(P))
+      return PathDiagnosticLocation::createEnd(S, SMng, P.getLocationContext());
   }
   else if (const PostImplicitCall *PIE = dyn_cast<PostImplicitCall>(&P)) {
     return PathDiagnosticLocation(PIE->getLocation(), SMng);
@@ -602,6 +609,9 @@ PathDiagnosticLocation
                                 CEE->getLocationContext(),
                                 SMng);
   }
+  else {
+    llvm_unreachable("Unexpected ProgramPoint");
+  }
 
   return PathDiagnosticLocation(S, SMng, P.getLocationContext());
 }
@@ -612,19 +622,28 @@ PathDiagnosticLocation
   assert(N && "Cannot create a location with a null node.");
 
   const ExplodedNode *NI = N;
+  const Stmt *S = 0;
 
   while (NI) {
     ProgramPoint P = NI->getLocation();
-    const LocationContext *LC = P.getLocationContext();
-    if (const StmtPoint *PS = dyn_cast<StmtPoint>(&P))
-      return PathDiagnosticLocation(PS->getStmt(), SM, LC);
-    else if (const BlockEdge *BE = dyn_cast<BlockEdge>(&P)) {
-      const Stmt *Term = BE->getSrc()->getTerminator();
-      if (Term) {
-        return PathDiagnosticLocation(Term, SM, LC);
-      }
+    if (const StmtPoint *PS = dyn_cast<StmtPoint>(&P)) {
+      S = PS->getStmt();
+      if (isa<PostStmtPurgeDeadSymbols>(P))
+        return PathDiagnosticLocation::createEnd(S, SM,
+                                                 NI->getLocationContext());
+      break;
+    } else if (const BlockEdge *BE = dyn_cast<BlockEdge>(&P)) {
+      S = BE->getSrc()->getTerminator();
+      break;
     }
     NI = NI->succ_empty() ? 0 : *(NI->succ_begin());
+  }
+
+  if (S) {
+    const LocationContext *LC = NI->getLocationContext();
+    if (S->getLocStart().isValid())
+      return PathDiagnosticLocation(S, SM, LC);
+    return PathDiagnosticLocation(getValidSourceLocation(S, LC), SM);
   }
 
   return createDeclEnd(N->getLocationContext(), SM);
@@ -769,48 +788,129 @@ void PathDiagnosticCallPiece::setCallee(const CallEnter &CE,
   callEnter = getLocationForCaller(CalleeCtx, CE.getLocationContext(), SM);
 }
 
+static inline void describeClass(raw_ostream &Out, const CXXRecordDecl *D,
+                                 StringRef Prefix = StringRef()) {
+  if (!D->getIdentifier())
+    return;
+  Out << Prefix << '\'' << *D << '\'';
+}
+
+static bool describeCodeDecl(raw_ostream &Out, const Decl *D,
+                             bool ExtendedDescription,
+                             StringRef Prefix = StringRef()) {
+  if (!D)
+    return false;
+
+  if (isa<BlockDecl>(D)) {
+    if (ExtendedDescription)
+      Out << Prefix << "anonymous block";
+    return ExtendedDescription;
+  }
+
+  if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D)) {
+    Out << Prefix;
+    if (ExtendedDescription && !MD->isUserProvided()) {
+      if (MD->isExplicitlyDefaulted())
+        Out << "defaulted ";
+      else
+        Out << "implicit ";
+    }
+
+    if (const CXXConstructorDecl *CD = dyn_cast<CXXConstructorDecl>(MD)) {
+      if (CD->isDefaultConstructor())
+        Out << "default ";
+      else if (CD->isCopyConstructor())
+        Out << "copy ";
+      else if (CD->isMoveConstructor())
+        Out << "move ";
+
+      Out << "constructor";
+      describeClass(Out, MD->getParent(), " for ");
+      
+    } else if (isa<CXXDestructorDecl>(MD)) {
+      if (!MD->isUserProvided()) {
+        Out << "destructor";
+        describeClass(Out, MD->getParent(), " for ");
+      } else {
+        // Use ~Foo for explicitly-written destructors.
+        Out << "'" << *MD << "'";
+      }
+
+    } else if (MD->isCopyAssignmentOperator()) {
+        Out << "copy assignment operator";
+        describeClass(Out, MD->getParent(), " for ");
+
+    } else if (MD->isMoveAssignmentOperator()) {
+        Out << "move assignment operator";
+        describeClass(Out, MD->getParent(), " for ");
+
+    } else {
+      if (MD->getParent()->getIdentifier())
+        Out << "'" << *MD->getParent() << "::" << *MD << "'";
+      else
+        Out << "'" << *MD << "'";
+    }
+
+    return true;
+  }
+
+  Out << Prefix << '\'' << cast<NamedDecl>(*D) << '\'';
+  return true;
+}
+
 IntrusiveRefCntPtr<PathDiagnosticEventPiece>
 PathDiagnosticCallPiece::getCallEnterEvent() const {
   if (!Callee)
     return 0;  
+
   SmallString<256> buf;
   llvm::raw_svector_ostream Out(buf);
-  if (isa<BlockDecl>(Callee))
-    Out << "Calling anonymous block";
-  else if (const NamedDecl *ND = dyn_cast<NamedDecl>(Callee))
-    Out << "Calling '" << *ND << "'";
-  StringRef msg = Out.str();
-  if (msg.empty())
-    return 0;
-  return new PathDiagnosticEventPiece(callEnter, msg);
+
+  Out << "Calling ";
+  describeCodeDecl(Out, Callee, /*ExtendedDescription=*/true);
+
+  assert(callEnter.asLocation().isValid());
+  return new PathDiagnosticEventPiece(callEnter, Out.str());
 }
 
 IntrusiveRefCntPtr<PathDiagnosticEventPiece>
 PathDiagnosticCallPiece::getCallEnterWithinCallerEvent() const {
+  if (!callEnterWithin.asLocation().isValid())
+    return 0;
+  if (Callee->isImplicit())
+    return 0;
+  if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(Callee))
+    if (MD->isDefaulted())
+      return 0;
+
   SmallString<256> buf;
   llvm::raw_svector_ostream Out(buf);
-  if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(Caller))
-    Out << "Entered call from '" << *ND << "'";
-  else
-    Out << "Entered call";
-  StringRef msg = Out.str();
-  if (msg.empty())
-    return 0;
-  return new PathDiagnosticEventPiece(callEnterWithin, msg);
+
+  Out << "Entered call";
+  describeCodeDecl(Out, Caller, /*ExtendedDescription=*/false, " from ");
+
+  return new PathDiagnosticEventPiece(callEnterWithin, Out.str());
 }
 
 IntrusiveRefCntPtr<PathDiagnosticEventPiece>
 PathDiagnosticCallPiece::getCallExitEvent() const {
   if (NoExit)
     return 0;
+
   SmallString<256> buf;
   llvm::raw_svector_ostream Out(buf);
-  if (!CallStackMessage.empty())
+
+  if (!CallStackMessage.empty()) {
     Out << CallStackMessage;
-  else if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(Callee))
-    Out << "Returning from '" << *ND << "'";
-  else
-    Out << "Returning to caller";
+  } else {
+    bool DidDescribe = describeCodeDecl(Out, Callee,
+                                        /*ExtendedDescription=*/false,
+                                        "Returning from ");
+    if (!DidDescribe)
+      Out << "Returning to caller";
+  }
+
+  assert(callReturn.asLocation().isValid());
   return new PathDiagnosticEventPiece(callReturn, Out.str());
 }
 

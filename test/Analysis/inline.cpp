@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -analyze -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-ipa=inlining -verify %s
+// RUN: %clang_cc1 -analyze -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-config ipa=inlining -verify %s
 
 void clang_analyzer_eval(bool);
 void clang_analyzer_checkInlined(bool);
@@ -192,7 +192,7 @@ namespace Invalidation {
     virtual void touchV2(int &x) const;
 
     int test() const {
-      // We were accidentally not invalidating under -analyzer-ipa=inlining
+      // We were accidentally not invalidating under inlining
       // at one point for virtual methods with visible definitions.
       int a, b, c, d;
       touch(a);
@@ -339,4 +339,31 @@ namespace QualifiedCalls {
     clang_analyzer_eval(object->One::getZero() == 0); // expected-warning{{TRUE}}
     clang_analyzer_eval(object->A::getZero() == 0); // expected-warning{{TRUE}}
 }
+}
+
+
+namespace rdar12409977  {
+  struct Base {
+    int x;
+  };
+
+  struct Parent : public Base {
+    virtual Parent *vGetThis();
+    Parent *getThis() { return vGetThis(); }
+  };
+
+  struct Child : public Parent {
+    virtual Child *vGetThis() { return this; }
+  };
+
+  void test() {
+    Child obj;
+    obj.x = 42;
+
+    // Originally, calling a devirtualized method with a covariant return type
+    // caused a crash because the return value had the wrong type. When we then
+    // go to layer a CXXBaseObjectRegion on it, the base isn't a direct base of
+    // the object region and we get an assertion failure.
+    clang_analyzer_eval(obj.getThis()->x == 42); // expected-warning{{TRUE}}
+  }
 }

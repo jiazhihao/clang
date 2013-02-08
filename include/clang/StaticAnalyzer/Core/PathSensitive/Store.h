@@ -14,9 +14,9 @@
 #ifndef LLVM_CLANG_GR_STORE_H
 #define LLVM_CLANG_GR_STORE_H
 
-#include "clang/StaticAnalyzer/Core/PathSensitive/StoreRef.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/StoreRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 
@@ -25,6 +25,7 @@ namespace clang {
 class Stmt;
 class Expr;
 class ObjCIvarDecl;
+class CXXBasePath;
 class StackFrameContext;
 
 namespace ento {
@@ -33,6 +34,8 @@ class CallEvent;
 class ProgramState;
 class ProgramStateManager;
 class ScanReachableSymbols;
+
+typedef llvm::DenseSet<SymbolRef> InvalidatedSymbols;
 
 class StoreManager {
 protected:
@@ -125,11 +128,15 @@ public:
   ///  conversions between arrays and pointers.
   virtual SVal ArrayToPointer(Loc Array) = 0;
 
-  /// Evaluates DerivedToBase casts.
-  SVal evalDerivedToBase(SVal derived, const CastExpr *Cast);
+  /// Evaluates a chain of derived-to-base casts through the path specified in
+  /// \p Cast.
+  SVal evalDerivedToBase(SVal Derived, const CastExpr *Cast);
+
+  /// Evaluates a chain of derived-to-base casts through the specified path.
+  SVal evalDerivedToBase(SVal Derived, const CXXBasePath &CastPath);
 
   /// Evaluates a derived-to-base cast through a single level of derivation.
-  virtual SVal evalDerivedToBase(SVal derived, QualType derivedPtrType) = 0;
+  SVal evalDerivedToBase(SVal Derived, QualType DerivedPtrType);
 
   /// \brief Evaluates C++ dynamic_cast cast.
   /// The callback may result in the following 3 scenarios:
@@ -139,8 +146,7 @@ public:
   ///    enough info to determine if the cast will succeed at run time).
   /// The function returns an SVal representing the derived class; it's
   /// valid only if Failed flag is set to false.
-  virtual SVal evalDynamicCast(SVal base, QualType derivedPtrType,
-                                 bool &Failed) = 0;
+  SVal evalDynamicCast(SVal Base, QualType DerivedPtrType, bool &Failed);
 
   const ElementRegion *GetElementZeroRegion(const MemRegion *R, QualType T);
 
@@ -164,7 +170,6 @@ public:
   /// associated with the object is recycled.
   virtual void decrementReferenceCount(Store store) {}
 
-  typedef llvm::DenseSet<SymbolRef> InvalidatedSymbols;
   typedef SmallVector<const MemRegion *, 8> InvalidatedRegions;
 
   /// invalidateRegions - Clears out the specified regions from the store,

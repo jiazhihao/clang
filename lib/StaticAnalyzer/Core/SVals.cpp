@@ -15,6 +15,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/Basic/IdentifierTable.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace clang;
 using namespace ento;
 using llvm::APSInt;
@@ -143,7 +144,7 @@ const void *nonloc::LazyCompoundVal::getStore() const {
   return static_cast<const LazyCompoundValData*>(Data)->getStore();
 }
 
-const TypedRegion *nonloc::LazyCompoundVal::getRegion() const {
+const TypedValueRegion *nonloc::LazyCompoundVal::getRegion() const {
   return static_cast<const LazyCompoundValData*>(Data)->getRegion();
 }
 

@@ -15,9 +15,8 @@
 #ifndef CLANG_CODEGEN_CXXABI_H
 #define CLANG_CODEGEN_CXXABI_H
 
-#include "clang/Basic/LLVM.h"
-
 #include "CodeGenFunction.h"
+#include "clang/Basic/LLVM.h"
 
 namespace llvm {
   class Constant;
@@ -205,6 +204,9 @@ public:
   /// Gets the pure virtual member call function.
   virtual StringRef GetPureVirtualCallName() = 0;
 
+  /// Gets the deleted virtual member call name.
+  virtual StringRef GetDeletedVirtualCallName() = 0;
+
   /**************************** Array cookies ******************************/
 
   /// Returns the extra size required in order to store the array
@@ -292,16 +294,14 @@ public:
   /// \param addr - a pointer to pass to the destructor function.
   virtual void registerGlobalDtor(CodeGenFunction &CGF, llvm::Constant *dtor,
                                   llvm::Constant *addr);
-
-  /***************************** Virtual Tables *******************************/
-
-  /// Generates and emits the virtual tables for a class.
-  virtual void EmitVTables(const CXXRecordDecl *Class) = 0;
 };
 
-/// Creates an instance of a C++ ABI class.
-CGCXXABI *CreateARMCXXABI(CodeGenModule &CGM);
+// Create an instance of a C++ ABI class:
+
+/// Creates an Itanium-family ABI.
 CGCXXABI *CreateItaniumCXXABI(CodeGenModule &CGM);
+
+/// Creates a Microsoft-family ABI.
 CGCXXABI *CreateMicrosoftCXXABI(CodeGenModule &CGM);
 
 }

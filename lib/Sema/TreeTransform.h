@@ -14,11 +14,7 @@
 #ifndef LLVM_CLANG_SEMA_TREETRANSFORM_H
 #define LLVM_CLANG_SEMA_TREETRANSFORM_H
 
-#include "clang/Sema/SemaInternal.h"
-#include "clang/Sema/Lookup.h"
-#include "clang/Sema/ParsedTemplate.h"
-#include "clang/Sema/SemaDiagnostic.h"
-#include "clang/Sema/ScopeInfo.h"
+#include "TypeLocBuilder.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
@@ -28,12 +24,16 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
-#include "clang/Sema/Ownership.h"
-#include "clang/Sema/Designator.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/Designator.h"
+#include "clang/Sema/Lookup.h"
+#include "clang/Sema/Ownership.h"
+#include "clang/Sema/ParsedTemplate.h"
+#include "clang/Sema/ScopeInfo.h"
+#include "clang/Sema/SemaDiagnostic.h"
+#include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "TypeLocBuilder.h"
 #include <algorithm>
 
 namespace clang {
@@ -247,7 +247,7 @@ public:
   /// must be set.
   bool TryExpandParameterPacks(SourceLocation EllipsisLoc,
                                SourceRange PatternRange,
-                             llvm::ArrayRef<UnexpandedParameterPack> Unexpanded,
+                               ArrayRef<UnexpandedParameterPack> Unexpanded,
                                bool &ShouldExpand,
                                bool &RetainExpansion,
                                llvm::Optional<unsigned> &NumExpansions) {
@@ -322,6 +322,15 @@ public:
   ///
   /// \returns the transformed expression.
   ExprResult TransformExpr(Expr *E);
+
+  /// \brief Transform the given initializer.
+  ///
+  /// By default, this routine transforms an initializer by stripping off the
+  /// semantic nodes added by initialization, then passing the result to
+  /// TransformExpr or TransformExprs.
+  ///
+  /// \returns the transformed initializer.
+  ExprResult TransformInitializer(Expr *Init, bool CXXDirectInit);
 
   /// \brief Transform the given list of expressions.
   ///
@@ -573,6 +582,10 @@ public:
 
   /// \brief Transform the captures and body of a lambda expression.
   ExprResult TransformLambdaScope(LambdaExpr *E, CXXMethodDecl *CallOperator);
+
+  ExprResult TransformAddressOfOperand(Expr *E);
+  ExprResult TransformDependentScopeDeclRefExpr(DependentScopeDeclRefExpr *E,
+                                                bool IsAddressOfOperand);
 
 #define STMT(Node, Parent)                        \
   StmtResult Transform##Node(Node *S);
@@ -2073,7 +2086,8 @@ public:
                                           NestedNameSpecifierLoc QualifierLoc,
                                           SourceLocation TemplateKWLoc,
                                        const DeclarationNameInfo &NameInfo,
-                              const TemplateArgumentListInfo *TemplateArgs) {
+                              const TemplateArgumentListInfo *TemplateArgs,
+                                          bool IsAddressOfOperand) {
     CXXScopeSpec SS;
     SS.Adopt(QualifierLoc);
 
@@ -2081,7 +2095,8 @@ public:
       return getSema().BuildQualifiedTemplateIdExpr(SS, TemplateKWLoc,
                                                     NameInfo, TemplateArgs);
 
-    return getSema().BuildQualifiedDeclarationNameExpr(SS, NameInfo);
+    return getSema().BuildQualifiedDeclarationNameExpr(SS, NameInfo,
+                                                       IsAddressOfOperand);
   }
 
   /// \brief Build a new template-id expression.
@@ -2107,6 +2122,7 @@ public:
                                      bool IsElidable,
                                      MultiExprArg Args,
                                      bool HadMultipleCandidates,
+                                     bool ListInitialization,
                                      bool RequiresZeroInit,
                              CXXConstructExpr::ConstructionKind ConstructKind,
                                      SourceRange ParenRange) {
@@ -2118,6 +2134,7 @@ public:
     return getSema().BuildCXXConstructExpr(Loc, T, Constructor, IsElidable,
                                            ConvertedArgs,
                                            HadMultipleCandidates,
+                                           ListInitialization,
                                            RequiresZeroInit, ConstructKind,
                                            ParenRange);
   }
@@ -2410,10 +2427,10 @@ public:
       = SemaRef.Context.Idents.get("__builtin_shufflevector");
     TranslationUnitDecl *TUDecl = SemaRef.Context.getTranslationUnitDecl();
     DeclContext::lookup_result Lookup = TUDecl->lookup(DeclarationName(&Name));
-    assert(Lookup.first != Lookup.second && "No __builtin_shufflevector?");
+    assert(!Lookup.empty() && "No __builtin_shufflevector?");
 
     // Build a reference to the __builtin_shufflevector builtin
-    FunctionDecl *Builtin = cast<FunctionDecl>(*Lookup.first);
+    FunctionDecl *Builtin = cast<FunctionDecl>(Lookup.front());
     Expr *Callee = new (SemaRef.Context) DeclRefExpr(Builtin, false,
                                                   SemaRef.Context.BuiltinFnTy,
                                                   VK_RValue, BuiltinLoc);
@@ -2543,7 +2560,7 @@ StmtResult TreeTransform<Derived>::TransformStmt(Stmt *S) {
       if (E.isInvalid())
         return StmtError();
 
-      return getSema().ActOnExprStmt(getSema().MakeFullExpr(E.take()));
+      return getSema().ActOnExprStmt(E);
     }
   }
 
@@ -2566,6 +2583,65 @@ ExprResult TreeTransform<Derived>::TransformExpr(Expr *E) {
   }
 
   return SemaRef.Owned(E);
+}
+
+template<typename Derived>
+ExprResult TreeTransform<Derived>::TransformInitializer(Expr *Init,
+                                                        bool CXXDirectInit) {
+  // Initializers are instantiated like expressions, except that various outer
+  // layers are stripped.
+  if (!Init)
+    return SemaRef.Owned(Init);
+
+  if (ExprWithCleanups *ExprTemp = dyn_cast<ExprWithCleanups>(Init))
+    Init = ExprTemp->getSubExpr();
+
+  while (CXXBindTemporaryExpr *Binder = dyn_cast<CXXBindTemporaryExpr>(Init))
+    Init = Binder->getSubExpr();
+
+  if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(Init))
+    Init = ICE->getSubExprAsWritten();
+
+  // If this is not a direct-initializer, we only need to reconstruct
+  // InitListExprs. Other forms of copy-initialization will be a no-op if
+  // the initializer is already the right type.
+  CXXConstructExpr *Construct = dyn_cast<CXXConstructExpr>(Init);
+  if (!CXXDirectInit && !(Construct && Construct->isListInitialization()))
+    return getDerived().TransformExpr(Init);
+
+  // Revert value-initialization back to empty parens.
+  if (CXXScalarValueInitExpr *VIE = dyn_cast<CXXScalarValueInitExpr>(Init)) {
+    SourceRange Parens = VIE->getSourceRange();
+    return getDerived().RebuildParenListExpr(Parens.getBegin(), MultiExprArg(),
+                                             Parens.getEnd());
+  }
+
+  // FIXME: We shouldn't build ImplicitValueInitExprs for direct-initialization.
+  if (isa<ImplicitValueInitExpr>(Init))
+    return getDerived().RebuildParenListExpr(SourceLocation(), MultiExprArg(),
+                                             SourceLocation());
+
+  // Revert initialization by constructor back to a parenthesized or braced list
+  // of expressions. Any other form of initializer can just be reused directly.
+  if (!Construct || isa<CXXTemporaryObjectExpr>(Construct))
+    return getDerived().TransformExpr(Init);
+
+  SmallVector<Expr*, 8> NewArgs;
+  bool ArgChanged = false;
+  if (getDerived().TransformExprs(Construct->getArgs(), Construct->getNumArgs(),
+                     /*IsCall*/true, NewArgs, &ArgChanged))
+    return ExprError();
+
+  // If this was list initialization, revert to list form.
+  if (Construct->isListInitialization())
+    return getDerived().RebuildInitList(Construct->getLocStart(), NewArgs,
+                                        Construct->getLocEnd(),
+                                        Construct->getType());
+
+  // Build a ParenListExpr to represent anything else.
+  SourceRange Parens = Construct->getParenRange();
+  return getDerived().RebuildParenListExpr(Parens.getBegin(), NewArgs,
+                                           Parens.getEnd());
 }
 
 template<typename Derived>
@@ -2650,7 +2726,9 @@ bool TreeTransform<Derived>::TransformExprs(Expr **Inputs,
       continue;
     }
 
-    ExprResult Result = getDerived().TransformExpr(Inputs[I]);
+    ExprResult Result =
+      IsCall ? getDerived().TransformInitializer(Inputs[I], /*DirectInit*/false)
+             : getDerived().TransformExpr(Inputs[I]);
     if (Result.isInvalid())
       return true;
 
@@ -2726,7 +2804,7 @@ TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
         return NestedNameSpecifierLoc();
 
       if (TL.getType()->isDependentType() || TL.getType()->isRecordType() ||
-          (SemaRef.getLangOpts().CPlusPlus0x &&
+          (SemaRef.getLangOpts().CPlusPlus11 &&
            TL.getType()->isEnumeralType())) {
         assert(!TL.getType().hasLocalQualifiers() &&
                "Can't get cv-qualifiers here");
@@ -3287,6 +3365,7 @@ TreeTransform<Derived>::TransformQualifiedType(TypeLocBuilder &TLB,
       // Objective-C ARC:
       //   A lifetime qualifier applied to a substituted template parameter
       //   overrides the lifetime qualifier from the template argument.
+      const AutoType *AutoTy;
       if (const SubstTemplateTypeParmType *SubstTypeParam
                                 = dyn_cast<SubstTemplateTypeParmType>(Result)) {
         QualType Replacement = SubstTypeParam->getReplacementType();
@@ -3298,6 +3377,15 @@ TreeTransform<Derived>::TransformQualifiedType(TypeLocBuilder &TLB,
         Result = SemaRef.Context.getSubstTemplateTypeParmType(
                                         SubstTypeParam->getReplacedParameter(),
                                                               Replacement);
+        TLB.TypeWasModifiedSafely(Result);
+      } else if ((AutoTy = dyn_cast<AutoType>(Result)) && AutoTy->isDeduced()) {
+        // 'auto' types behave the same way as template parameters.
+        QualType Deduced = AutoTy->getDeducedType();
+        Qualifiers Qs = Deduced.getQualifiers();
+        Qs.removeObjCLifetime();
+        Deduced = SemaRef.Context.getQualifiedType(Deduced.getUnqualifiedType(),
+                                                   Qs);
+        Result = SemaRef.Context.getAutoType(Deduced);
         TLB.TypeWasModifiedSafely(Result);
       } else {
         // Otherwise, complain about the addition of a qualifier to an
@@ -4202,6 +4290,8 @@ TreeTransform<Derived>::TransformFunctionProtoType(TypeLocBuilder &TLB,
 
   FunctionProtoTypeLoc NewTL = TLB.push<FunctionProtoTypeLoc>(Result);
   NewTL.setLocalRangeBegin(TL.getLocalRangeBegin());
+  NewTL.setLParenLoc(TL.getLParenLoc());
+  NewTL.setRParenLoc(TL.getRParenLoc());
   NewTL.setLocalRangeEnd(TL.getLocalRangeEnd());
   for (unsigned i = 0, e = NewTL.getNumArgs(); i != e; ++i)
     NewTL.setArg(i, ParamDecls[i]);
@@ -4225,6 +4315,8 @@ QualType TreeTransform<Derived>::TransformFunctionNoProtoType(
 
   FunctionNoProtoTypeLoc NewTL = TLB.push<FunctionNoProtoTypeLoc>(Result);
   NewTL.setLocalRangeBegin(TL.getLocalRangeBegin());
+  NewTL.setLParenLoc(TL.getLParenLoc());
+  NewTL.setRParenLoc(TL.getRParenLoc());
   NewTL.setLocalRangeEnd(TL.getLocalRangeEnd());
 
   return Result;
@@ -4557,7 +4649,6 @@ QualType TreeTransform<Derived>::TransformAtomicType(TypeLocBuilder &TLB,
   return Result;
 }
 
-namespace {
   /// \brief Simple iterator that traverses the template arguments in a
   /// container that provides a \c getArgLoc() member function.
   ///
@@ -4621,7 +4712,6 @@ namespace {
       return !(X == Y);
     }
   };
-}
 
 
 template <typename Derived>
@@ -5375,7 +5465,7 @@ TreeTransform<Derived>::TransformForStmt(ForStmt *S) {
   if (Inc.isInvalid())
     return StmtError();
 
-  Sema::FullExprArg FullInc(getSema().MakeFullExpr(Inc.get()));
+  Sema::FullExprArg FullInc(getSema().MakeFullDiscardedValueExpr(Inc.get()));
   if (S->getInc() && !FullInc.get())
     return StmtError();
 
@@ -6140,10 +6230,22 @@ TreeTransform<Derived>::TransformParenExpr(ParenExpr *E) {
                                        E->getRParen());
 }
 
+/// \brief The operand of a unary address-of operator has special rules: it's
+/// allowed to refer to a non-static member of a class even if there's no 'this'
+/// object available.
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformAddressOfOperand(Expr *E) {
+  if (DependentScopeDeclRefExpr *DRE = dyn_cast<DependentScopeDeclRefExpr>(E))
+    return getDerived().TransformDependentScopeDeclRefExpr(DRE, true);
+  else
+    return getDerived().TransformExpr(E);
+}
+
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformUnaryOperator(UnaryOperator *E) {
-  ExprResult SubExpr = getDerived().TransformExpr(E->getSubExpr());
+  ExprResult SubExpr = TransformAddressOfOperand(E->getSubExpr());
   if (SubExpr.isInvalid())
     return ExprError();
 
@@ -6844,7 +6946,11 @@ TreeTransform<Derived>::TransformCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
   if (Callee.isInvalid())
     return ExprError();
 
-  ExprResult First = getDerived().TransformExpr(E->getArg(0));
+  ExprResult First;
+  if (E->getOperator() == OO_Amp)
+    First = getDerived().TransformAddressOfOperand(E->getArg(0));
+  else
+    First = getDerived().TransformExpr(E->getArg(0));
   if (First.isInvalid())
     return ExprError();
 
@@ -6931,9 +7037,6 @@ TreeTransform<Derived>::TransformCXXNamedCastExpr(CXXNamedCastExpr *E) {
   SourceLocation FakeLAngleLoc
     = SemaRef.PP.getLocForEndOfToken(E->getOperatorLoc());
   SourceLocation FakeRAngleLoc = E->getSubExpr()->getSourceRange().getBegin();
-  SourceLocation FakeRParenLoc
-    = SemaRef.PP.getLocForEndOfToken(
-                                  E->getSubExpr()->getSourceRange().getEnd());
   return getDerived().RebuildCXXNamedCastExpr(E->getOperatorLoc(),
                                               E->getStmtClass(),
                                               FakeLAngleLoc,
@@ -6941,7 +7044,7 @@ TreeTransform<Derived>::TransformCXXNamedCastExpr(CXXNamedCastExpr *E) {
                                               FakeRAngleLoc,
                                               FakeRAngleLoc,
                                               SubExpr.get(),
-                                              FakeRParenLoc);
+                                              E->getRParenLoc());
 }
 
 template<typename Derived>
@@ -7507,7 +7610,7 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformTypeTraitExpr(TypeTraitExpr *E) {
   bool ArgChanged = false;
-  llvm::SmallVector<TypeSourceInfo *, 4> Args;
+  SmallVector<TypeSourceInfo *, 4> Args;
   for (unsigned I = 0, N = E->getNumArgs(); I != N; ++I) {
     TypeSourceInfo *From = E->getArg(I);
     TypeLoc FromTL = From->getTypeLoc();
@@ -7676,6 +7779,14 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
                                                DependentScopeDeclRefExpr *E) {
+  return TransformDependentScopeDeclRefExpr(E, /*IsAddressOfOperand*/false);
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
+                                               DependentScopeDeclRefExpr *E,
+                                               bool IsAddressOfOperand) {
   NestedNameSpecifierLoc QualifierLoc
   = getDerived().TransformNestedNameSpecifierLoc(E->getQualifierLoc());
   if (!QualifierLoc)
@@ -7702,7 +7813,8 @@ TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
     return getDerived().RebuildDependentScopeDeclRefExpr(QualifierLoc,
                                                          TemplateKWLoc,
                                                          NameInfo,
-                                                         /*TemplateArgs*/ 0);
+                                                         /*TemplateArgs*/ 0,
+                                                         IsAddressOfOperand);
   }
 
   TemplateArgumentListInfo TransArgs(E->getLAngleLoc(), E->getRAngleLoc());
@@ -7714,16 +7826,20 @@ TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
   return getDerived().RebuildDependentScopeDeclRefExpr(QualifierLoc,
                                                        TemplateKWLoc,
                                                        NameInfo,
-                                                       &TransArgs);
+                                                       &TransArgs,
+                                                       IsAddressOfOperand);
 }
 
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXConstructExpr(CXXConstructExpr *E) {
-  // CXXConstructExprs are always implicit, so when we have a
-  // 1-argument construction we just transform that argument.
-  if (E->getNumArgs() == 1 ||
-      (E->getNumArgs() > 1 && getDerived().DropCallArgument(E->getArg(1))))
+  // CXXConstructExprs other than for list-initialization and
+  // CXXTemporaryObjectExpr are always implicit, so when we have
+  // a 1-argument construction we just transform that argument.
+  if ((E->getNumArgs() == 1 ||
+       (E->getNumArgs() > 1 && getDerived().DropCallArgument(E->getArg(1)))) &&
+      (!getDerived().DropCallArgument(E->getArg(0))) &&
+      !E->isListInitialization())
     return getDerived().TransformExpr(E->getArg(0));
 
   TemporaryBase Rebase(*this, /*FIXME*/E->getLocStart(), DeclarationName());
@@ -7759,6 +7875,7 @@ TreeTransform<Derived>::TransformCXXConstructExpr(CXXConstructExpr *E) {
                                               Constructor, E->isElidable(),
                                               Args,
                                               E->hadMultipleCandidates(),
+                                              E->isListInitialization(),
                                               E->requiresZeroInitialization(),
                                               E->getConstructionKind(),
                                               E->getParenRange());
@@ -7816,6 +7933,7 @@ TreeTransform<Derived>::TransformCXXTemporaryObjectExpr(
     return SemaRef.MaybeBindToTemporary(E);
   }
 
+  // FIXME: Pass in E->isListInitialization().
   return getDerived().RebuildCXXTemporaryObjectExpr(T,
                                           /*FIXME:*/T->getTypeLoc().getEndLoc(),
                                                     Args,
@@ -7840,8 +7958,8 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   getDerived().transformedLocalDecl(E->getLambdaClass(), Class);
 
   // Transform lambda parameters.
-  llvm::SmallVector<QualType, 4> ParamTypes;
-  llvm::SmallVector<ParmVarDecl *, 4> Params;
+  SmallVector<QualType, 4> ParamTypes;
+  SmallVector<ParmVarDecl *, 4> Params;
   if (getDerived().TransformFunctionTypeParams(E->getLocStart(),
         E->getCallOperator()->param_begin(),
         E->getCallOperator()->param_size(),
@@ -8333,7 +8451,7 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformObjCArrayLiteral(ObjCArrayLiteral *E) {
   // Transform each of the elements.
-  llvm::SmallVector<Expr *, 8> Elements;
+  SmallVector<Expr *, 8> Elements;
   bool ArgChanged = false;
   if (getDerived().TransformExprs(E->getElements(), E->getNumElements(),
                                   /*IsCall=*/false, Elements, &ArgChanged))
@@ -8352,7 +8470,7 @@ ExprResult
 TreeTransform<Derived>::TransformObjCDictionaryLiteral(
                                                     ObjCDictionaryLiteral *E) {
   // Transform each of the elements.
-  llvm::SmallVector<ObjCDictionaryElement, 8> Elements;
+  SmallVector<ObjCDictionaryElement, 8> Elements;
   bool ArgChanged = false;
   for (unsigned I = 0, N = E->getNumElements(); I != N; ++I) {
     ObjCDictionaryElement OrigElement = E->getKeyValueElement(I);
@@ -9152,7 +9270,12 @@ TreeTransform<Derived>::RebuildCXXOperatorCallExpr(OverloadedOperatorKind Op,
     // IsAcceptableNonMemberOperatorCandidate for each of these?
     Functions.append(ULE->decls_begin(), ULE->decls_end());
   } else {
-    Functions.addDecl(cast<DeclRefExpr>(Callee)->getDecl());
+    // If we've resolved this to a particular non-member function, just call
+    // that function. If we resolved it to a member function,
+    // CreateOverloaded* will find that function for us.
+    NamedDecl *ND = cast<DeclRefExpr>(Callee)->getDecl();
+    if (!isa<CXXMethodDecl>(ND))
+      Functions.addDecl(ND);
   }
 
   // Add any functions found via argument-dependent lookup.

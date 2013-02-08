@@ -8,8 +8,8 @@ void *calloc(size_t nmemb, size_t size);
 
 
 void checkThatMallocCheckerIsRunning() {
-  malloc(4); // expected-warning{{leak}}
-}
+  malloc(4);
+} // expected-warning{{leak}}
 
 // Test for radar://11110132.
 struct Foo {
@@ -60,3 +60,10 @@ namespace PR13751 {
   }
 }
 
+struct X { void *a; };
+
+struct X get() {
+  struct X result;
+  result.a = malloc(4);
+  return result; // no-warning
+}

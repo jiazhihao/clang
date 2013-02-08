@@ -11,16 +11,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TargetInfo.h"
 #include "CodeGenFunction.h"
-#include "CodeGenModule.h"
 #include "CGObjCRuntime.h"
-#include "clang/Basic/TargetInfo.h"
+#include "CodeGenModule.h"
+#include "TargetInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/TargetBuiltins.h"
-#include "llvm/Intrinsics.h"
-#include "llvm/Target/TargetData.h"
+#include "clang/Basic/TargetInfo.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -86,8 +86,7 @@ static RValue EmitBinaryAtomic(CodeGenFunction &CGF,
   assert(CGF.getContext().hasSameUnqualifiedType(T, E->getArg(1)->getType()));
 
   llvm::Value *DestPtr = CGF.EmitScalarExpr(E->getArg(0));
-  unsigned AddrSpace =
-    cast<llvm::PointerType>(DestPtr->getType())->getAddressSpace();
+  unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
   llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
@@ -121,8 +120,7 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
   assert(CGF.getContext().hasSameUnqualifiedType(T, E->getArg(1)->getType()));
 
   llvm::Value *DestPtr = CGF.EmitScalarExpr(E->getArg(0));
-  unsigned AddrSpace =
-    cast<llvm::PointerType>(DestPtr->getType())->getAddressSpace();
+  unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
   llvm::IntegerType *IntType =
     llvm::IntegerType::get(CGF.getLLVMContext(),
@@ -230,6 +228,30 @@ static RValue emitLibraryCall(CodeGenFunction &CGF, const FunctionDecl *Fn,
                       ReturnValueSlot(), E->arg_begin(), E->arg_end(), Fn);
 }
 
+/// \brief Emit a call to llvm.{sadd,uadd,ssub,usub,smul,umul}.with.overflow.*
+/// depending on IntrinsicID.
+///
+/// \arg CGF The current codegen function.
+/// \arg IntrinsicID The ID for the Intrinsic we wish to generate.
+/// \arg X The first argument to the llvm.*.with.overflow.*.
+/// \arg Y The second argument to the llvm.*.with.overflow.*.
+/// \arg Carry The carry returned by the llvm.*.with.overflow.*.
+/// \returns The result (i.e. sum/product) returned by the intrinsic.
+static llvm::Value *EmitOverflowIntrinsic(CodeGenFunction &CGF,
+                                          const llvm::Intrinsic::ID IntrinsicID,
+                                          llvm::Value *X, llvm::Value *Y,
+                                          llvm::Value *&Carry) {
+  // Make sure we have integers of the same width.
+  assert(X->getType() == Y->getType() &&
+         "Arguments must be the same type. (Did you forget to make sure both "
+         "arguments have the same integer width?)");
+
+  llvm::Value *Callee = CGF.CGM.getIntrinsic(IntrinsicID, X->getType());
+  llvm::Value *Tmp = CGF.Builder.CreateCall2(Callee, X, Y);
+  Carry = CGF.Builder.CreateExtractValue(Tmp, 1);
+  return CGF.Builder.CreateExtractValue(Tmp, 0);
+}
+
 RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
                                         unsigned BuiltinID, const CallExpr *E) {
   // See if we can constant fold this builtin.  If so, don't emit it at all.
@@ -305,14 +327,20 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
   }
   case Builtin::BI__builtin_creal:
   case Builtin::BI__builtin_crealf:
-  case Builtin::BI__builtin_creall: {
+  case Builtin::BI__builtin_creall:
+  case Builtin::BIcreal:
+  case Builtin::BIcrealf:
+  case Builtin::BIcreall: {
     ComplexPairTy ComplexVal = EmitComplexExpr(E->getArg(0));
     return RValue::get(ComplexVal.first);
   }
 
   case Builtin::BI__builtin_cimag:
   case Builtin::BI__builtin_cimagf:
-  case Builtin::BI__builtin_cimagl: {
+  case Builtin::BI__builtin_cimagl:
+  case Builtin::BIcimag:
+  case Builtin::BIcimagf:
+  case Builtin::BIcimagl: {
     ComplexPairTy ComplexVal = EmitComplexExpr(E->getArg(0));
     return RValue::get(ComplexVal.second);
   }
@@ -415,6 +443,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
                                         "expval");
     return RValue::get(Result);
   }
+  case Builtin::BI__builtin_bswap16:
   case Builtin::BI__builtin_bswap32:
   case Builtin::BI__builtin_bswap64: {
     Value *ArgValue = EmitScalarExpr(E->getArg(0));
@@ -466,8 +495,10 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     return RValue::get(Builder.CreateCall(F));
   }
   case Builtin::BI__builtin_unreachable: {
-    if (CatchUndefined)
-      EmitCheck(Builder.getFalse());
+    if (SanOpts->Unreachable)
+      EmitCheck(Builder.getFalse(), "builtin_unreachable",
+                EmitCheckSourceLocation(E->getExprLoc()),
+                ArrayRef<llvm::Value *>(), CRK_Unrecoverable);
     else
       Builder.CreateUnreachable();
 
@@ -974,8 +1005,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
   case Builtin::BI__sync_val_compare_and_swap_16: {
     QualType T = E->getType();
     llvm::Value *DestPtr = EmitScalarExpr(E->getArg(0));
-    unsigned AddrSpace =
-      cast<llvm::PointerType>(DestPtr->getType())->getAddressSpace();
+    unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
     llvm::IntegerType *IntType =
       llvm::IntegerType::get(getLLVMContext(),
@@ -1002,8 +1032,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
   case Builtin::BI__sync_bool_compare_and_swap_16: {
     QualType T = E->getArg(1)->getType();
     llvm::Value *DestPtr = EmitScalarExpr(E->getArg(0));
-    unsigned AddrSpace =
-      cast<llvm::PointerType>(DestPtr->getType())->getAddressSpace();
+    unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
     llvm::IntegerType *IntType =
       llvm::IntegerType::get(getLLVMContext(),
@@ -1100,8 +1129,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
         PtrTy->castAs<PointerType>()->getPointeeType().isVolatileQualified();
 
     Value *Ptr = EmitScalarExpr(E->getArg(0));
-    unsigned AddrSpace =
-        cast<llvm::PointerType>(Ptr->getType())->getAddressSpace();
+    unsigned AddrSpace = Ptr->getType()->getPointerAddressSpace();
     Ptr = Builder.CreateBitCast(Ptr, Int8Ty->getPointerTo(AddrSpace));
     Value *NewVal = Builder.getInt8(1);
     Value *Order = EmitScalarExpr(E->getArg(1));
@@ -1187,8 +1215,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
         PtrTy->castAs<PointerType>()->getPointeeType().isVolatileQualified();
 
     Value *Ptr = EmitScalarExpr(E->getArg(0));
-    unsigned AddrSpace =
-        cast<llvm::PointerType>(Ptr->getType())->getAddressSpace();
+    unsigned AddrSpace = Ptr->getType()->getPointerAddressSpace();
     Ptr = Builder.CreateBitCast(Ptr, Int8Ty->getPointerTo(AddrSpace));
     Value *NewVal = Builder.getInt8(0);
     Value *Order = EmitScalarExpr(E->getArg(1));
@@ -1380,9 +1407,76 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     // Get the annotation string, go through casts. Sema requires this to be a
     // non-wide string literal, potentially casted, so the cast<> is safe.
     const Expr *AnnotationStrExpr = E->getArg(1)->IgnoreParenCasts();
-    llvm::StringRef Str = cast<StringLiteral>(AnnotationStrExpr)->getString();
+    StringRef Str = cast<StringLiteral>(AnnotationStrExpr)->getString();
     return RValue::get(EmitAnnotationCall(F, AnnVal, Str, E->getExprLoc()));
   }
+  case Builtin::BI__builtin_addcs:
+  case Builtin::BI__builtin_addc:
+  case Builtin::BI__builtin_addcl:
+  case Builtin::BI__builtin_addcll:
+  case Builtin::BI__builtin_subcs:
+  case Builtin::BI__builtin_subc:
+  case Builtin::BI__builtin_subcl:
+  case Builtin::BI__builtin_subcll: {
+
+    // We translate all of these builtins from expressions of the form:
+    //   int x = ..., y = ..., carryin = ..., carryout, result;
+    //   result = __builtin_addc(x, y, carryin, &carryout);
+    //
+    // to LLVM IR of the form:
+    //
+    //   %tmp1 = call {i32, i1} @llvm.uadd.with.overflow.i32(i32 %x, i32 %y)
+    //   %tmpsum1 = extractvalue {i32, i1} %tmp1, 0
+    //   %carry1 = extractvalue {i32, i1} %tmp1, 1
+    //   %tmp2 = call {i32, i1} @llvm.uadd.with.overflow.i32(i32 %tmpsum1,
+    //                                                       i32 %carryin)
+    //   %result = extractvalue {i32, i1} %tmp2, 0
+    //   %carry2 = extractvalue {i32, i1} %tmp2, 1
+    //   %tmp3 = or i1 %carry1, %carry2
+    //   %tmp4 = zext i1 %tmp3 to i32
+    //   store i32 %tmp4, i32* %carryout
+
+    // Scalarize our inputs.
+    llvm::Value *X = EmitScalarExpr(E->getArg(0));
+    llvm::Value *Y = EmitScalarExpr(E->getArg(1));
+    llvm::Value *Carryin = EmitScalarExpr(E->getArg(2));
+    std::pair<llvm::Value*, unsigned> CarryOutPtr =
+      EmitPointerWithAlignment(E->getArg(3));
+
+    // Decide if we are lowering to a uadd.with.overflow or usub.with.overflow.
+    llvm::Intrinsic::ID IntrinsicId;
+    switch (BuiltinID) {
+    default: llvm_unreachable("Unknown multiprecision builtin id.");
+    case Builtin::BI__builtin_addcs:
+    case Builtin::BI__builtin_addc:
+    case Builtin::BI__builtin_addcl:
+    case Builtin::BI__builtin_addcll:
+      IntrinsicId = llvm::Intrinsic::uadd_with_overflow;
+      break;
+    case Builtin::BI__builtin_subcs:
+    case Builtin::BI__builtin_subc:
+    case Builtin::BI__builtin_subcl:
+    case Builtin::BI__builtin_subcll:
+      IntrinsicId = llvm::Intrinsic::usub_with_overflow;
+      break;
+    }
+
+    // Construct our resulting LLVM IR expression.
+    llvm::Value *Carry1;
+    llvm::Value *Sum1 = EmitOverflowIntrinsic(*this, IntrinsicId,
+                                              X, Y, Carry1);
+    llvm::Value *Carry2;
+    llvm::Value *Sum2 = EmitOverflowIntrinsic(*this, IntrinsicId,
+                                              Sum1, Carryin, Carry2);
+    llvm::Value *CarryOut = Builder.CreateZExt(Builder.CreateOr(Carry1, Carry2),
+                                               X->getType());
+    llvm::StoreInst *CarryOutStore = Builder.CreateStore(CarryOut,
+                                                         CarryOutPtr.first);
+    CarryOutStore->setAlignment(CarryOutPtr.second);
+    return RValue::get(Sum2);
+  }
+  case Builtin::BI__noop:
+    return RValue::get(0);
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit
@@ -2103,7 +2197,9 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[2] = Builder.CreateBitCast(Ops[2], Ty);
-    return Builder.CreateCall3(F, Ops[0], Ops[1], Ops[2]);
+
+    // NEON intrinsic puts accumulator first, unlike the LLVM fma.
+    return Builder.CreateCall3(F, Ops[1], Ops[2], Ops[0]);
   }
   case ARM::BI__builtin_neon_vpadal_v:
   case ARM::BI__builtin_neon_vpadalq_v: {

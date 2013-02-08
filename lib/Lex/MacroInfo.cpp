@@ -25,13 +25,16 @@ MacroInfo::MacroInfo(SourceLocation DefLoc)
     IsC99Varargs(false),
     IsGNUVarargs(false),
     IsBuiltinMacro(false),
+    HasCommaPasting(false),
     IsFromAST(false),
     ChangedAfterLoad(false),
     IsDisabled(false),
     IsUsed(false),
     IsAllowRedefinitionsWithoutWarning(false),
     IsWarnIfUnused(false),
-    IsPublic(true) {
+    IsPublic(true),
+    IsHidden(false),
+    IsAmbiguous(false) {
 }
 
 MacroInfo::MacroInfo(const MacroInfo &MI, llvm::BumpPtrAllocator &PPAllocator)
@@ -48,13 +51,16 @@ MacroInfo::MacroInfo(const MacroInfo &MI, llvm::BumpPtrAllocator &PPAllocator)
     IsC99Varargs(MI.IsC99Varargs),
     IsGNUVarargs(MI.IsGNUVarargs),
     IsBuiltinMacro(MI.IsBuiltinMacro),
+    HasCommaPasting(MI.HasCommaPasting),
     IsFromAST(MI.IsFromAST),
     ChangedAfterLoad(MI.ChangedAfterLoad),
     IsDisabled(MI.IsDisabled),
     IsUsed(MI.IsUsed),
     IsAllowRedefinitionsWithoutWarning(MI.IsAllowRedefinitionsWithoutWarning),
     IsWarnIfUnused(MI.IsWarnIfUnused),
-    IsPublic(MI.IsPublic) {
+    IsPublic(MI.IsPublic),
+    IsHidden(MI.IsHidden),
+    IsAmbiguous(MI.IsAmbiguous) {
   setArgumentList(MI.ArgumentList, MI.NumArguments, PPAllocator);
 }
 

@@ -303,6 +303,10 @@ def StreamChecker : Checker<"Stream">,
   HelpText<"Check stream handling functions">,
   DescFile<"StreamChecker.cpp">;
 
+def SimpleStreamChecker : Checker<"SimpleStream">,
+  HelpText<"Check for misuses of stream APIs">,
+  DescFile<"SimpleStreamChecker.cpp">;
+
 } // end "alpha.unix"
 
 let ParentPackage = CString in {
@@ -342,17 +346,12 @@ def MacOSXAPIChecker : Checker<"API">,
   HelpText<"Check for proper uses of various Mac OS X APIs">,
   DescFile<"MacOSXAPIChecker.cpp">;
 
-def OSAtomicChecker : Checker<"AtomicCAS">,
-  InPackage<OSX>,
-  HelpText<"Evaluate calls to OSAtomic functions">,
-  DescFile<"OSAtomicChecker.cpp">;
-
 def MacOSKeychainAPIChecker : Checker<"SecKeychainAPI">,
   InPackage<OSX>,
   HelpText<"Check for proper uses of Secure Keychain APIs">,
   DescFile<"MacOSKeychainAPIChecker.cpp">;
 
-} // end "macosx"
+} // end "osx"
 
 let ParentPackage = Cocoa in {
 
@@ -418,8 +417,16 @@ def IvarInvalidationChecker : Checker<"InstanceVariableInvalidation">,
   DescFile<"IvarInvalidationChecker.cpp">;
 
 def DirectIvarAssignment : Checker<"DirectIvarAssignment">,
-  HelpText<"Check that the invalidatable instance variables are invalidated in the methods annotated with objc_instance_variable_invalidator">,
+  HelpText<"Check for direct assignments to instance variables">,
   DescFile<"DirectIvarAssignment.cpp">;
+
+def DirectIvarAssignmentForAnnotatedFunctions : Checker<"DirectIvarAssignmentForAnnotatedFunctions">,
+  HelpText<"Check for direct assignments to instance variables in the methods annotated with objc_no_direct_instance_variable_assignment">,
+  DescFile<"DirectIvarAssignment.cpp">;
+
+def ObjCSuperCallChecker : Checker<"MissingSuperCall">,
+  HelpText<"Warn about Objective-C methods that lack a necessary call to super">,
+  DescFile<"ObjCMissingSuperCallChecker.cpp">;
 
 } // end "alpha.osx.cocoa"
 
@@ -430,7 +437,7 @@ def CFNumberCreateChecker : Checker<"CFNumber">,
   DescFile<"BasicObjCFoundationChecks.cpp">;
 
 def CFRetainReleaseChecker : Checker<"CFRetainRelease">,
-  HelpText<"Check for null arguments to CFRetain/CFRelease">,
+  HelpText<"Check for null arguments to CFRetain/CFRelease/CFMakeCollectable">,
   DescFile<"BasicObjCFoundationChecks.cpp">;
 
 def CFErrorChecker : Checker<"CFError">,

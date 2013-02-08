@@ -6,6 +6,7 @@ set(files
   bmiintrin.h
   bmi2intrin.h
   emmintrin.h
+  f16cintrin.h
   float.h
   fma4intrin.h
   fmaintrin.h
@@ -19,16 +20,20 @@ set(files
   nmmintrin.h
   pmmintrin.h
   popcntintrin.h
+  rtmintrin.h
   smmintrin.h
   stdalign.h
   stdarg.h
   stdbool.h
   stddef.h
   stdint.h
+  stdnoreturn.h
   tgmath.h
   tmmintrin.h
   varargs.h
   wmmintrin.h
+  __wmmintrin_aes.h
+  __wmmintrin_pclmul.h
   x86intrin.h
   xmmintrin.h
   xopintrin.h

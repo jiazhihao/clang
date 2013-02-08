@@ -13,25 +13,27 @@
 //===----------------------------------------------------------------------===//
 
 #include "ClangSACheckers.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/Basic/SourceManager.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
-#include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace clang;
 using namespace ento;
 
 namespace {
 class StackAddrEscapeChecker : public Checker< check::PreStmt<ReturnStmt>,
-                                               check::EndPath > {
+                                               check::EndFunction > {
   mutable OwningPtr<BuiltinBug> BT_stackleak;
   mutable OwningPtr<BuiltinBug> BT_returnstack;
 
 public:
   void checkPreStmt(const ReturnStmt *RS, CheckerContext &C) const;
-  void checkEndPath(CheckerContext &Ctx) const;
+  void checkEndFunction(CheckerContext &Ctx) const;
 private:
   void EmitStackError(CheckerContext &C, const MemRegion *R,
                       const Expr *RetE) const;
@@ -109,7 +111,7 @@ void StackAddrEscapeChecker::EmitStackError(CheckerContext &C, const MemRegion *
   if (range.isValid())
     report->addRange(range);
 
-  C.EmitReport(report);
+  C.emitReport(report);
 }
 
 void StackAddrEscapeChecker::checkPreStmt(const ReturnStmt *RS,
@@ -155,7 +157,7 @@ void StackAddrEscapeChecker::checkPreStmt(const ReturnStmt *RS,
   EmitStackError(C, R, RetE);
 }
 
-void StackAddrEscapeChecker::checkEndPath(CheckerContext &Ctx) const {
+void StackAddrEscapeChecker::checkEndFunction(CheckerContext &Ctx) const {
   ProgramStateRef state = Ctx.getState();
 
   // Iterate over all bindings to global variables and see if it contains
@@ -232,7 +234,7 @@ void StackAddrEscapeChecker::checkEndPath(CheckerContext &Ctx) const {
     if (range.isValid())
       report->addRange(range);
 
-    Ctx.EmitReport(report);
+    Ctx.emitReport(report);
   }
 }
 

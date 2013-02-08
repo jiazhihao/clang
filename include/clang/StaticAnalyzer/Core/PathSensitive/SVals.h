@@ -16,8 +16,8 @@
 #define LLVM_CLANG_GR_RVALUE_H
 
 #include "clang/Basic/LLVM.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
 #include "llvm/ADT/ImmutableList.h"
 
 //==------------------------------------------------------------------------==//
@@ -33,7 +33,7 @@ class LazyCompoundValData;
 class ProgramState;
 class BasicValueFactory;
 class MemRegion;
-class TypedRegion;
+class TypedValueRegion;
 class MemRegionManager;
 class ProgramStateManager;
 class SValBuilder;
@@ -154,9 +154,6 @@ public:
   SymExpr::symbol_iterator symbol_end() const { 
     return SymExpr::symbol_end();
   }
-
-  // Implement isa<T> support.
-  static inline bool classof(const SVal*) { return true; }
 };
 
 
@@ -237,8 +234,6 @@ protected:
 
 public:
   void dumpToStream(raw_ostream &Out) const;
-
-  Loc(const Loc& X) : DefinedSVal(X.Data, true, X.getSubKind()) {}
 
   // Implement isa<T> support.
   static inline bool classof(const SVal* V) {
@@ -384,7 +379,7 @@ public:
     return static_cast<const LazyCompoundValData*>(Data);
   }
   const void *getStore() const;
-  const TypedRegion *getRegion() const;
+  const TypedValueRegion *getRegion() const;
 
   static bool classof(const SVal *V) {
     return V->getBaseKind() == NonLocKind &&
@@ -437,7 +432,7 @@ public:
 
   template <typename REGION>
   const REGION* getRegionAs() const {
-    return llvm::dyn_cast<REGION>(getRegion());
+    return dyn_cast<REGION>(getRegion());
   }
 
   inline bool operator==(const MemRegionVal& R) const {

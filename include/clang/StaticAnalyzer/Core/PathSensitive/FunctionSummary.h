@@ -14,11 +14,11 @@
 #ifndef LLVM_CLANG_GR_FUNCTIONSUMMARY_H
 #define LLVM_CLANG_GR_FUNCTIONSUMMARY_H
 
-#include <deque>
 #include "clang/AST/Decl.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/BitVector.h"
+#include <deque>
 
 namespace clang {
 namespace ento {
@@ -37,10 +37,14 @@ class FunctionSummariesTy {
     /// Marks the IDs of the basic blocks visited during the analyzes.
     llvm::BitVector VisitedBasicBlocks;
 
+    /// The number of times the function has been inlined.
+    unsigned TimesInlined;
+
     FunctionSummary() :
       MayReachMaxBlockCount(false),
       TotalBasicBlocks(0),
-      VisitedBasicBlocks(0) {}
+      VisitedBasicBlocks(0),
+      TimesInlined(0) {}
   };
 
   typedef llvm::DenseMap<const Decl*, FunctionSummary*> MapTy;
@@ -84,9 +88,21 @@ public:
 
   unsigned getNumVisitedBasicBlocks(const Decl* D) {
     MapTy::const_iterator I = Map.find(D);
-      if (I != Map.end())
-        return I->second->VisitedBasicBlocks.count();
+    if (I != Map.end())
+      return I->second->VisitedBasicBlocks.count();
     return 0;
+  }
+
+  unsigned getNumTimesInlined(const Decl* D) {
+    MapTy::const_iterator I = Map.find(D);
+    if (I != Map.end())
+      return I->second->TimesInlined;
+    return 0;
+  }
+
+  void bumpNumTimesInlined(const Decl* D) {
+    MapTy::iterator I = findOrInsertSummary(D);
+    I->second->TimesInlined++;
   }
 
   /// Get the percentage of the reachable blocks.

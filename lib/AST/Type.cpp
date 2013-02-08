@@ -12,13 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CharUnits.h"
-#include "clang/AST/Type.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/APSInt.h"
@@ -533,10 +534,18 @@ const ObjCObjectPointerType *Type::getAsObjCInterfacePointerType() const {
   return 0;
 }
 
-const CXXRecordDecl *Type::getCXXRecordDeclForPointerType() const {
+const CXXRecordDecl *Type::getPointeeCXXRecordDecl() const {
+  QualType PointeeType;
   if (const PointerType *PT = getAs<PointerType>())
-    if (const RecordType *RT = PT->getPointeeType()->getAs<RecordType>())
-      return dyn_cast<CXXRecordDecl>(RT->getDecl());
+    PointeeType = PT->getPointeeType();
+  else if (const ReferenceType *RT = getAs<ReferenceType>())
+    PointeeType = RT->getPointeeType();
+  else
+    return 0;
+
+  if (const RecordType *RT = PointeeType->getAs<RecordType>())
+    return dyn_cast<CXXRecordDecl>(RT->getDecl());
+
   return 0;
 }
 
@@ -954,7 +963,7 @@ bool Type::isIncompleteType(NamedDecl **Def) const {
 
 bool QualType::isPODType(ASTContext &Context) const {
   // C++11 has a more relaxed definition of POD.
-  if (Context.getLangOpts().CPlusPlus0x)
+  if (Context.getLangOpts().CPlusPlus11)
     return isCXX11PODType(Context);
 
   return isCXX98PODType(Context);
@@ -1068,11 +1077,13 @@ bool QualType::isTrivialType(ASTContext &Context) const {
   if (const RecordType *RT = CanonicalType->getAs<RecordType>()) {
     if (const CXXRecordDecl *ClassDecl =
         dyn_cast<CXXRecordDecl>(RT->getDecl())) {
-      // C++0x [class]p5:
-      //   A trivial class is a class that has a trivial default constructor
-      if (!ClassDecl->hasTrivialDefaultConstructor()) return false;
-      //   and is trivially copyable.
-      if (!ClassDecl->isTriviallyCopyable()) return false;
+      // C++11 [class]p6:
+      //   A trivial class is a class that has a default constructor,
+      //   has no non-trivial default constructors, and is trivially
+      //   copyable.
+      return ClassDecl->hasDefaultConstructor() &&
+             !ClassDecl->hasNonTrivialDefaultConstructor() &&
+             ClassDecl->isTriviallyCopyable();
     }
     
     return true;
@@ -1526,6 +1537,14 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case ObjCId:            return "id";
   case ObjCClass:         return "Class";
   case ObjCSel:           return "SEL";
+  case OCLImage1d:        return "image1d_t";
+  case OCLImage1dArray:   return "image1d_array_t";
+  case OCLImage1dBuffer:  return "image1d_buffer_t";
+  case OCLImage2d:        return "image2d_t";
+  case OCLImage2dArray:   return "image2d_array_t";
+  case OCLImage3d:        return "image3d_t";
+  case OCLSampler:        return "sampler_t";
+  case OCLEvent:          return "event_t";
   }
   
   llvm_unreachable("Invalid builtin type.");
@@ -1559,6 +1578,8 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_X86Pascal: return "pascal";
   case CC_AAPCS: return "aapcs";
   case CC_AAPCS_VFP: return "aapcs-vfp";
+  case CC_PnaclCall: return "pnaclcall";
+  case CC_IntelOclBicc: return "intel_ocl_bicc";
   }
 
   llvm_unreachable("Invalid calling convention.");
@@ -1567,7 +1588,7 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
 FunctionProtoType::FunctionProtoType(QualType result, const QualType *args,
                                      unsigned numArgs, QualType canonical,
                                      const ExtProtoInfo &epi)
-  : FunctionType(FunctionProto, result, epi.TypeQuals, epi.RefQualifier,
+  : FunctionType(FunctionProto, result, epi.TypeQuals,
                  canonical,
                  result->isDependentType(),
                  result->isInstantiationDependentType(),
@@ -1577,8 +1598,11 @@ FunctionProtoType::FunctionProtoType(QualType result, const QualType *args,
     NumArgs(numArgs), NumExceptions(epi.NumExceptions),
     ExceptionSpecType(epi.ExceptionSpecType),
     HasAnyConsumedArgs(epi.ConsumedArguments != 0),
-    Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn)
+    Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
+    RefQualifier(epi.RefQualifier)
 {
+  assert(NumArgs == numArgs && "function has too many parameters");
+
   // Fill in the trailing argument array.
   QualType *argSlot = reinterpret_cast<QualType*>(this+1);
   for (unsigned i = 0; i != numArgs; ++i) {
@@ -2313,26 +2337,4 @@ QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {
     return DK_cxx_destructor;
 
   return DK_none;
-}
-
-bool QualType::hasTrivialAssignment(ASTContext &Context, bool Copying) const {
-  switch (getObjCLifetime()) {
-  case Qualifiers::OCL_None:
-    break;
-      
-  case Qualifiers::OCL_ExplicitNone:
-    return true;
-      
-  case Qualifiers::OCL_Autoreleasing:
-  case Qualifiers::OCL_Strong:
-  case Qualifiers::OCL_Weak:
-    return !Context.getLangOpts().ObjCAutoRefCount;
-  }
-  
-  if (const CXXRecordDecl *Record 
-            = getTypePtr()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl())
-    return Copying ? Record->hasTrivialCopyAssignment() :
-                     Record->hasTrivialMoveAssignment();
-  
-  return true;
 }

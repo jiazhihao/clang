@@ -15,6 +15,12 @@
 #include <libxml/xmlerror.h>
 #endif
 
+#ifdef _WIN32
+#  include <direct.h>
+#else
+#  include <unistd.h>
+#endif
+
 /******************************************************************************/
 /* Utility functions.                                                         */
 /******************************************************************************/
@@ -1134,6 +1140,24 @@ static enum CXChildVisitResult PrintTypeKind(CXCursor cursor, CXCursor p,
   return CXChildVisit_Recurse;
 }
 
+/******************************************************************************/
+/* Bitwidth testing.                                                          */
+/******************************************************************************/
+
+static enum CXChildVisitResult PrintBitWidth(CXCursor cursor, CXCursor p,
+                                             CXClientData d) {
+  int Bitwidth;
+  if (clang_getCursorKind(cursor) != CXCursor_FieldDecl)
+    return CXChildVisit_Recurse;
+
+  Bitwidth = clang_getFieldDeclBitWidth(cursor);
+  if (Bitwidth >= 0) {
+    PrintCursor(cursor, NULL);
+    printf(" bitwidth=%d\n", Bitwidth);
+  }
+
+  return CXChildVisit_Recurse;
+}
 
 /******************************************************************************/
 /* Loading ASTs/source.                                                       */
@@ -1955,6 +1979,31 @@ static int inspect_cursor_at(int argc, const char **argv) {
           printf(" Selector index=%d",clang_Cursor_getObjCSelectorIndex(Cursor));
         if (clang_Cursor_isDynamicCall(Cursor))
           printf(" Dynamic-call");
+        if (Cursor.kind == CXCursor_ObjCMessageExpr) {
+          CXType T = clang_Cursor_getReceiverType(Cursor);
+          CXString S = clang_getTypeKindSpelling(T.kind);
+          printf(" Receiver-type=%s", clang_getCString(S));
+          clang_disposeString(S);
+        }
+
+        {
+          CXModule mod = clang_Cursor_getModule(Cursor);
+          CXString name;
+          unsigned i, numHeaders;
+          if (mod) {
+            name = clang_Module_getFullName(mod);
+            numHeaders = clang_Module_getNumTopLevelHeaders(mod);
+            printf(" ModuleName=%s Headers(%d):",
+                   clang_getCString(name), numHeaders);
+            clang_disposeString(name);
+            for (i = 0; i < numHeaders; ++i) {
+              CXFile file = clang_Module_getTopLevelHeader(mod, i);
+              CXString filename = clang_getFileName(file);
+              printf("\n%s", clang_getCString(filename));
+              clang_disposeString(filename);
+            }
+          }
+        }
 
         if (completionString != NULL) {
           printf("\nCompletion string: ");
@@ -2082,12 +2131,49 @@ static int find_file_refs_at(int argc, const char **argv) {
   return 0;
 }
 
+#define MAX_IMPORTED_ASTFILES 200
+
+typedef struct {
+  char **filenames;
+  unsigned num_files;
+} ImportedASTFilesData;
+
+static ImportedASTFilesData *importedASTs_create() {
+  ImportedASTFilesData *p;
+  p = malloc(sizeof(ImportedASTFilesData));
+  p->filenames = malloc(MAX_IMPORTED_ASTFILES * sizeof(const char *));
+  p->num_files = 0;
+  return p;
+}
+
+static void importedASTs_dispose(ImportedASTFilesData *p) {
+  unsigned i;
+  if (!p)
+    return;
+
+  for (i = 0; i < p->num_files; ++i)
+    free(p->filenames[i]);
+  free(p->filenames);
+  free(p);
+}
+
+static void importedASTS_insert(ImportedASTFilesData *p, const char *file) {
+  unsigned i;
+  assert(p && file);
+  for (i = 0; i < p->num_files; ++i)
+    if (strcmp(file, p->filenames[i]) == 0)
+      return;
+  assert(p->num_files + 1 < MAX_IMPORTED_ASTFILES);
+  p->filenames[p->num_files++] = strdup(file);
+}
+
 typedef struct {
   const char *check_prefix;
   int first_check_printed;
   int fail_for_error;
   int abort;
   const char *main_filename;
+  ImportedASTFilesData *importedASTs;
 } IndexData;
 
 static void printCheck(IndexData *data) {
@@ -2118,7 +2204,7 @@ static void printCXIndexLoc(CXIdxLoc loc, CXClientData client_data) {
   index_data = (IndexData *)client_data;
   clang_indexLoc_getFileLocation(loc, &file, 0, &line, &column, 0);
   if (line == 0) {
-    printf("<null loc>");
+    printf("<invalid>");
     return;
   }
   if (!file) {
@@ -2344,7 +2430,37 @@ static CXIdxClientFile index_ppIncludedFile(CXClientData client_data,
   printf(" | name: \"%s\"", info->filename);
   printf(" | hash loc: ");
   printCXIndexLoc(info->hashLoc, client_data);
-  printf(" | isImport: %d | isAngled: %d\n", info->isImport, info->isAngled);
+  printf(" | isImport: %d | isAngled: %d | isModule: %d\n",
+         info->isImport, info->isAngled, info->isModuleImport);
+
+  return (CXIdxClientFile)info->file;
+}
+
+static CXIdxClientFile index_importedASTFile(CXClientData client_data,
+                                         const CXIdxImportedASTFileInfo *info) {
+  IndexData *index_data;
+  index_data = (IndexData *)client_data;
+  printCheck(index_data);
+
+  if (index_data->importedASTs) {
+    CXString filename = clang_getFileName(info->file);
+    importedASTS_insert(index_data->importedASTs, clang_getCString(filename));
+    clang_disposeString(filename);
+  }
+  
+  printf("[importedASTFile]: ");
+  printCXIndexFile((CXIdxClientFile)info->file);
+  if (info->module) {
+    CXString name = clang_Module_getFullName(info->module);
+    printf(" | loc: ");
+    printCXIndexLoc(info->loc, client_data);
+    printf(" | name: \"%s\"", clang_getCString(name));
+    printf(" | isImplicit: %d\n", info->isImplicit);
+    clang_disposeString(name);
+  } else {
+    /* PCH file, the rest are not relevant. */
+    printf("\n");
+  }
 
   return (CXIdxClientFile)info->file;
 }
@@ -2381,7 +2497,12 @@ static void index_indexDeclaration(CXClientData client_data,
   printCXIndexContainer(info->lexicalContainer);
   printf(" | isRedecl: %d", info->isRedeclaration);
   printf(" | isDef: %d", info->isDefinition);
-  printf(" | isContainer: %d", info->isContainer);
+  if (info->flags & CXIdxDeclFlag_Skipped) {
+    assert(!info->isContainer);
+    printf(" | isContainer: skipped");
+  } else {
+    printf(" | isContainer: %d", info->isContainer);
+  }
   printf(" | isImplicit: %d\n", info->isImplicit);
 
   for (i = 0; i != info->numAttributes; ++i) {
@@ -2479,7 +2600,7 @@ static IndexerCallbacks IndexCB = {
   index_diagnostic,
   index_enteredMainFile,
   index_ppIncludedFile,
-  0, /*importedASTFile*/
+  index_importedASTFile,
   index_startedTranslationUnit,
   index_indexDeclaration,
   index_indexEntityReference
@@ -2492,16 +2613,79 @@ static unsigned getIndexOptions(void) {
     index_opts |= CXIndexOpt_SuppressRedundantRefs;
   if (getenv("CINDEXTEST_INDEXLOCALSYMBOLS"))
     index_opts |= CXIndexOpt_IndexFunctionLocalSymbols;
+  if (!getenv("CINDEXTEST_DISABLE_SKIPPARSEDBODIES"))
+    index_opts |= CXIndexOpt_SkipParsedBodiesInSession;
 
   return index_opts;
 }
 
-static int index_file(int argc, const char **argv) {
+static int index_compile_args(int num_args, const char **args,
+                              CXIndexAction idxAction,
+                              ImportedASTFilesData *importedASTs,
+                              const char *check_prefix) {
+  IndexData index_data;
+  unsigned index_opts;
+  int result;
+
+  if (num_args == 0) {
+    fprintf(stderr, "no compiler arguments\n");
+    return -1;
+  }
+
+  index_data.check_prefix = check_prefix;
+  index_data.first_check_printed = 0;
+  index_data.fail_for_error = 0;
+  index_data.abort = 0;
+  index_data.main_filename = "";
+  index_data.importedASTs = importedASTs;
+
+  index_opts = getIndexOptions();
+  result = clang_indexSourceFile(idxAction, &index_data,
+                                 &IndexCB,sizeof(IndexCB), index_opts,
+                                 0, args, num_args, 0, 0, 0,
+                                 getDefaultParsingOptions());
+  if (index_data.fail_for_error)
+    result = -1;
+
+  return result;
+}
+
+static int index_ast_file(const char *ast_file,
+                          CXIndex Idx,
+                          CXIndexAction idxAction,
+                          ImportedASTFilesData *importedASTs,
+                          const char *check_prefix) {
+  CXTranslationUnit TU;
+  IndexData index_data;
+  unsigned index_opts;
+  int result;
+
+  if (!CreateTranslationUnit(Idx, ast_file, &TU))
+    return -1;
+
+  index_data.check_prefix = check_prefix;
+  index_data.first_check_printed = 0;
+  index_data.fail_for_error = 0;
+  index_data.abort = 0;
+  index_data.main_filename = "";
+  index_data.importedASTs = importedASTs;
+
+  index_opts = getIndexOptions();
+  result = clang_indexTranslationUnit(idxAction, &index_data,
+                                      &IndexCB,sizeof(IndexCB),
+                                      index_opts, TU);
+  if (index_data.fail_for_error)
+    result = -1;
+
+  clang_disposeTranslationUnit(TU);
+  return result;
+}
+
+static int index_file(int argc, const char **argv, int full) {
   const char *check_prefix;
   CXIndex Idx;
   CXIndexAction idxAction;
-  IndexData index_data;
-  unsigned index_opts;
+  ImportedASTFilesData *importedASTs;
   int result;
 
   check_prefix = 0;
@@ -2513,43 +2697,39 @@ static int index_file(int argc, const char **argv) {
     }
   }
 
-  if (argc == 0) {
-    fprintf(stderr, "no compiler arguments\n");
-    return -1;
-  }
-
   if (!(Idx = clang_createIndex(/* excludeDeclsFromPCH */ 1,
                                 /* displayDiagnosics=*/1))) {
     fprintf(stderr, "Could not create Index\n");
     return 1;
   }
-  idxAction = 0;
-
-  index_data.check_prefix = check_prefix;
-  index_data.first_check_printed = 0;
-  index_data.fail_for_error = 0;
-  index_data.abort = 0;
-
-  index_opts = getIndexOptions();
   idxAction = clang_IndexAction_create(Idx);
-  result = clang_indexSourceFile(idxAction, &index_data,
-                                 &IndexCB,sizeof(IndexCB), index_opts,
-                                 0, argv, argc, 0, 0, 0, 0);
-  if (index_data.fail_for_error)
-    result = -1;
+  importedASTs = 0;
+  if (full)
+    importedASTs = importedASTs_create();
 
+  result = index_compile_args(argc, argv, idxAction, importedASTs, check_prefix);
+  if (result != 0)
+    goto finished;
+
+  if (full) {
+    unsigned i;
+    for (i = 0; i < importedASTs->num_files && result == 0; ++i) {
+      result = index_ast_file(importedASTs->filenames[i], Idx, idxAction,
+                              importedASTs, check_prefix);
+    }
+  }
+
+finished:
+  importedASTs_dispose(importedASTs);
   clang_IndexAction_dispose(idxAction);
   clang_disposeIndex(Idx);
   return result;
 }
 
 static int index_tu(int argc, const char **argv) {
+  const char *check_prefix;
   CXIndex Idx;
   CXIndexAction idxAction;
-  CXTranslationUnit TU;
-  const char *check_prefix;
-  IndexData index_data;
-  unsigned index_opts;
   int result;
 
   check_prefix = 0;
@@ -2561,8 +2741,38 @@ static int index_tu(int argc, const char **argv) {
     }
   }
 
+  if (!(Idx = clang_createIndex(/* excludeDeclsFromPCH */ 1,
+                                /* displayDiagnosics=*/1))) {
+    fprintf(stderr, "Could not create Index\n");
+    return 1;
+  }
+  idxAction = clang_IndexAction_create(Idx);
+
+  result = index_ast_file(argv[0], Idx, idxAction,
+                          /*importedASTs=*/0, check_prefix);
+
+  clang_IndexAction_dispose(idxAction);
+  clang_disposeIndex(Idx);
+  return result;
+}
+
+static int index_compile_db(int argc, const char **argv) {
+  const char *check_prefix;
+  CXIndex Idx;
+  CXIndexAction idxAction;
+  int errorCode = 0;
+
+  check_prefix = 0;
+  if (argc > 0) {
+    if (strstr(argv[0], "-check-prefix=") == argv[0]) {
+      check_prefix = argv[0] + strlen("-check-prefix=");
+      ++argv;
+      --argc;
+    }
+  }
+
   if (argc == 0) {
-    fprintf(stderr, "no ast file\n");
+    fprintf(stderr, "no compilation database\n");
     return -1;
   }
 
@@ -2571,30 +2781,102 @@ static int index_tu(int argc, const char **argv) {
     fprintf(stderr, "Could not create Index\n");
     return 1;
   }
-  idxAction = 0;
-  result = 1;
-
-  if (!CreateTranslationUnit(Idx, argv[0], &TU))
-    goto finished;
-
-  index_data.check_prefix = check_prefix;
-  index_data.first_check_printed = 0;
-  index_data.fail_for_error = 0;
-  index_data.abort = 0;
-
-  index_opts = getIndexOptions();
   idxAction = clang_IndexAction_create(Idx);
-  result = clang_indexTranslationUnit(idxAction, &index_data,
-                                      &IndexCB,sizeof(IndexCB),
-                                      index_opts, TU);
-  if (index_data.fail_for_error)
-    goto finished;
 
-  finished:
+  {
+    const char *database = argv[0];
+    CXCompilationDatabase db = 0;
+    CXCompileCommands CCmds = 0;
+    CXCompileCommand CCmd;
+    CXCompilationDatabase_Error ec;
+    CXString wd;
+#define MAX_COMPILE_ARGS 512
+    CXString cxargs[MAX_COMPILE_ARGS];
+    const char *args[MAX_COMPILE_ARGS];
+    char *tmp;
+    unsigned len;
+    char *buildDir;
+    int i, a, numCmds, numArgs;
+
+    len = strlen(database);
+    tmp = (char *) malloc(len+1);
+    memcpy(tmp, database, len+1);
+    buildDir = dirname(tmp);
+
+    db = clang_CompilationDatabase_fromDirectory(buildDir, &ec);
+
+    if (db) {
+
+      if (ec!=CXCompilationDatabase_NoError) {
+        printf("unexpected error %d code while loading compilation database\n", ec);
+        errorCode = -1;
+        goto cdb_end;
+      }
+
+      if (chdir(buildDir) != 0) {
+        printf("Could not chdir to %s\n", buildDir);
+        errorCode = -1;
+        goto cdb_end;
+      }
+
+      CCmds = clang_CompilationDatabase_getAllCompileCommands(db);
+      if (!CCmds) {
+        printf("compilation db is empty\n");
+        errorCode = -1;
+        goto cdb_end;
+      }
+
+      numCmds = clang_CompileCommands_getSize(CCmds);
+
+      if (numCmds==0) {
+        fprintf(stderr, "should not get an empty compileCommand set\n");
+        errorCode = -1;
+        goto cdb_end;
+      }
+
+      for (i=0; i<numCmds && errorCode == 0; ++i) {
+        CCmd = clang_CompileCommands_getCommand(CCmds, i);
+
+        wd = clang_CompileCommand_getDirectory(CCmd);
+        if (chdir(clang_getCString(wd)) != 0) {
+          printf("Could not chdir to %s\n", clang_getCString(wd));
+          errorCode = -1;
+          goto cdb_end;
+        }
+        clang_disposeString(wd);
+
+        numArgs = clang_CompileCommand_getNumArgs(CCmd);
+        if (numArgs > MAX_COMPILE_ARGS){
+          fprintf(stderr, "got more compile arguments than maximum\n");
+          errorCode = -1;
+          goto cdb_end;
+        }
+        for (a=0; a<numArgs; ++a) {
+          cxargs[a] = clang_CompileCommand_getArg(CCmd, a);
+          args[a] = clang_getCString(cxargs[a]);
+        }
+
+        errorCode = index_compile_args(numArgs, args, idxAction,
+                                       /*importedASTs=*/0, check_prefix);
+
+        for (a=0; a<numArgs; ++a)
+          clang_disposeString(cxargs[a]);
+      }
+    } else {
+      printf("database loading failed with error code %d.\n", ec);
+      errorCode = -1;
+    }
+
+  cdb_end:
+    clang_CompileCommands_dispose(CCmds);
+    clang_CompilationDatabase_dispose(db);
+    free(tmp);
+
+  }
+
   clang_IndexAction_dispose(idxAction);
   clang_disposeIndex(Idx);
-  
-  return result;
+  return errorCode;
 }
 
 int perform_token_annotation(int argc, const char **argv) {
@@ -3015,7 +3297,8 @@ int write_pch_file(const char *filename, int argc, const char *argv[]) {
                                   argc - num_unsaved_files,
                                   unsaved_files,
                                   num_unsaved_files,
-                                  CXTranslationUnit_Incomplete);
+                                  CXTranslationUnit_Incomplete |
+                                    CXTranslationUnit_ForSerialization);
   if (!TU) {
     fprintf(stderr, "Unable to load translation unit!\n");
     free_remapped_files(unsaved_files, num_unsaved_files);
@@ -3233,9 +3516,12 @@ static void print_usage(void) {
     "usage: c-index-test -code-completion-at=<site> <compiler arguments>\n"
     "       c-index-test -code-completion-timing=<site> <compiler arguments>\n"
     "       c-index-test -cursor-at=<site> <compiler arguments>\n"
-    "       c-index-test -file-refs-at=<site> <compiler arguments>\n"
+    "       c-index-test -file-refs-at=<site> <compiler arguments>\n");
+  fprintf(stderr,
     "       c-index-test -index-file [-check-prefix=<FileCheck prefix>] <compiler arguments>\n"
+    "       c-index-test -index-file-full [-check-prefix=<FileCheck prefix>] <compiler arguments>\n"
     "       c-index-test -index-tu [-check-prefix=<FileCheck prefix>] <AST file>\n"
+    "       c-index-test -index-compile-db [-check-prefix=<FileCheck prefix>] <compilation database>\n"
     "       c-index-test -test-file-scan <AST file> <source file> "
           "[FileCheck prefix]\n");
   fprintf(stderr,
@@ -3258,6 +3544,7 @@ static void print_usage(void) {
   fprintf(stderr,
     "       c-index-test -test-print-linkage-source {<args>}*\n"
     "       c-index-test -test-print-typekind {<args>}*\n"
+    "       c-index-test -test-print-bitwidth {<args>}*\n"
     "       c-index-test -print-usr [<CursorKind> {<args>}]*\n"
     "       c-index-test -print-usr-file <file>\n"
     "       c-index-test -write-pch <file> <compiler arguments>\n");
@@ -3292,9 +3579,13 @@ int cindextest_main(int argc, const char **argv) {
   if (argc > 2 && strstr(argv[1], "-file-refs-at=") == argv[1])
     return find_file_refs_at(argc, argv);
   if (argc > 2 && strcmp(argv[1], "-index-file") == 0)
-    return index_file(argc - 2, argv + 2);
+    return index_file(argc - 2, argv + 2, /*full=*/0);
+  if (argc > 2 && strcmp(argv[1], "-index-file-full") == 0)
+    return index_file(argc - 2, argv + 2, /*full=*/1);
   if (argc > 2 && strcmp(argv[1], "-index-tu") == 0)
     return index_tu(argc - 2, argv + 2);
+  if (argc > 2 && strcmp(argv[1], "-index-compile-db") == 0)
+    return index_compile_db(argc - 2, argv + 2);
   else if (argc >= 4 && strncmp(argv[1], "-test-load-tu", 13) == 0) {
     CXCursorVisitor I = GetVisitor(argv[1] + 13);
     if (I)
@@ -3337,6 +3628,9 @@ int cindextest_main(int argc, const char **argv) {
   else if (argc > 2 && strcmp(argv[1], "-test-print-typekind") == 0)
     return perform_test_load_source(argc - 2, argv + 2, "all",
                                     PrintTypeKind, 0);
+  else if (argc > 2 && strcmp(argv[1], "-test-print-bitwidth") == 0)
+    return perform_test_load_source(argc - 2, argv + 2, "all",
+                                    PrintBitWidth, 0);
   else if (argc > 1 && strcmp(argv[1], "-print-usr") == 0) {
     if (argc > 2)
       return print_usrs(argv + 2, argv + argc);

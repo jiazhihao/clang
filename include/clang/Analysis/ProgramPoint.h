@@ -17,15 +17,15 @@
 
 #include "clang/Analysis/AnalysisContext.h"
 #include "clang/Analysis/CFG.h"
-#include "llvm/Support/DataTypes.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/Support/Casting.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/DataTypes.h"
 #include <cassert>
-#include <utility>
 #include <string>
+#include <utility>
 
 namespace clang {
 
@@ -140,8 +140,6 @@ public:
     return ID.ComputeHash();
   }
 
-  static bool classof(const ProgramPoint*) { return true; }
-
   bool operator==(const ProgramPoint & RHS) const {
     return Data1 == RHS.Data1 &&
            Data2 == RHS.Data2 &&
@@ -220,7 +218,7 @@ public:
   const Stmt *getStmt() const { return (const Stmt*) getData1(); }
 
   template <typename T>
-  const T* getStmtAs() const { return llvm::dyn_cast<T>(getStmt()); }
+  const T* getStmtAs() const { return dyn_cast<T>(getStmt()); }
 
   static bool classof(const ProgramPoint* Location) {
     unsigned k = Location->getKind();

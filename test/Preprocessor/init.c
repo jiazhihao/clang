@@ -9,14 +9,14 @@
 // BLOCKS:#define __block __attribute__((__blocks__(byref)))
 //
 // 
-// RUN: %clang_cc1 -x c++ -std=c++11 -E -dM < /dev/null | FileCheck -check-prefix CXX0X %s
+// RUN: %clang_cc1 -x c++ -std=c++11 -E -dM < /dev/null | FileCheck -check-prefix CXX11 %s
 //
-// CXX0X:#define __GNUG__
-// CXX0X:#define __GXX_EXPERIMENTAL_CXX0X__ 1
-// CXX0X:#define __GXX_RTTI 1
-// CXX0X:#define __GXX_WEAK__ 1
-// CXX0X:#define __cplusplus 201103L
-// CXX0X:#define __private_extern__ extern
+// CXX11:#define __GNUG__
+// CXX11:#define __GXX_EXPERIMENTAL_CXX0X__ 1
+// CXX11:#define __GXX_RTTI 1
+// CXX11:#define __GXX_WEAK__ 1
+// CXX11:#define __cplusplus 201103L
+// CXX11:#define __private_extern__ extern
 //
 // 
 // RUN: %clang_cc1 -x c++ -std=c++98 -E -dM < /dev/null | FileCheck -check-prefix CXX98 %s
@@ -212,19 +212,19 @@
 // ARM:#define __INTPTR_TYPE__ long int
 // ARM:#define __INTPTR_WIDTH__ 32
 // ARM:#define __INT_MAX__ 2147483647
-// ARM:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// ARM:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // ARM:#define __LDBL_DIG__ 15
-// ARM:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// ARM:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // ARM:#define __LDBL_HAS_DENORM__ 1
 // ARM:#define __LDBL_HAS_INFINITY__ 1
 // ARM:#define __LDBL_HAS_QUIET_NAN__ 1
 // ARM:#define __LDBL_MANT_DIG__ 53
 // ARM:#define __LDBL_MAX_10_EXP__ 308
 // ARM:#define __LDBL_MAX_EXP__ 1024
-// ARM:#define __LDBL_MAX__ 1.7976931348623157e+308
+// ARM:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // ARM:#define __LDBL_MIN_10_EXP__ (-307)
 // ARM:#define __LDBL_MIN_EXP__ (-1021)
-// ARM:#define __LDBL_MIN__ 2.2250738585072014e-308
+// ARM:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // ARM:#define __LITTLE_ENDIAN__ 1
 // ARM:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // ARM:#define __LONG_MAX__ 2147483647L
@@ -315,19 +315,19 @@
 // ARMEABISOFTFP:#define __INTPTR_TYPE__ long int
 // ARMEABISOFTFP:#define __INTPTR_WIDTH__ 32
 // ARMEABISOFTFP:#define __INT_MAX__ 2147483647
-// ARMEABISOFTFP:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// ARMEABISOFTFP:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // ARMEABISOFTFP:#define __LDBL_DIG__ 15
-// ARMEABISOFTFP:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// ARMEABISOFTFP:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // ARMEABISOFTFP:#define __LDBL_HAS_DENORM__ 1
 // ARMEABISOFTFP:#define __LDBL_HAS_INFINITY__ 1
 // ARMEABISOFTFP:#define __LDBL_HAS_QUIET_NAN__ 1
 // ARMEABISOFTFP:#define __LDBL_MANT_DIG__ 53
 // ARMEABISOFTFP:#define __LDBL_MAX_10_EXP__ 308
 // ARMEABISOFTFP:#define __LDBL_MAX_EXP__ 1024
-// ARMEABISOFTFP:#define __LDBL_MAX__ 1.7976931348623157e+308
+// ARMEABISOFTFP:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // ARMEABISOFTFP:#define __LDBL_MIN_10_EXP__ (-307)
 // ARMEABISOFTFP:#define __LDBL_MIN_EXP__ (-1021)
-// ARMEABISOFTFP:#define __LDBL_MIN__ 2.2250738585072014e-308
+// ARMEABISOFTFP:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // ARMEABISOFTFP:#define __LITTLE_ENDIAN__ 1
 // ARMEABISOFTFP:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // ARMEABISOFTFP:#define __LONG_MAX__ 2147483647L
@@ -419,19 +419,19 @@
 // ARMEABIHARDFP:#define __INTPTR_TYPE__ long int
 // ARMEABIHARDFP:#define __INTPTR_WIDTH__ 32
 // ARMEABIHARDFP:#define __INT_MAX__ 2147483647
-// ARMEABIHARDFP:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// ARMEABIHARDFP:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // ARMEABIHARDFP:#define __LDBL_DIG__ 15
-// ARMEABIHARDFP:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// ARMEABIHARDFP:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // ARMEABIHARDFP:#define __LDBL_HAS_DENORM__ 1
 // ARMEABIHARDFP:#define __LDBL_HAS_INFINITY__ 1
 // ARMEABIHARDFP:#define __LDBL_HAS_QUIET_NAN__ 1
 // ARMEABIHARDFP:#define __LDBL_MANT_DIG__ 53
 // ARMEABIHARDFP:#define __LDBL_MAX_10_EXP__ 308
 // ARMEABIHARDFP:#define __LDBL_MAX_EXP__ 1024
-// ARMEABIHARDFP:#define __LDBL_MAX__ 1.7976931348623157e+308
+// ARMEABIHARDFP:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // ARMEABIHARDFP:#define __LDBL_MIN_10_EXP__ (-307)
 // ARMEABIHARDFP:#define __LDBL_MIN_EXP__ (-1021)
-// ARMEABIHARDFP:#define __LDBL_MIN__ 2.2250738585072014e-308
+// ARMEABIHARDFP:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // ARMEABIHARDFP:#define __LITTLE_ENDIAN__ 1
 // ARMEABIHARDFP:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // ARMEABIHARDFP:#define __LONG_MAX__ 2147483647L
@@ -721,19 +721,19 @@
 // MIPS32BE:#define __INTPTR_TYPE__ long int
 // MIPS32BE:#define __INTPTR_WIDTH__ 32
 // MIPS32BE:#define __INT_MAX__ 2147483647
-// MIPS32BE:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// MIPS32BE:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // MIPS32BE:#define __LDBL_DIG__ 15
-// MIPS32BE:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// MIPS32BE:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // MIPS32BE:#define __LDBL_HAS_DENORM__ 1
 // MIPS32BE:#define __LDBL_HAS_INFINITY__ 1
 // MIPS32BE:#define __LDBL_HAS_QUIET_NAN__ 1
 // MIPS32BE:#define __LDBL_MANT_DIG__ 53
 // MIPS32BE:#define __LDBL_MAX_10_EXP__ 308
 // MIPS32BE:#define __LDBL_MAX_EXP__ 1024
-// MIPS32BE:#define __LDBL_MAX__ 1.7976931348623157e+308
+// MIPS32BE:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // MIPS32BE:#define __LDBL_MIN_10_EXP__ (-307)
 // MIPS32BE:#define __LDBL_MIN_EXP__ (-1021)
-// MIPS32BE:#define __LDBL_MIN__ 2.2250738585072014e-308
+// MIPS32BE:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // MIPS32BE:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // MIPS32BE:#define __LONG_MAX__ 2147483647L
 // MIPS32BE-NOT:#define __LP64__
@@ -837,19 +837,19 @@
 // MIPS32EL:#define __INTPTR_TYPE__ long int
 // MIPS32EL:#define __INTPTR_WIDTH__ 32
 // MIPS32EL:#define __INT_MAX__ 2147483647
-// MIPS32EL:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// MIPS32EL:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // MIPS32EL:#define __LDBL_DIG__ 15
-// MIPS32EL:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// MIPS32EL:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // MIPS32EL:#define __LDBL_HAS_DENORM__ 1
 // MIPS32EL:#define __LDBL_HAS_INFINITY__ 1
 // MIPS32EL:#define __LDBL_HAS_QUIET_NAN__ 1
 // MIPS32EL:#define __LDBL_MANT_DIG__ 53
 // MIPS32EL:#define __LDBL_MAX_10_EXP__ 308
 // MIPS32EL:#define __LDBL_MAX_EXP__ 1024
-// MIPS32EL:#define __LDBL_MAX__ 1.7976931348623157e+308
+// MIPS32EL:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // MIPS32EL:#define __LDBL_MIN_10_EXP__ (-307)
 // MIPS32EL:#define __LDBL_MIN_EXP__ (-1021)
-// MIPS32EL:#define __LDBL_MIN__ 2.2250738585072014e-308
+// MIPS32EL:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // MIPS32EL:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // MIPS32EL:#define __LONG_MAX__ 2147483647L
 // MIPS32EL-NOT:#define __LP64__
@@ -1214,19 +1214,19 @@
 // MSP430:#define __INTPTR_TYPE__ short
 // MSP430:#define __INTPTR_WIDTH__ 16
 // MSP430:#define __INT_MAX__ 32767
-// MSP430:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// MSP430:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // MSP430:#define __LDBL_DIG__ 15
-// MSP430:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// MSP430:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // MSP430:#define __LDBL_HAS_DENORM__ 1
 // MSP430:#define __LDBL_HAS_INFINITY__ 1
 // MSP430:#define __LDBL_HAS_QUIET_NAN__ 1
 // MSP430:#define __LDBL_MANT_DIG__ 53
 // MSP430:#define __LDBL_MAX_10_EXP__ 308
 // MSP430:#define __LDBL_MAX_EXP__ 1024
-// MSP430:#define __LDBL_MAX__ 1.7976931348623157e+308
+// MSP430:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // MSP430:#define __LDBL_MIN_10_EXP__ (-307)
 // MSP430:#define __LDBL_MIN_EXP__ (-1021)
-// MSP430:#define __LDBL_MIN__ 2.2250738585072014e-308
+// MSP430:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // MSP430:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // MSP430:#define __LONG_MAX__ 2147483647L
 // MSP430-NOT:#define __LP64__
@@ -1309,19 +1309,19 @@
 // NVPTX32:#define __INTPTR_TYPE__ unsigned int
 // NVPTX32:#define __INTPTR_WIDTH__ 32
 // NVPTX32:#define __INT_MAX__ 2147483647
-// NVPTX32:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// NVPTX32:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // NVPTX32:#define __LDBL_DIG__ 15
-// NVPTX32:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// NVPTX32:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // NVPTX32:#define __LDBL_HAS_DENORM__ 1
 // NVPTX32:#define __LDBL_HAS_INFINITY__ 1
 // NVPTX32:#define __LDBL_HAS_QUIET_NAN__ 1
 // NVPTX32:#define __LDBL_MANT_DIG__ 53
 // NVPTX32:#define __LDBL_MAX_10_EXP__ 308
 // NVPTX32:#define __LDBL_MAX_EXP__ 1024
-// NVPTX32:#define __LDBL_MAX__ 1.7976931348623157e+308
+// NVPTX32:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // NVPTX32:#define __LDBL_MIN_10_EXP__ (-307)
 // NVPTX32:#define __LDBL_MIN_EXP__ (-1021)
-// NVPTX32:#define __LDBL_MIN__ 2.2250738585072014e-308
+// NVPTX32:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // NVPTX32:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // NVPTX32:#define __LONG_MAX__ 9223372036854775807L
 // NVPTX32-NOT:#define __LP64__
@@ -1405,19 +1405,19 @@
 // NVPTX64:#define __INTPTR_TYPE__ long long unsigned int
 // NVPTX64:#define __INTPTR_WIDTH__ 64
 // NVPTX64:#define __INT_MAX__ 2147483647
-// NVPTX64:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// NVPTX64:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // NVPTX64:#define __LDBL_DIG__ 15
-// NVPTX64:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// NVPTX64:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // NVPTX64:#define __LDBL_HAS_DENORM__ 1
 // NVPTX64:#define __LDBL_HAS_INFINITY__ 1
 // NVPTX64:#define __LDBL_HAS_QUIET_NAN__ 1
 // NVPTX64:#define __LDBL_MANT_DIG__ 53
 // NVPTX64:#define __LDBL_MAX_10_EXP__ 308
 // NVPTX64:#define __LDBL_MAX_EXP__ 1024
-// NVPTX64:#define __LDBL_MAX__ 1.7976931348623157e+308
+// NVPTX64:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // NVPTX64:#define __LDBL_MIN_10_EXP__ (-307)
 // NVPTX64:#define __LDBL_MIN_EXP__ (-1021)
-// NVPTX64:#define __LDBL_MIN__ 2.2250738585072014e-308
+// NVPTX64:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // NVPTX64:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // NVPTX64:#define __LONG_MAX__ 9223372036854775807L
 // NVPTX64:#define __LP64__ 1
@@ -1662,6 +1662,166 @@
 // PPC64:#define __WINT_WIDTH__ 32
 // PPC64:#define __ppc64__ 1
 // PPC64:#define __ppc__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu a2q -fno-signed-char < /dev/null | FileCheck -check-prefix PPCA2Q %s
+//
+// PPCA2Q:#define _ARCH_A2 1
+// PPCA2Q:#define _ARCH_A2Q 1
+// PPCA2Q:#define _ARCH_PPC 1
+// PPCA2Q:#define _ARCH_PPC64 1
+// PPCA2Q:#define _ARCH_QP 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-bgq-linux -fno-signed-char < /dev/null | FileCheck -check-prefix PPCBGQ %s
+//
+// PPCBGQ:#define __THW_BLUEGENE__ 1
+// PPCBGQ:#define __TOS_BGQ__ 1
+// PPCBGQ:#define __bg__ 1
+// PPCBGQ:#define __bgq__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu 630 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC630 %s
+//
+// PPC630:#define _ARCH_630 1
+// PPC630:#define _ARCH_PPC 1
+// PPC630:#define _ARCH_PPC64 1
+// PPC630:#define _ARCH_PPCGR 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr3 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR3 %s
+//
+// PPCPWR3:#define _ARCH_PPC 1
+// PPCPWR3:#define _ARCH_PPC64 1
+// PPCPWR3:#define _ARCH_PPCGR 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power3 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER3 %s
+//
+// PPCPOWER3:#define _ARCH_PPC 1
+// PPCPOWER3:#define _ARCH_PPC64 1
+// PPCPOWER3:#define _ARCH_PPCGR 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr4 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR4 %s
+//
+// PPCPWR4:#define _ARCH_PPC 1
+// PPCPWR4:#define _ARCH_PPC64 1
+// PPCPWR4:#define _ARCH_PPCGR 1
+// PPCPWR4:#define _ARCH_PPCSQ 1
+// PPCPWR4:#define _ARCH_PWR4 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power4 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER4 %s
+//
+// PPCPOWER4:#define _ARCH_PPC 1
+// PPCPOWER4:#define _ARCH_PPC64 1
+// PPCPOWER4:#define _ARCH_PPCGR 1
+// PPCPOWER4:#define _ARCH_PPCSQ 1
+// PPCPOWER4:#define _ARCH_PWR4 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr5 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR5 %s
+//
+// PPCPWR5:#define _ARCH_PPC 1
+// PPCPWR5:#define _ARCH_PPC64 1
+// PPCPWR5:#define _ARCH_PPCGR 1
+// PPCPWR5:#define _ARCH_PPCSQ 1
+// PPCPWR5:#define _ARCH_PWR4 1
+// PPCPWR5:#define _ARCH_PWR5 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power5 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER5 %s
+//
+// PPCPOWER5:#define _ARCH_PPC 1
+// PPCPOWER5:#define _ARCH_PPC64 1
+// PPCPOWER5:#define _ARCH_PPCGR 1
+// PPCPOWER5:#define _ARCH_PPCSQ 1
+// PPCPOWER5:#define _ARCH_PWR4 1
+// PPCPOWER5:#define _ARCH_PWR5 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr5x -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR5X %s
+//
+// PPCPWR5X:#define _ARCH_PPC 1
+// PPCPWR5X:#define _ARCH_PPC64 1
+// PPCPWR5X:#define _ARCH_PPCGR 1
+// PPCPWR5X:#define _ARCH_PPCSQ 1
+// PPCPWR5X:#define _ARCH_PWR4 1
+// PPCPWR5X:#define _ARCH_PWR5 1
+// PPCPWR5X:#define _ARCH_PWR5X 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power5x -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER5X %s
+//
+// PPCPOWER5X:#define _ARCH_PPC 1
+// PPCPOWER5X:#define _ARCH_PPC64 1
+// PPCPOWER5X:#define _ARCH_PPCGR 1
+// PPCPOWER5X:#define _ARCH_PPCSQ 1
+// PPCPOWER5X:#define _ARCH_PWR4 1
+// PPCPOWER5X:#define _ARCH_PWR5 1
+// PPCPOWER5X:#define _ARCH_PWR5X 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr6 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR6 %s
+//
+// PPCPWR6:#define _ARCH_PPC 1
+// PPCPWR6:#define _ARCH_PPC64 1
+// PPCPWR6:#define _ARCH_PPCGR 1
+// PPCPWR6:#define _ARCH_PPCSQ 1
+// PPCPWR6:#define _ARCH_PWR4 1
+// PPCPWR6:#define _ARCH_PWR5 1
+// PPCPWR6:#define _ARCH_PWR5X 1
+// PPCPWR6:#define _ARCH_PWR6 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power6 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER6 %s
+//
+// PPCPOWER6:#define _ARCH_PPC 1
+// PPCPOWER6:#define _ARCH_PPC64 1
+// PPCPOWER6:#define _ARCH_PPCGR 1
+// PPCPOWER6:#define _ARCH_PPCSQ 1
+// PPCPOWER6:#define _ARCH_PWR4 1
+// PPCPOWER6:#define _ARCH_PWR5 1
+// PPCPOWER6:#define _ARCH_PWR5X 1
+// PPCPOWER6:#define _ARCH_PWR6 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr6x -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR6X %s
+//
+// PPCPWR6X:#define _ARCH_PPC 1
+// PPCPWR6X:#define _ARCH_PPC64 1
+// PPCPWR6X:#define _ARCH_PPCGR 1
+// PPCPWR6X:#define _ARCH_PPCSQ 1
+// PPCPWR6X:#define _ARCH_PWR4 1
+// PPCPWR6X:#define _ARCH_PWR5 1
+// PPCPWR6X:#define _ARCH_PWR5X 1
+// PPCPWR6X:#define _ARCH_PWR6 1
+// PPCPWR6X:#define _ARCH_PWR6X 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power6x -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER6X %s
+//
+// PPCPOWER6X:#define _ARCH_PPC 1
+// PPCPOWER6X:#define _ARCH_PPC64 1
+// PPCPOWER6X:#define _ARCH_PPCGR 1
+// PPCPOWER6X:#define _ARCH_PPCSQ 1
+// PPCPOWER6X:#define _ARCH_PWR4 1
+// PPCPOWER6X:#define _ARCH_PWR5 1
+// PPCPOWER6X:#define _ARCH_PWR5X 1
+// PPCPOWER6X:#define _ARCH_PWR6 1
+// PPCPOWER6X:#define _ARCH_PWR6X 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr7 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPWR7 %s
+//
+// PPCPWR7:#define _ARCH_PPC 1
+// PPCPWR7:#define _ARCH_PPC64 1
+// PPCPWR7:#define _ARCH_PPCGR 1
+// PPCPWR7:#define _ARCH_PPCSQ 1
+// PPCPWR7:#define _ARCH_PWR4 1
+// PPCPWR7:#define _ARCH_PWR5 1
+// PPCPWR7:#define _ARCH_PWR5X 1
+// PPCPWR7:#define _ARCH_PWR6 1
+// PPCPWR7:#define _ARCH_PWR6X 1
+// PPCPWR7:#define _ARCH_PWR7 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power7 -fno-signed-char < /dev/null | FileCheck -check-prefix PPCPOWER7 %s
+//
+// PPCPOWER7:#define _ARCH_PPC 1
+// PPCPOWER7:#define _ARCH_PPC64 1
+// PPCPOWER7:#define _ARCH_PPCGR 1
+// PPCPOWER7:#define _ARCH_PPCSQ 1
+// PPCPOWER7:#define _ARCH_PWR4 1
+// PPCPOWER7:#define _ARCH_PWR5 1
+// PPCPOWER7:#define _ARCH_PWR5X 1
+// PPCPOWER7:#define _ARCH_PWR6 1
+// PPCPOWER7:#define _ARCH_PWR6X 1
+// PPCPOWER7:#define _ARCH_PWR7 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-linux-gnu -fno-signed-char < /dev/null | FileCheck -check-prefix PPC64-LINUX %s
 //
@@ -2017,19 +2177,19 @@
 // SPARC:#define __INTPTR_TYPE__ long int
 // SPARC:#define __INTPTR_WIDTH__ 32
 // SPARC:#define __INT_MAX__ 2147483647
-// SPARC:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324
+// SPARC:#define __LDBL_DENORM_MIN__ 4.9406564584124654e-324L
 // SPARC:#define __LDBL_DIG__ 15
-// SPARC:#define __LDBL_EPSILON__ 2.2204460492503131e-16
+// SPARC:#define __LDBL_EPSILON__ 2.2204460492503131e-16L
 // SPARC:#define __LDBL_HAS_DENORM__ 1
 // SPARC:#define __LDBL_HAS_INFINITY__ 1
 // SPARC:#define __LDBL_HAS_QUIET_NAN__ 1
 // SPARC:#define __LDBL_MANT_DIG__ 53
 // SPARC:#define __LDBL_MAX_10_EXP__ 308
 // SPARC:#define __LDBL_MAX_EXP__ 1024
-// SPARC:#define __LDBL_MAX__ 1.7976931348623157e+308
+// SPARC:#define __LDBL_MAX__ 1.7976931348623157e+308L
 // SPARC:#define __LDBL_MIN_10_EXP__ (-307)
 // SPARC:#define __LDBL_MIN_EXP__ (-1021)
-// SPARC:#define __LDBL_MIN__ 2.2250738585072014e-308
+// SPARC:#define __LDBL_MIN__ 2.2250738585072014e-308L
 // SPARC:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // SPARC:#define __LONG_MAX__ 2147483647L
 // SPARC-NOT:#define __LP64__
@@ -2074,19 +2234,19 @@
 // TCE:#define __CHAR16_TYPE__ unsigned short
 // TCE:#define __CHAR32_TYPE__ unsigned int
 // TCE:#define __CHAR_BIT__ 8
-// TCE:#define __DBL_DENORM_MIN__ 1.40129846e-45F
+// TCE:#define __DBL_DENORM_MIN__ 1.40129846e-45
 // TCE:#define __DBL_DIG__ 6
-// TCE:#define __DBL_EPSILON__ 1.19209290e-7F
+// TCE:#define __DBL_EPSILON__ 1.19209290e-7
 // TCE:#define __DBL_HAS_DENORM__ 1
 // TCE:#define __DBL_HAS_INFINITY__ 1
 // TCE:#define __DBL_HAS_QUIET_NAN__ 1
 // TCE:#define __DBL_MANT_DIG__ 24
 // TCE:#define __DBL_MAX_10_EXP__ 38
 // TCE:#define __DBL_MAX_EXP__ 128
-// TCE:#define __DBL_MAX__ 3.40282347e+38F
+// TCE:#define __DBL_MAX__ 3.40282347e+38
 // TCE:#define __DBL_MIN_10_EXP__ (-37)
 // TCE:#define __DBL_MIN_EXP__ (-125)
-// TCE:#define __DBL_MIN__ 1.17549435e-38F
+// TCE:#define __DBL_MIN__ 1.17549435e-38
 // TCE:#define __DECIMAL_DIG__ -1
 // TCE:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // TCE:#define __FLT_DIG__ 6
@@ -2112,19 +2272,19 @@
 // TCE:#define __INTPTR_TYPE__ int
 // TCE:#define __INTPTR_WIDTH__ 32
 // TCE:#define __INT_MAX__ 2147483647
-// TCE:#define __LDBL_DENORM_MIN__ 1.40129846e-45F
+// TCE:#define __LDBL_DENORM_MIN__ 1.40129846e-45L
 // TCE:#define __LDBL_DIG__ 6
-// TCE:#define __LDBL_EPSILON__ 1.19209290e-7F
+// TCE:#define __LDBL_EPSILON__ 1.19209290e-7L
 // TCE:#define __LDBL_HAS_DENORM__ 1
 // TCE:#define __LDBL_HAS_INFINITY__ 1
 // TCE:#define __LDBL_HAS_QUIET_NAN__ 1
 // TCE:#define __LDBL_MANT_DIG__ 24
 // TCE:#define __LDBL_MAX_10_EXP__ 38
 // TCE:#define __LDBL_MAX_EXP__ 128
-// TCE:#define __LDBL_MAX__ 3.40282347e+38F
+// TCE:#define __LDBL_MAX__ 3.40282347e+38L
 // TCE:#define __LDBL_MIN_10_EXP__ (-37)
 // TCE:#define __LDBL_MIN_EXP__ (-125)
-// TCE:#define __LDBL_MIN__ 1.17549435e-38F
+// TCE:#define __LDBL_MIN__ 1.17549435e-38L
 // TCE:#define __LONG_LONG_MAX__ 2147483647LL
 // TCE:#define __LONG_MAX__ 2147483647L
 // TCE-NOT:#define __LP64__

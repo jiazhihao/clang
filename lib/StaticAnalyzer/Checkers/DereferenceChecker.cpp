@@ -14,11 +14,12 @@
 
 #include "ClangSACheckers.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace ento;
@@ -156,13 +157,13 @@ void DereferenceChecker::reportBug(ProgramStateRef State, const Stmt *S,
                   buf.empty() ? BT_null->getDescription() : buf.str(),
                   N);
 
-  bugreporter::trackNullOrUndefValue(N, bugreporter::GetDerefExpr(N), *report);
+  bugreporter::trackNullOrUndefValue(N, bugreporter::getDerefExpr(S), *report);
 
   for (SmallVectorImpl<SourceRange>::iterator
        I = Ranges.begin(), E = Ranges.end(); I!=E; ++I)
     report->addRange(*I);
 
-  C.EmitReport(report);
+  C.emitReport(report);
 }
 
 void DereferenceChecker::checkLocation(SVal l, bool isLoad, const Stmt* S,
@@ -175,9 +176,9 @@ void DereferenceChecker::checkLocation(SVal l, bool isLoad, const Stmt* S,
 
       BugReport *report =
         new BugReport(*BT_undef, BT_undef->getDescription(), N);
-      bugreporter::trackNullOrUndefValue(N, bugreporter::GetDerefExpr(N),
+      bugreporter::trackNullOrUndefValue(N, bugreporter::getDerefExpr(S),
                                          *report);
-      C.EmitReport(report);
+      C.emitReport(report);
     }
     return;
   }

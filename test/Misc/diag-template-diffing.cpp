@@ -630,7 +630,247 @@ void test23() {
 // CHECK-NOELIDE-TREE:   D23<
 // CHECK-NOELIDE-TREE:     [char != A23<>]>
 
+namespace PR14015 {
+template <unsigned N> class Foo1 {};
+template <unsigned N = 2> class Foo2 {};
+template <unsigned ...N> class Foo3 {};
+
+void Play1() {
+  Foo1<1> F1;
+  Foo1<2> F2, F3;
+  F2 = F1;
+  F1 = F2;
+  F2 = F3;
+  F3 = F2;
+}
+
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo1<1>' to 'Foo1<2>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo1<1>' to 'Foo1<2>' for 1st argument
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo1<2>' to 'Foo1<1>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo1<2>' to 'Foo1<1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo1<1>' to 'Foo1<2>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo1<1>' to 'Foo1<2>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo1<2>' to 'Foo1<1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo1<2>' to 'Foo1<1>' for 1st argument
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo1<
+// CHECK-ELIDE-TREE:     [1 != 2]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo1<
+// CHECK-ELIDE-TREE:     [1 != 2]>
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo1<
+// CHECK-ELIDE-TREE:     [2 != 1]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo1<
+// CHECK-ELIDE-TREE:     [2 != 1]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo1<
+// CHECK-NOELIDE-TREE:     [1 != 2]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo1<
+// CHECK-NOELIDE-TREE:     [1 != 2]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo1<
+// CHECK-NOELIDE-TREE:     [2 != 1]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo1<
+// CHECK-NOELIDE-TREE:     [2 != 1]>
+
+void Play2() {
+  Foo2<1> F1;
+  Foo2<> F2, F3;
+  F2 = F1;
+  F1 = F2;
+  F2 = F3;
+  F3 = F2;
+}
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo2<1>' to 'Foo2<2>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo2<1>' to 'Foo2<2>' for 1st argument
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo2<(default) 2>' to 'Foo2<1>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo2<(default) 2>' to 'Foo2<1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo2<1>' to 'Foo2<2>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo2<1>' to 'Foo2<2>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo2<(default) 2>' to 'Foo2<1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo2<(default) 2>' to 'Foo2<1>' for 1st argument
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo2<
+// CHECK-ELIDE-TREE:     [1 != 2]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo2<
+// CHECK-ELIDE-TREE:     [1 != 2]>
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo2<
+// CHECK-ELIDE-TREE:     [(default) 2 != 1]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo2<
+// CHECK-ELIDE-TREE:     [(default) 2 != 1]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo2<
+// CHECK-NOELIDE-TREE:     [1 != 2]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo2<
+// CHECK-NOELIDE-TREE:     [1 != 2]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo2<
+// CHECK-NOELIDE-TREE:     [(default) 2 != 1]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo2<
+// CHECK-NOELIDE-TREE:     [(default) 2 != 1]>
+
+void Play3() {
+  Foo3<1> F1;
+  Foo3<2, 1> F2, F3;
+  F2 = F1;
+  F1 = F2;
+  F2 = F3;
+  F3 = F2;
+}
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo3<1, (no argument)>' to 'Foo3<2, 1>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo3<1, (no argument)>' to 'Foo3<2, 1>' for 1st argument
+// CHECK-ELIDE-NOTREE: no viable overloaded '='
+// CHECK-ELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo3<2, 1>' to 'Foo3<1, (no argument)>' for 1st argument
+// CHECK-ELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo3<2, 1>' to 'Foo3<1, (no argument)>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo3<1, (no argument)>' to 'Foo3<2, 1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo3<1, (no argument)>' to 'Foo3<2, 1>' for 1st argument
+// CHECK-NOELIDE-NOTREE: no viable overloaded '='
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from 'Foo3<2, 1>' to 'Foo3<1, (no argument)>' for 1st argument
+// CHECK-NOELIDE-NOTREE: candidate function (the implicit move assignment operator) not viable: no known conversion from 'Foo3<2, 1>' to 'Foo3<1, (no argument)>' for 1st argument
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo3<
+// CHECK-ELIDE-TREE:     [1 != 2], 
+// CHECK-ELIDE-TREE:     [(no argument) != 1]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo3<
+// CHECK-ELIDE-TREE:     [1 != 2],
+// CHECK-ELIDE-TREE:     [(no argument) != 1]>
+// CHECK-ELIDE-TREE: no viable overloaded '='
+// CHECK-ELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo3<
+// CHECK-ELIDE-TREE:     [2 != 1],
+// CHECK-ELIDE-TREE:     [1 != (no argument)]>
+// CHECK-ELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-ELIDE-TREE:   Foo3<
+// CHECK-ELIDE-TREE:     [2 != 1], 
+// CHECK-ELIDE-TREE:     [1 != (no argument)]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo3<
+// CHECK-NOELIDE-TREE:     [1 != 2], 
+// CHECK-NOELIDE-TREE:     [(no argument) != 1]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo3<
+// CHECK-NOELIDE-TREE:     [1 != 2], 
+// CHECK-NOELIDE-TREE:     [(no argument) != 1]>
+// CHECK-NOELIDE-TREE: no viable overloaded '='
+// CHECK-NOELIDE-TREE: candidate function (the implicit copy assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo3<
+// CHECK-NOELIDE-TREE:     [2 != 1], 
+// CHECK-NOELIDE-TREE:     [1 != (no argument)]>
+// CHECK-NOELIDE-TREE: candidate function (the implicit move assignment operator) not viable: no known conversion from argument type to parameter type for 1st argument
+// CHECK-NOELIDE-TREE:   Foo3<
+// CHECK-NOELIDE-TREE:     [2 != 1], 
+// CHECK-NOELIDE-TREE:     [1 != (no argument)]>
+}
+
+namespace PR14342 {
+  template<typename T, short a> struct X {};
+  X<int, (signed char)-1> x = X<long, -1>();
+  X<int, 3UL> y = X<int, 2>();
+  // CHECK-ELIDE-NOTREE: error: no viable conversion from 'X<long, [...]>' to 'X<int, [...]>'
+  // CHECK-ELIDE-NOTREE: error: no viable conversion from 'X<[...], 2>' to 'X<[...], 3UL>'
+}
+
+namespace PR14489 {
+  // The important thing here is that the diagnostic diffs a template specialization
+  // with no arguments against itself.  (We might need a different test if this
+  // diagnostic changes).
+  template<class ...V>
+  struct VariableList   {
+    void ConnectAllToAll(VariableList<>& params = VariableList<>())    {
+    }
+  };
+  // CHECK-ELIDE-NOTREE: non-const lvalue reference to type 'VariableList<>' cannot bind to a temporary of type 'VariableList<>'
+}
+
+namespace rdar12456626 {
+  struct IntWrapper {
+    typedef int type;
+  };
+  
+  template<typename T, typename T::type V>
+  struct X { };
+  
+  struct A {
+    virtual X<IntWrapper, 1> foo();
+  };
+  
+  struct B : A {
+    // CHECK-ELIDE-NOTREE: virtual function 'foo' has a different return type
+    virtual X<IntWrapper, 2> foo();
+  };
+}
+
+namespace PR15023 {
+  // Don't crash when non-QualTypes are passed to a diff modifier.
+  template <typename... Args>
+  void func(void (*func)(Args...), Args...) { }
+
+  void bar(int, int &) {
+  }
+
+  void foo(int x) {
+    func(bar, 1, x)
+  }
+  // CHECK-ELIDE-NOTREE: no matching function for call to 'func'
+  // CHECK-ELIDE-NOTREE: candidate template ignored: deduced conflicting types for parameter 'Args' (<int, int &> vs. <int, int>)
+}
+
+namespace rdar12931988 {
+  namespace A {
+    template<typename T> struct X { };
+  }
+
+  namespace B {
+    template<typename T> struct X { };
+  }
+
+  void foo(A::X<int> &ax, B::X<int> bx) {
+    // CHECK-ELIDE-NOTREE: no viable overloaded '='
+    // CHECK-ELIDE-NOTREE: no known conversion from 'B::X<int>' to 'const rdar12931988::A::X<int>'
+    ax = bx;
+  }
+
+  template<template<typename> class> class Y {};
+
+  void bar(Y<A::X> ya, Y<B::X> yb) {
+    // CHECK-ELIDE-NOTREE: no viable overloaded '='
+    // CHECK-ELIDE-NOTREE: no known conversion from 'Y<template rdar12931988::B::X>' to 'Y<template rdar12931988::A::X>'
+    ya = yb;
+  }
+}
+
 // CHECK-ELIDE-NOTREE: {{[0-9]*}} errors generated.
 // CHECK-NOELIDE-NOTREE: {{[0-9]*}} errors generated.
 // CHECK-ELIDE-TREE: {{[0-9]*}} errors generated.
 // CHECK-NOELIDE-TREE: {{[0-9]*}} errors generated.
+

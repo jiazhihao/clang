@@ -16,7 +16,8 @@
 #include "CGObjCRuntime.h"
 #include "TargetInfo.h"
 #include "clang/AST/StmtCXX.h"
-#include "llvm/Intrinsics.h"
+#include "clang/AST/StmtObjC.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/CallSite.h"
 
 using namespace clang;
@@ -155,6 +156,7 @@ namespace {
     static const EHPersonality GNU_C;
     static const EHPersonality GNU_C_SJLJ;
     static const EHPersonality GNU_ObjC;
+    static const EHPersonality GNUstep_ObjC;
     static const EHPersonality GNU_ObjCXX;
     static const EHPersonality NeXT_ObjC;
     static const EHPersonality GNU_CPlusPlus;
@@ -172,6 +174,8 @@ const EHPersonality
 EHPersonality::GNU_ObjC = {"__gnu_objc_personality_v0", "objc_exception_throw"};
 const EHPersonality
 EHPersonality::GNU_ObjCXX = { "__gnustep_objcxx_personality_v0", 0 };
+const EHPersonality
+EHPersonality::GNUstep_ObjC = { "__gnustep_objc_personality_v0", 0 };
 
 static const EHPersonality &getCPersonality(const LangOptions &L) {
   if (L.SjLjExceptions)
@@ -187,6 +191,9 @@ static const EHPersonality &getObjCPersonality(const LangOptions &L) {
   case ObjCRuntime::iOS:
     return EHPersonality::NeXT_ObjC;
   case ObjCRuntime::GNUstep:
+    if (L.ObjCRuntime.getVersion() >= VersionTuple(1, 7))
+      return EHPersonality::GNUstep_ObjC;
+    // fallthrough
   case ObjCRuntime::GCC:
   case ObjCRuntime::ObjFW:
     return EHPersonality::GNU_ObjC;
@@ -307,12 +314,13 @@ static bool PersonalityHasOnlyCXXUses(llvm::Constant *Fn) {
 /// aggressive about only using the ObjC++ personality in a function
 /// when it really needs it.
 void CodeGenModule::SimplifyPersonality() {
-  // For now, this is really a Darwin-specific operation.
-  if (!Context.getTargetInfo().getTriple().isOSDarwin())
-    return;
-
   // If we're not in ObjC++ -fexceptions, there's nothing to do.
   if (!LangOpts.CPlusPlus || !LangOpts.ObjC1 || !LangOpts.Exceptions)
+    return;
+
+  // Both the problem this endeavors to fix and the way the logic
+  // above works is specific to the NeXT runtime.
+  if (!LangOpts.ObjCRuntime.isNeXTFamily())
     return;
 
   const EHPersonality &ObjCXX = EHPersonality::get(LangOpts);
@@ -433,6 +441,17 @@ void CodeGenFunction::EmitCXXThrowExpr(const CXXThrowExpr *E) {
 
   QualType ThrowType = E->getSubExpr()->getType();
 
+  if (ThrowType->isObjCObjectPointerType()) {
+    const Stmt *ThrowStmt = E->getSubExpr();
+    const ObjCAtThrowStmt S(E->getExprLoc(),
+                            const_cast<Stmt *>(ThrowStmt));
+    CGM.getObjCRuntime().EmitThrowStmt(*this, S, false);
+    // This will clear insertion point which was not cleared in
+    // call to EmitThrowStmt.
+    EmitBlock(createBasicBlock("throw.cont"));
+    return;
+  }
+  
   // Now allocate the exception object.
   llvm::Type *SizeTy = ConvertType(getContext().getSizeType());
   uint64_t TypeSize = getContext().getTypeSizeInChars(ThrowType).getQuantity();
@@ -534,7 +553,7 @@ static void emitFilterDispatchBlock(CodeGenFunction &CGF,
     llvm::Value *zero = CGF.Builder.getInt32(0);
     llvm::Value *failsFilter =
       CGF.Builder.CreateICmpSLT(selector, zero, "ehspec.fails");
-    CGF.Builder.CreateCondBr(failsFilter, unexpectedBB, CGF.getEHResumeBlock());
+    CGF.Builder.CreateCondBr(failsFilter, unexpectedBB, CGF.getEHResumeBlock(false));
 
     CGF.EmitBlock(unexpectedBB);
   }
@@ -614,7 +633,7 @@ CodeGenFunction::getEHDispatchBlock(EHScopeStack::stable_iterator si) {
   // The dispatch block for the end of the scope chain is a block that
   // just resumes unwinding.
   if (si == EHStack.stable_end())
-    return getEHResumeBlock();
+    return getEHResumeBlock(true);
 
   // Otherwise, we should look at the actual scope.
   EHScope &scope = *EHStack.find(si);
@@ -852,7 +871,7 @@ llvm::BasicBlock *CodeGenFunction::EmitLandingPad() {
     // Create a filter expression: a constant array indicating which filter
     // types there are. The personality routine only lands here if the filter
     // doesn't match.
-    llvm::SmallVector<llvm::Constant*, 8> Filters;
+    SmallVector<llvm::Constant*, 8> Filters;
     llvm::ArrayType *AType =
       llvm::ArrayType::get(!filterTypes.empty() ?
                              filterTypes[0]->getType() : Int8PtrTy,
@@ -1546,7 +1565,7 @@ llvm::BasicBlock *CodeGenFunction::getTerminateHandler() {
   return TerminateHandler;
 }
 
-llvm::BasicBlock *CodeGenFunction::getEHResumeBlock() {
+llvm::BasicBlock *CodeGenFunction::getEHResumeBlock(bool isCleanup) {
   if (EHResumeBlock) return EHResumeBlock;
 
   CGBuilderTy::InsertPoint SavedIP = Builder.saveIP();
@@ -1560,7 +1579,7 @@ llvm::BasicBlock *CodeGenFunction::getEHResumeBlock() {
   // This can always be a call because we necessarily didn't find
   // anything on the EH stack which needs our help.
   const char *RethrowName = Personality.CatchallRethrowFn;
-  if (RethrowName != 0) {
+  if (RethrowName != 0 && !isCleanup) {
     Builder.CreateCall(getCatchallRethrowFn(*this, RethrowName),
                        getExceptionFromSlot())
       ->setDoesNotReturn();

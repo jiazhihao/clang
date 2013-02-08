@@ -13,12 +13,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
+#include "clang/AST/ParentMap.h"
+#include "clang/AST/Stmt.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
-#include "clang/AST/Stmt.h"
-#include "clang/AST/ParentMap.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include <vector>
@@ -47,10 +47,8 @@ void ExplodedNode::SetAuditor(ExplodedNode::Auditor* A) {
 // Cleanup.
 //===----------------------------------------------------------------------===//
 
-static const unsigned CounterTop = 1000;
-
 ExplodedGraph::ExplodedGraph()
-  : NumNodes(0), reclaimNodes(false), reclaimCounter(CounterTop) {}
+  : NumNodes(0), ReclaimNodeInterval(0) {}
 
 ExplodedGraph::~ExplodedGraph() {}
 
@@ -63,7 +61,7 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   //
   // (1) 1 predecessor (that has one successor)
   // (2) 1 successor (that has one predecessor)
-  // (3) The ProgramPoint is for a PostStmt.
+  // (3) The ProgramPoint is for a PostStmt, but not a PostStore.
   // (4) There is no 'tag' for the ProgramPoint.
   // (5) The 'store' is the same as the predecessor.
   // (6) The 'GDM' is the same as the predecessor.
@@ -87,7 +85,7 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
 
   // Condition 3.
   ProgramPoint progPoint = node->getLocation();
-  if (!isa<PostStmt>(progPoint))
+  if (!isa<PostStmt>(progPoint) || isa<PostStore>(progPoint))
     return false;
 
   // Condition 4.
@@ -106,14 +104,13 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // Do not collect nodes for non-consumed Stmt or Expr to ensure precise
   // diagnostic generation; specifically, so that we could anchor arrows
   // pointing to the beginning of statements (as written in code).
-  if (!isa<Expr>(ps.getStmt()))
+  const Expr *Ex = dyn_cast<Expr>(ps.getStmt());
+  if (!Ex)
     return false;
-  
-  if (const Expr *Ex = dyn_cast<Expr>(ps.getStmt())) {
-    ParentMap &PM = progPoint.getLocationContext()->getParentMap();
-    if (!PM.isConsumedExpr(Ex))
-      return false;
-  }
+
+  ParentMap &PM = progPoint.getLocationContext()->getParentMap();
+  if (!PM.isConsumedExpr(Ex))
+    return false;
   
   // Condition 9.
   const ProgramPoint SuccLoc = succ->getLocation();
@@ -144,13 +141,13 @@ void ExplodedGraph::reclaimRecentlyAllocatedNodes() {
   if (ChangedNodes.empty())
     return;
 
-  // Only periodically relcaim nodes so that we can build up a set of
+  // Only periodically reclaim nodes so that we can build up a set of
   // nodes that meet the reclamation criteria.  Freshly created nodes
   // by definition have no successor, and thus cannot be reclaimed (see below).
-  assert(reclaimCounter > 0);
-  if (--reclaimCounter != 0)
+  assert(ReclaimCounter > 0);
+  if (--ReclaimCounter != 0)
     return;
-  reclaimCounter = CounterTop;
+  ReclaimCounter = ReclaimNodeInterval;
 
   for (NodeVector::iterator it = ChangedNodes.begin(), et = ChangedNodes.end();
        it != et; ++it) {
@@ -284,7 +281,7 @@ ExplodedNode *ExplodedGraph::getNode(const ProgramPoint &L,
 
     new (V) NodeTy(L, State, IsSink);
 
-    if (reclaimNodes)
+    if (ReclaimNodeInterval)
       ChangedNodes.push_back(V);
 
     // Insert the node into the node set and return it.

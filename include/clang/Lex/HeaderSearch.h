@@ -17,10 +17,11 @@
 #include "clang/Lex/DirectoryLookup.h"
 #include "clang/Lex/ModuleMap.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/OwningPtr.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/ADT/OwningPtr.h"
 #include <vector>
 
 namespace clang {
@@ -29,6 +30,7 @@ class DiagnosticsEngine;
 class ExternalIdentifierLookup;
 class FileEntry;
 class FileManager;
+class HeaderSearchOptions;
 class IdentifierInfo;
 
 /// \brief The preprocessor keeps track of this information for each
@@ -131,6 +133,9 @@ class HeaderSearch {
     bool IsUserSpecifiedSystemFramework;
   };
 
+  /// \brief Header-search options used to initialize this header search.
+  IntrusiveRefCntPtr<HeaderSearchOptions> HSOpts;
+
   FileManager &FileMgr;
   /// \#include search path information.  Requests for \#include "x" search the
   /// directory of the \#including file first, then each directory in SearchDirs
@@ -212,10 +217,15 @@ class HeaderSearch {
   friend class DirectoryLookup;
   
 public:
-  HeaderSearch(FileManager &FM, DiagnosticsEngine &Diags,
+  HeaderSearch(IntrusiveRefCntPtr<HeaderSearchOptions> HSOpts,
+               FileManager &FM, DiagnosticsEngine &Diags,
                const LangOptions &LangOpts, const TargetInfo *Target);
   ~HeaderSearch();
 
+  /// \brief Retrieve the header-search options with which this header search
+  /// was initialized.
+  HeaderSearchOptions &getHeaderSearchOpts() const { return *HSOpts; }
+  
   FileManager &getFileMgr() const { return FileMgr; }
 
   /// \brief Interface for setting the file search paths.
@@ -353,7 +363,8 @@ public:
       StringRef Filename,
       const FileEntry *RelativeFileEnt,
       SmallVectorImpl<char> *SearchPath,
-      SmallVectorImpl<char> *RelativePath);
+      SmallVectorImpl<char> *RelativePath,
+      Module **SuggestedModule);
 
   /// \brief Look up the specified framework name in our framework cache.
   /// \returns The DirectoryEntry it is in if we know, null otherwise.
@@ -470,7 +481,7 @@ public:
   /// \brief Collect the set of all known, top-level modules.
   ///
   /// \param Modules Will be filled with the set of known, top-level modules.
-  void collectAllModules(llvm::SmallVectorImpl<Module *> &Modules);
+  void collectAllModules(SmallVectorImpl<Module *> &Modules);
                          
 private:
   /// \brief Retrieve a module with the given name, which may be part of the

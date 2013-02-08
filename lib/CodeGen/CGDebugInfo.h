@@ -14,16 +14,15 @@
 #ifndef CLANG_CODEGEN_CGDEBUGINFO_H
 #define CLANG_CODEGEN_CGDEBUGINFO_H
 
-#include "clang/AST/Type.h"
-#include "clang/AST/Expr.h"
-#include "clang/Basic/SourceLocation.h"
-#include "llvm/DebugInfo.h"
-#include "llvm/DIBuilder.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/Support/ValueHandle.h"
-#include "llvm/Support/Allocator.h"
-
 #include "CGBuilder.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/DIBuilder.h"
+#include "llvm/DebugInfo.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/ValueHandle.h"
 
 namespace llvm {
   class MDNode;
@@ -53,6 +52,10 @@ class CGDebugInfo {
   llvm::DIType ClassTy;
   llvm::DIType ObjTy;
   llvm::DIType SelTy;
+  llvm::DIType OCLImage1dDITy, OCLImage1dArrayDITy, OCLImage1dBufferDITy;
+  llvm::DIType OCLImage2dDITy, OCLImage2dArrayDITy;
+  llvm::DIType OCLImage3dDITy;
+  llvm::DIType OCLEventDITy;
   
   /// TypeCache - Cache of previously constructed Types.
   llvm::DenseMap<void *, llvm::WeakVH> TypeCache;
@@ -83,6 +86,7 @@ class CGDebugInfo {
   llvm::DenseMap<const char *, llvm::WeakVH> DIFileCache;
   llvm::DenseMap<const FunctionDecl *, llvm::WeakVH> SPCache;
   llvm::DenseMap<const NamespaceDecl *, llvm::WeakVH> NameSpaceCache;
+  llvm::DenseMap<const Decl *, llvm::WeakVH> StaticDataMemberCache;
 
   /// Helper functions for getOrCreateType.
   llvm::DIType CreateType(const BuiltinType *Ty);
@@ -110,6 +114,8 @@ class CGDebugInfo {
   llvm::DIType getCompletedTypeOrNull(const QualType);
   llvm::DIType getOrCreateMethodType(const CXXMethodDecl *Method,
                                      llvm::DIFile F);
+  llvm::DIType getOrCreateInstanceMethodType(
+      QualType ThisPtr, const FunctionProtoType *Func, llvm::DIFile Unit);
   llvm::DIType getOrCreateFunctionType(const Decl *D, QualType FnType,
                                        llvm::DIFile F);
   llvm::DIType getOrCreateVTablePtrType(llvm::DIFile F);
@@ -118,7 +124,9 @@ class CGDebugInfo {
   llvm::DIType CreatePointerLikeType(unsigned Tag,
                                      const Type *Ty, QualType PointeeTy,
                                      llvm::DIFile F);
-  
+
+  llvm::DIType getOrCreateStructPtrType(StringRef Name, llvm::DIType &Cache);
+
   llvm::DISubprogram CreateCXXMemberFunction(const CXXMethodDecl *Method,
                                              llvm::DIFile F,
                                              llvm::DIType RecordTy);
@@ -153,7 +161,18 @@ class CGDebugInfo {
                                AccessSpecifier AS, uint64_t offsetInBits,
                                llvm::DIFile tunit,
                                llvm::DIDescriptor scope);
-  void CollectRecordStaticVars(const RecordDecl *, llvm::DIType);
+
+  // Helpers for collecting fields of a record.
+  void CollectRecordLambdaFields(const CXXRecordDecl *CXXDecl,
+                                 SmallVectorImpl<llvm::Value *> &E,
+                                 llvm::DIType RecordTy);
+  void CollectRecordStaticField(const VarDecl *Var,
+                                SmallVectorImpl<llvm::Value *> &E,
+                                llvm::DIType RecordTy);
+  void CollectRecordNormalField(const FieldDecl *Field, uint64_t OffsetInBits,
+                                llvm::DIFile F,
+                                SmallVectorImpl<llvm::Value *> &E,
+                                llvm::DIType RecordTy);
   void CollectRecordFields(const RecordDecl *Decl, llvm::DIFile F,
                            SmallVectorImpl<llvm::Value *> &E,
                            llvm::DIType RecordTy);
@@ -170,7 +189,7 @@ public:
   CGDebugInfo(CodeGenModule &CGM);
   ~CGDebugInfo();
 
-  void finalize(void);
+  void finalize();
 
   /// setLocation - Update the current source location. If \arg loc is
   /// invalid it is ignored.
@@ -244,7 +263,7 @@ private:
 
   // EmitTypeForVarWithBlocksAttr - Build up structure info for the byref.  
   // See BuildByRefType.
-  llvm::DIType EmitTypeForVarWithBlocksAttr(const ValueDecl *VD, 
+  llvm::DIType EmitTypeForVarWithBlocksAttr(const VarDecl *VD,
                                             uint64_t *OffSet);
 
   /// getContextDescriptor - Get context info for the decl.
@@ -292,6 +311,11 @@ private:
   /// getFunctionDeclaration - Return debug info descriptor to describe method
   /// declaration for the given method definition.
   llvm::DISubprogram getFunctionDeclaration(const Decl *D);
+
+  /// getStaticDataMemberDeclaration - Return debug info descriptor to
+  /// describe in-class static data member declaration for the given
+  /// out-of-class definition.
+  llvm::DIDerivedType getStaticDataMemberDeclaration(const Decl *D);
 
   /// getFunctionName - Get function name for the given FunctionDecl. If the
   /// name is constructred on demand (e.g. C++ destructor) then the name

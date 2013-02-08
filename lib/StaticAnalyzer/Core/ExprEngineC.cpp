@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ExprCXX.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 
@@ -309,7 +310,8 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_CPointerToObjCPointerCast:
       case CK_BlockPointerToObjCPointerCast:
       case CK_AnyPointerToBlockPointerCast:  
-      case CK_ObjCObjectLValueCast: {
+      case CK_ObjCObjectLValueCast: 
+      case CK_ZeroToOCLEvent: {
         // Delegate to SValBuilder to process.
         SVal V = state->getSVal(Ex, LCtx);
         V = svalBuilder.evalCast(V, T, ExTy);
@@ -425,37 +427,52 @@ void ExprEngine::VisitCompoundLiteralExpr(const CompoundLiteralExpr *CL,
     B.generateNode(CL, Pred, state->BindExpr(CL, LC, ILV));
 }
 
+/// The GDM component containing the set of global variables which have been
+/// previously initialized with explicit initializers.
+REGISTER_TRAIT_WITH_PROGRAMSTATE(InitializedGlobalsSet,
+                                 llvm::ImmutableSet<const VarDecl *> )
+
 void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
                                ExplodedNodeSet &Dst) {
-  
-  // FIXME: static variables may have an initializer, but the second
-  //  time a function is called those values may not be current.
-  //  This may need to be reflected in the CFG.
-  
   // Assumption: The CFG has one DeclStmt per Decl.
-  const Decl *D = *DS->decl_begin();
-  
-  if (!D || !isa<VarDecl>(D)) {
+  const VarDecl *VD = dyn_cast_or_null<VarDecl>(*DS->decl_begin());
+
+  if (!VD) {
     //TODO:AZ: remove explicit insertion after refactoring is done.
     Dst.insert(Pred);
     return;
   }
+
+  // Check if a value has been previously initialized. There will be an entry in
+  // the set for variables with global storage which have been previously
+  // initialized.
+  if (VD->hasGlobalStorage())
+    if (Pred->getState()->contains<InitializedGlobalsSet>(VD)) {
+      Dst.insert(Pred);
+      return;
+    }
   
   // FIXME: all pre/post visits should eventually be handled by ::Visit().
   ExplodedNodeSet dstPreVisit;
   getCheckerManager().runCheckersForPreStmt(dstPreVisit, Pred, DS, *this);
   
   StmtNodeBuilder B(dstPreVisit, Dst, *currBldrCtx);
-  const VarDecl *VD = dyn_cast<VarDecl>(D);
   for (ExplodedNodeSet::iterator I = dstPreVisit.begin(), E = dstPreVisit.end();
        I!=E; ++I) {
     ExplodedNode *N = *I;
     ProgramStateRef state = N->getState();
-    
-    // Decls without InitExpr are not initialized explicitly.
     const LocationContext *LC = N->getLocationContext();
-    
+
+    // Decls without InitExpr are not initialized explicitly.
     if (const Expr *InitEx = VD->getInit()) {
+
+      // Note in the state that the initialization has occurred.
+      ExplodedNode *UpdatedN = N;
+      if (VD->hasGlobalStorage()) {
+        state = state->add<InitializedGlobalsSet>(VD);
+        UpdatedN = B.generateNode(DS, N, state);
+      }
+
       SVal InitVal = state->getSVal(InitEx, LC);
 
       if (InitVal == state->getLValue(VD, LC) ||
@@ -463,7 +480,7 @@ void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
            isa<CXXConstructExpr>(InitEx->IgnoreImplicit()))) {
         // We constructed the object directly in the variable.
         // No need to bind anything.
-        B.generateNode(DS, N, state);
+        B.generateNode(DS, UpdatedN, state);
       } else {
         // We bound the temp obj region to the CXXConstructExpr. Now recover
         // the lazy compound value when the variable is not a reference.
@@ -484,9 +501,11 @@ void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
           InitVal = svalBuilder.conjureSymbolVal(0, InitEx, LC, Ty,
                                                  currBldrCtx->blockCount());
         }
-        B.takeNodes(N);
+
+
+        B.takeNodes(UpdatedN);
         ExplodedNodeSet Dst2;
-        evalBind(Dst2, DS, N, state->getLValue(VD, LC), InitVal, true);
+        evalBind(Dst2, DS, UpdatedN, state->getLValue(VD, LC), InitVal, true);
         B.addNodes(Dst2);
       }
     }
@@ -540,24 +559,28 @@ void ExprEngine::VisitLogicalExpr(const BinaryOperator* B, ExplodedNode *Pred,
     const Expr *RHS = cast<Expr>(Elem.getStmt());
     SVal RHSVal = N->getState()->getSVal(RHS, Pred->getLocationContext());
 
-    DefinedOrUnknownSVal DefinedRHS = cast<DefinedOrUnknownSVal>(RHSVal);
-    ProgramStateRef StTrue, StFalse;
-    llvm::tie(StTrue, StFalse) = N->getState()->assume(DefinedRHS);
-    if (StTrue) {
-      if (StFalse) {
-        // We can't constrain the value to 0 or 1; the best we can do is a cast.
-        X = getSValBuilder().evalCast(RHSVal, B->getType(), RHS->getType());
-      } else {
-        // The value is known to be true.
-        X = getSValBuilder().makeIntVal(1, B->getType());
-      }
+    if (RHSVal.isUndef()) {
+      X = RHSVal;
     } else {
-      // The value is known to be false.
-      assert(StFalse && "Infeasible path!");
-      X = getSValBuilder().makeIntVal(0, B->getType());
+      DefinedOrUnknownSVal DefinedRHS = cast<DefinedOrUnknownSVal>(RHSVal);
+      ProgramStateRef StTrue, StFalse;
+      llvm::tie(StTrue, StFalse) = N->getState()->assume(DefinedRHS);
+      if (StTrue) {
+        if (StFalse) {
+          // We can't constrain the value to 0 or 1.
+          // The best we can do is a cast.
+          X = getSValBuilder().evalCast(RHSVal, B->getType(), RHS->getType());
+        } else {
+          // The value is known to be true.
+          X = getSValBuilder().makeIntVal(1, B->getType());
+        }
+      } else {
+        // The value is known to be false.
+        assert(StFalse && "Infeasible path!");
+        X = getSValBuilder().makeIntVal(0, B->getType());
+      }
     }
   }
-
   Bldr.generateNode(B, Pred, state->BindExpr(B, Pred->getLocationContext(), X));
 }
 
@@ -585,8 +608,10 @@ void ExprEngine::VisitInitListExpr(const InitListExpr *IE,
     
     for (InitListExpr::const_reverse_iterator it = IE->rbegin(),
          ei = IE->rend(); it != ei; ++it) {
-      vals = getBasicVals().consVals(state->getSVal(cast<Expr>(*it), LCtx),
-                                     vals);
+      SVal V = state->getSVal(cast<Expr>(*it), LCtx);
+      if (dyn_cast_or_null<CXXTempObjectRegion>(V.getAsRegion()))
+        V = UnknownVal();
+      vals = getBasicVals().consVals(V, vals);
     }
     
     B.generateNode(IE, Pred,
@@ -806,7 +831,10 @@ void ExprEngine::VisitUnaryOperator(const UnaryOperator* U,
             Result = evalBinOp(state, BO_EQ, cast<Loc>(V), X,
                                U->getType());
           }
-          else {
+          else if (Ex->getType()->isFloatingType()) {
+            // FIXME: handle floating point types.
+            Result = UnknownVal();
+          } else {
             nonloc::ConcreteInt X(getBasicVals().getValue(0, Ex->getType()));
             Result = evalBinOp(state, BO_EQ, cast<NonLoc>(V), X,
                                U->getType());

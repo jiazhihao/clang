@@ -1,4 +1,4 @@
-@__experimental_modules_import redecl_merge_top;
+@import redecl_merge_top;
 
 @class A;
 
@@ -60,7 +60,7 @@ typedef int T1;
 typedef float T2;
 
 int func0(int);
-int func1(int);
+int func1(int x) { return x; }
 int func2(int);
 
 

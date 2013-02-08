@@ -13,12 +13,13 @@
 
 #define DEBUG_TYPE "ExprEngine"
 
-#include "clang/Analysis/Analyses/LiveVariables.h"
-#include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/ParentMap.h"
+#include "clang/Analysis/Analyses/LiveVariables.h"
+#include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -31,6 +32,9 @@ STATISTIC(NumOfDynamicDispatchPathSplits,
 
 STATISTIC(NumInlinedCalls,
   "The # of times we inlined a call");
+
+STATISTIC(NumReachedInlineCountMax,
+  "The # of times we reached inline count maximum");
 
 void ExprEngine::processCallEnter(CallEnter CE, ExplodedNode *Pred) {
   // Get the entry block in the CFG of the callee.
@@ -63,6 +67,7 @@ void ExprEngine::processCallEnter(CallEnter CE, ExplodedNode *Pred) {
 static std::pair<const Stmt*,
                  const CFGBlock*> getLastStmt(const ExplodedNode *Node) {
   const Stmt *S = 0;
+  const CFGBlock *Blk = 0;
   const StackFrameContext *SF =
           Node->getLocation().getLocationContext()->getCurrentStackFrame();
 
@@ -90,6 +95,8 @@ static std::pair<const Stmt*,
         } while (!CE || CE->getCalleeContext() != CEE->getCalleeContext());
 
         // Continue searching the graph.
+      } else if (const BlockEdge *BE = dyn_cast<BlockEdge>(&PP)) {
+        Blk = BE->getSrc();
       }
     } else if (const CallEnter *CE = dyn_cast<CallEnter>(&PP)) {
       // If we reached the CallEnter for this function, it has no statements.
@@ -97,25 +104,87 @@ static std::pair<const Stmt*,
         break;
     }
 
+    if (Node->pred_empty())
+      return std::pair<const Stmt*, const CFGBlock*>((Stmt*)0, (CFGBlock*)0);
+
     Node = *Node->pred_begin();
   }
 
-  const CFGBlock *Blk = 0;
-  if (S) {
-    // Now, get the enclosing basic block.
-    while (Node && Node->pred_size() >=1 ) {
-      const ProgramPoint &PP = Node->getLocation();
-      if (isa<BlockEdge>(PP) &&
-          (PP.getLocationContext()->getCurrentStackFrame() == SF)) {
-        BlockEdge &EPP = cast<BlockEdge>(PP);
-        Blk = EPP.getDst();
-        break;
-      }
-      Node = *Node->pred_begin();
+  return std::pair<const Stmt*, const CFGBlock*>(S, Blk);
+}
+
+/// Adjusts a return value when the called function's return type does not
+/// match the caller's expression type. This can happen when a dynamic call
+/// is devirtualized, and the overridding method has a covariant (more specific)
+/// return type than the parent's method. For C++ objects, this means we need
+/// to add base casts.
+static SVal adjustReturnValue(SVal V, QualType ExpectedTy, QualType ActualTy,
+                              StoreManager &StoreMgr) {
+  // For now, the only adjustments we handle apply only to locations.
+  if (!isa<Loc>(V))
+    return V;
+
+  // If the types already match, don't do any unnecessary work.
+  ExpectedTy = ExpectedTy.getCanonicalType();
+  ActualTy = ActualTy.getCanonicalType();
+  if (ExpectedTy == ActualTy)
+    return V;
+
+  // No adjustment is needed between Objective-C pointer types.
+  if (ExpectedTy->isObjCObjectPointerType() &&
+      ActualTy->isObjCObjectPointerType())
+    return V;
+
+  // C++ object pointers may need "derived-to-base" casts.
+  const CXXRecordDecl *ExpectedClass = ExpectedTy->getPointeeCXXRecordDecl();
+  const CXXRecordDecl *ActualClass = ActualTy->getPointeeCXXRecordDecl();
+  if (ExpectedClass && ActualClass) {
+    CXXBasePaths Paths(/*FindAmbiguities=*/true, /*RecordPaths=*/true,
+                       /*DetectVirtual=*/false);
+    if (ActualClass->isDerivedFrom(ExpectedClass, Paths) &&
+        !Paths.isAmbiguous(ActualTy->getCanonicalTypeUnqualified())) {
+      return StoreMgr.evalDerivedToBase(V, Paths.front());
     }
   }
 
-  return std::pair<const Stmt*, const CFGBlock*>(S, Blk);
+  // Unfortunately, Objective-C does not enforce that overridden methods have
+  // covariant return types, so we can't assert that that never happens.
+  // Be safe and return UnknownVal().
+  return UnknownVal();
+}
+
+void ExprEngine::removeDeadOnEndOfFunction(NodeBuilderContext& BC,
+                                           ExplodedNode *Pred,
+                                           ExplodedNodeSet &Dst) {
+  // Find the last statement in the function and the corresponding basic block.
+  const Stmt *LastSt = 0;
+  const CFGBlock *Blk = 0;
+  llvm::tie(LastSt, Blk) = getLastStmt(Pred);
+  if (!Blk || !LastSt) {
+    Dst.Add(Pred);
+    return;
+  }
+
+  // Here, we destroy the current location context. We use the current
+  // function's entire body as a diagnostic statement, with which the program
+  // point will be associated. However, we only want to use LastStmt as a
+  // reference for what to clean up if it's a ReturnStmt; otherwise, everything
+  // is dead.
+  SaveAndRestore<const NodeBuilderContext *> NodeContextRAII(currBldrCtx, &BC);
+  const LocationContext *LCtx = Pred->getLocationContext();
+  removeDead(Pred, Dst, dyn_cast<ReturnStmt>(LastSt), LCtx,
+             LCtx->getAnalysisDeclContext()->getBody(),
+             ProgramPoint::PostStmtPurgeDeadSymbolsKind);
+}
+
+static bool wasDifferentDeclUsedForInlining(CallEventRef<> Call,
+    const StackFrameContext *calleeCtx) {
+  const Decl *RuntimeCallee = calleeCtx->getDecl();
+  const Decl *StaticDecl = Call->getDecl();
+  assert(RuntimeCallee);
+  if (!StaticDecl)
+    return true;
+  return RuntimeCallee->getCanonicalDecl() != StaticDecl->getCanonicalDecl();
 }
 
 /// The call exit is simulated with a sequence of nodes, which occur between 
@@ -144,6 +213,11 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
   const CFGBlock *Blk = 0;
   llvm::tie(LastSt, Blk) = getLastStmt(CEBNode);
 
+  // Generate a CallEvent /before/ cleaning the state, so that we can get the
+  // correct value for 'this' (if necessary).
+  CallEventManager &CEMgr = getStateManager().getCallEventManager();
+  CallEventRef<> Call = CEMgr.getCaller(calleeCtx, state);
+
   // Step 2: generate node with bound return value: CEBNode -> BindedRetNode.
 
   // If the callee returns an expression, bind its value to CallExpr.
@@ -151,6 +225,19 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
     if (const ReturnStmt *RS = dyn_cast_or_null<ReturnStmt>(LastSt)) {
       const LocationContext *LCtx = CEBNode->getLocationContext();
       SVal V = state->getSVal(RS, LCtx);
+
+      // Ensure that the return type matches the type of the returned Expr.
+      if (wasDifferentDeclUsedForInlining(Call, calleeCtx)) {
+        QualType ReturnedTy =
+          CallEvent::getDeclaredResultType(calleeCtx->getDecl());
+        if (!ReturnedTy.isNull()) {
+          if (const Expr *Ex = dyn_cast<Expr>(CE)) {
+            V = adjustReturnValue(V, Ex->getType(), ReturnedTy,
+                                  getStoreManager());
+          }
+        }
+      }
+
       state = state->BindExpr(CE, callerCtx, V);
     }
 
@@ -172,11 +259,6 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
     }
   }
 
-  // Generate a CallEvent /before/ cleaning the state, so that we can get the
-  // correct value for 'this' (if necessary).
-  CallEventManager &CEMgr = getStateManager().getCallEventManager();
-  CallEventRef<> Call = CEMgr.getCaller(calleeCtx, state);
-
   // Step 3: BindedRetNode -> CleanedNodes
   // If we can find a statement and a block in the inlined function, run remove
   // dead bindings before returning from the call. This is important to ensure
@@ -194,11 +276,12 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
 
     NodeBuilderContext Ctx(getCoreEngine(), Blk, BindedRetNode);
     currBldrCtx = &Ctx;
-    // Here, we call the Symbol Reaper with 0 statement and caller location
+    // Here, we call the Symbol Reaper with 0 statement and callee location
     // context, telling it to clean up everything in the callee's context
-    // (and it's children). We use LastStmt as a diagnostic statement, which
-    // which the PreStmtPurge Dead point will be associated.
-    removeDead(BindedRetNode, CleanedNodes, 0, callerCtx, LastSt,
+    // (and its children). We use the callee's function body as a diagnostic
+    // statement, with which the program point will be associated.
+    removeDead(BindedRetNode, CleanedNodes, 0, calleeCtx,
+               calleeCtx->getAnalysisDeclContext()->getBody(),
                ProgramPoint::PostStmtPurgeDeadSymbolsKind);
     currBldrCtx = 0;
   } else {
@@ -319,7 +402,7 @@ bool ExprEngine::shouldInlineDecl(const Decl *D, ExplodedNode *Pred) {
   if (Engine.FunctionSummaries->hasReachedMaxBlockCount(D))
     return false;
 
-  if (CalleeCFG->getNumBlockIDs() > AMgr.options.InlineMaxFunctionSize)
+  if (CalleeCFG->getNumBlockIDs() > AMgr.options.getMaxInlinableSize())
     return false;
 
   // Do not inline variadic calls (for now).
@@ -335,12 +418,12 @@ bool ExprEngine::shouldInlineDecl(const Decl *D, ExplodedNode *Pred) {
   if (getContext().getLangOpts().CPlusPlus) {
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Conditionally allow the inlining of template functions.
-      if (!getAnalysisManager().options.mayInlineTemplateFunctions())
+      if (!AMgr.options.mayInlineTemplateFunctions())
         if (FD->getTemplatedKind() != FunctionDecl::TK_NonTemplate)
           return false;
 
       // Conditionally allow the inlining of C++ standard library functions.
-      if (!getAnalysisManager().options.mayInlineCXXStandardLibrary())
+      if (!AMgr.options.mayInlineCXXStandardLibrary())
         if (getContext().getSourceManager().isInSystemHeader(FD->getLocation()))
           if (IsInStdNamespace(FD))
             return false;
@@ -352,29 +435,32 @@ bool ExprEngine::shouldInlineDecl(const Decl *D, ExplodedNode *Pred) {
   if (!CalleeADC->getAnalysis<RelaxedLiveVariables>())
     return false;
 
+  if (Engine.FunctionSummaries->getNumTimesInlined(D) >
+        AMgr.options.getMaxTimesInlineLarge() &&
+      CalleeCFG->getNumBlockIDs() > 13) {
+    NumReachedInlineCountMax++;
+    return false;
+  }
+  Engine.FunctionSummaries->bumpNumTimesInlined(D);
+
   return true;
 }
 
-/// The GDM component containing the dynamic dispatch bifurcation info. When
-/// the exact type of the receiver is not known, we want to explore both paths -
-/// one on which we do inline it and the other one on which we don't. This is
-/// done to ensure we do not drop coverage.
-/// This is the map from the receiver region to a bool, specifying either we
-/// consider this region's information precise or not along the given path.
-namespace clang {
-namespace ento {
-enum DynamicDispatchMode { DynamicDispatchModeInlined = 1,
-                           DynamicDispatchModeConservative };
-
-struct DynamicDispatchBifurcationMap {};
-typedef llvm::ImmutableMap<const MemRegion*,
-                           unsigned int> DynamicDispatchBifur;
-template<> struct ProgramStateTrait<DynamicDispatchBifurcationMap>
-    :  public ProgramStatePartialTrait<DynamicDispatchBifur> {
-  static void *GDMIndex() { static int index; return &index; }
-};
-
-}}
+// The GDM component containing the dynamic dispatch bifurcation info. When
+// the exact type of the receiver is not known, we want to explore both paths -
+// one on which we do inline it and the other one on which we don't. This is
+// done to ensure we do not drop coverage.
+// This is the map from the receiver region to a bool, specifying either we
+// consider this region's information precise or not along the given path.
+namespace {
+  enum DynamicDispatchMode {
+    DynamicDispatchModeInlined = 1,
+    DynamicDispatchModeConservative
+  };
+}
+REGISTER_TRAIT_WITH_PROGRAMSTATE(DynamicDispatchBifurcationMap,
+                                 CLANG_ENTO_PROGRAMSTATE_MAP(const MemRegion *,
+                                                             unsigned))
 
 bool ExprEngine::inlineCall(const CallEvent &Call, const Decl *D,
                             NodeBuilder &Bldr, ExplodedNode *Pred,
@@ -472,8 +558,9 @@ bool ExprEngine::inlineCall(const CallEvent &Call, const Decl *D,
   case CE_ObjCMessage:
     if (!Opts.mayInlineObjCMethod())
       return false;
-    if (!(getAnalysisManager().options.IPAMode == DynamicDispatch ||
-          getAnalysisManager().options.IPAMode == DynamicDispatchBifurcate))
+    AnalyzerOptions &Options = getAnalysisManager().options;
+    if (!(Options.getIPAMode() == IPAK_DynamicDispatch ||
+          Options.getIPAMode() == IPAK_DynamicDispatchBifurcate))
       return false;
     break;
   }
@@ -522,11 +609,11 @@ bool ExprEngine::inlineCall(const CallEvent &Call, const Decl *D,
 
 static ProgramStateRef getInlineFailedState(ProgramStateRef State,
                                             const Stmt *CallE) {
-  void *ReplayState = State->get<ReplayWithoutInlining>();
+  const void *ReplayState = State->get<ReplayWithoutInlining>();
   if (!ReplayState)
     return 0;
 
-  assert(ReplayState == (const void*)CallE && "Backtracked to the wrong call.");
+  assert(ReplayState == CallE && "Backtracked to the wrong call.");
   (void)CallE;
 
   return State->remove<ReplayWithoutInlining>();
@@ -627,13 +714,27 @@ void ExprEngine::conservativeEvalCall(const CallEvent &Call, NodeBuilder &Bldr,
   Bldr.generateNode(Call.getProgramPoint(), State, Pred);
 }
 
+static bool isEssentialToInline(const CallEvent &Call) {
+  const Decl *D = Call.getDecl();
+  if (D) {
+    AnalysisDeclContext *AD =
+      Call.getLocationContext()->getAnalysisDeclContext()->
+      getManager()->getContext(D);
+
+    // The auto-synthesized bodies are essential to inline as they are
+    // usually small and commonly used.
+    return AD->isBodyAutosynthesized();
+  }
+  return false;
+}
+
 void ExprEngine::defaultEvalCall(NodeBuilder &Bldr, ExplodedNode *Pred,
                                  const CallEvent &CallTemplate) {
   // Make sure we have the most recent state attached to the call.
   ProgramStateRef State = Pred->getState();
   CallEventRef<> Call = CallTemplate.cloneWithState(State);
 
-  if (!getAnalysisManager().shouldInlineCall()) {
+  if (HowToInline == Inline_None && !isEssentialToInline(CallTemplate)) {
     conservativeEvalCall(*Call, Bldr, Pred, State);
     return;
   }
@@ -651,14 +752,16 @@ void ExprEngine::defaultEvalCall(NodeBuilder &Bldr, ExplodedNode *Pred,
     const Decl *D = RD.getDecl();
     if (D) {
       if (RD.mayHaveOtherDefinitions()) {
+        AnalyzerOptions &Options = getAnalysisManager().options;
+
         // Explore with and without inlining the call.
-        if (getAnalysisManager().options.IPAMode == DynamicDispatchBifurcate) {
+        if (Options.getIPAMode() == IPAK_DynamicDispatchBifurcate) {
           BifurcateCall(RD.getDispatchRegion(), *Call, D, Bldr, Pred);
           return;
         }
 
         // Don't inline if we're not in any dynamic dispatch mode.
-        if (getAnalysisManager().options.IPAMode != DynamicDispatch) {
+        if (Options.getIPAMode() != IPAK_DynamicDispatch) {
           conservativeEvalCall(*Call, Bldr, Pred, State);
           return;
         }
@@ -683,7 +786,7 @@ void ExprEngine::BifurcateCall(const MemRegion *BifurReg,
   // Check if we've performed the split already - note, we only want
   // to split the path once per memory region.
   ProgramStateRef State = Pred->getState();
-  const unsigned int *BState =
+  const unsigned *BState =
                         State->get<DynamicDispatchBifurcationMap>(BifurReg);
   if (BState) {
     // If we are on "inline path", keep inlining if possible.

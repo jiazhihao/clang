@@ -11,13 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/StaticAnalyzer/Core/CheckerManager.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 
 using namespace clang;
 using namespace ento;
@@ -172,7 +172,8 @@ void ExprEngine::VisitCXXDestructor(QualType ObjectType,
   // FIXME: We need to run the same destructor on every element of the array.
   // This workaround will just run the first destructor (which will still
   // invalidate the entire array).
-  if (const ArrayType *AT = getContext().getAsArrayType(ObjectType)) {
+  // This is a loop because of multidimensional arrays.
+  while (const ArrayType *AT = getContext().getAsArrayType(ObjectType)) {
     ObjectType = AT->getElementType();
     Dest = State->getLValue(ObjectType, getSValBuilder().makeZeroArrayIndex(),
                             loc::MemRegionVal(Dest)).getAsRegion();
@@ -229,6 +230,18 @@ void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
   // we should be using the usual pre-/(default-)eval-/post-call checks here.
   State = Call->invalidateRegions(blockCount);
 
+  // If we're compiling with exceptions enabled, and this allocation function
+  // is not declared as non-throwing, failures /must/ be signalled by
+  // exceptions, and thus the return value will never be NULL.
+  // C++11 [basic.stc.dynamic.allocation]p3.
+  FunctionDecl *FD = CNE->getOperatorNew();
+  if (FD && getContext().getLangOpts().CXXExceptions) {
+    QualType Ty = FD->getType();
+    if (const FunctionProtoType *ProtoType = Ty->getAs<FunctionProtoType>())
+      if (!ProtoType->isNothrow(getContext()))
+        State = State->assume(symVal, true);
+  }
+
   if (CNE->isArray()) {
     // FIXME: allocating an array requires simulating the constructors.
     // For now, just return a symbolicated region.
@@ -246,7 +259,6 @@ void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
   // CXXNewExpr, we need to make sure that the constructed object is not
   // immediately invalidated here. (The placement call should happen before
   // the constructor call anyway.)
-  FunctionDecl *FD = CNE->getOperatorNew();
   if (FD && FD->isReservedGlobalPlacementOperator()) {
     // Non-array placement new should always return the placement location.
     SVal PlacementLoc = State->getSVal(CNE->getPlacementArg(0), LCtx);
