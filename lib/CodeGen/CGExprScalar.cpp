@@ -2117,7 +2117,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
     llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
     EmitBinOpCheck(Builder.CreateFCmpUNE(Ops.RHS, Zero), Ops);
   }
-<<<<<<< HEAD
+  
   if (Ops.Ty->isNanType()) {
     llvm::Value *Zero = llvm::Constant::getNullValue(ConvertType(Ops.Ty));
     QualType T = Ops.Ty;
@@ -2169,9 +2169,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
     return phi;
     //return Builder.CreateSelect(Cond, NaN, Result, "cond");
   }
-=======
 
->>>>>>> master
   if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
     llvm::Value *Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
     if (CGF.getLangOpts().OpenCL) {
@@ -2688,7 +2686,6 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
   if (Ops.LHS->getType() != RHS->getType())
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
-<<<<<<< HEAD
   if (Ops.Ty->isNanType()) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
     llvm::Value *WidthMinusOne =
@@ -2718,20 +2715,13 @@ Value *ScalarExprEmitter::EmitShl(const BinOpInfo &Ops) {
     // return Cond ? NaN : Result
     return Builder.CreateSelect(Cond, NaN, Result, "cond");
   }
-  
-  if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
-    unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
-    llvm::Value *WidthMinusOne =
-      llvm::ConstantInt::get(RHS->getType(), Width - 1);
-    CGF.EmitCheck(Builder.CreateICmpULE(RHS, WidthMinusOne));
-=======
+
   if (CGF.SanOpts->Shift && !CGF.getLangOpts().OpenCL &&
       isa<llvm::IntegerType>(Ops.LHS->getType())) {
     llvm::Value *WidthMinusOne = GetWidthMinusOneValue(Ops.LHS, RHS);
     // FIXME: Emit the branching explicitly rather than emitting the check
     // twice.
     EmitBinOpCheck(Builder.CreateICmpULE(RHS, WidthMinusOne), Ops);
->>>>>>> master
 
     if (Ops.Ty->hasSignedIntegerRepresentation()) {
       // Check whether we are shifting any non-zero bits off the top of the
@@ -2767,7 +2757,6 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
   if (Ops.LHS->getType() != RHS->getType())
     RHS = Builder.CreateIntCast(RHS, Ops.LHS->getType(), false, "sh_prom");
 
-<<<<<<< HEAD
   if (Ops.Ty->isNanType()) {
     unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
     llvm::Value *WidthMinusOne =
@@ -2799,12 +2788,6 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
     return Builder.CreateSelect(Cond, NaN, Result, "cond");
   }
   
-  if (CGF.CatchUndefined && isa<llvm::IntegerType>(Ops.LHS->getType())) {
-    unsigned Width = cast<llvm::IntegerType>(Ops.LHS->getType())->getBitWidth();
-    llvm::Value *WidthVal = llvm::ConstantInt::get(RHS->getType(), Width);
-    CGF.EmitCheck(Builder.CreateICmpULT(RHS, WidthVal));
-  }
-=======
   if (CGF.SanOpts->Shift && !CGF.getLangOpts().OpenCL &&
       isa<llvm::IntegerType>(Ops.LHS->getType()))
     EmitBinOpCheck(Builder.CreateICmpULE(RHS, GetWidthMinusOneValue(Ops.LHS, RHS)), Ops);
@@ -2812,7 +2795,6 @@ Value *ScalarExprEmitter::EmitShr(const BinOpInfo &Ops) {
   // OpenCL 6.3j: shift values are effectively % word size of LHS.
   if (CGF.getLangOpts().OpenCL)
     RHS = Builder.CreateAnd(RHS, GetWidthMinusOneValue(Ops.LHS, RHS), "shr.mask");
->>>>>>> master
 
   if (Ops.Ty->hasUnsignedIntegerRepresentation())
     return Builder.CreateLShr(Ops.LHS, RHS, "shr");

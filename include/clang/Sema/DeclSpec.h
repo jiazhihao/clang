@@ -319,12 +319,8 @@ private:
   /*TSW*/unsigned TypeSpecWidth : 2;
   /*TSC*/unsigned TypeSpecComplex : 2;
   /*TSS*/unsigned TypeSpecSign : 2;
-<<<<<<< HEAD
   /*TCN*/unsigned TypeSpecNan : 2;
-  /*TST*/unsigned TypeSpecType : 5;
-=======
   /*TST*/unsigned TypeSpecType : 6;
->>>>>>> master
   unsigned TypeAltiVecVector : 1;
   unsigned TypeAltiVecPixel : 1;
   unsigned TypeAltiVecBool : 1;

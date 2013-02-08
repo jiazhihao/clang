@@ -49,13 +49,9 @@ def ext_plain_complex : ExtWarn<
 def ext_plain_nan : ExtWarn<
   "plain 'nan' requires a type specifier; assuming 'nan int'">;
 def ext_integer_complex : Extension<
-<<<<<<< HEAD
-  "complex integer types are an extension">;
+  "complex integer types are a GNU extension">, InGroup<GNU>;
 def ext_integer_nan : Extension<
   "nan integer types are an extension">;
-=======
-  "complex integer types are a GNU extension">, InGroup<GNU>;
->>>>>>> master
 def ext_thread_before : Extension<"'__thread' before '%0'">;
 
 def ext_empty_struct_union : Extension<

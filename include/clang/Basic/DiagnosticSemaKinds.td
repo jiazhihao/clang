@@ -2036,14 +2036,10 @@ def warn_impcast_vector_scalar : Warning<
   InGroup<Conversion>, DefaultIgnore;
 def warn_impcast_complex_scalar : Warning<
   "implicit conversion discards imaginary component: %0 to %1">,
-<<<<<<< HEAD
-  InGroup<DiagGroup<"conversion">>, DefaultIgnore;
+  InGroup<Conversion>, DefaultIgnore;
 def warn_impcast_nan_scalar : Warning<
   "implicit conversion discards nan component: %0 to %1">,
-  InGroup<DiagGroup<"conversion">>, DefaultIgnore;
-=======
   InGroup<Conversion>, DefaultIgnore;
->>>>>>> master
 def warn_impcast_float_precision : Warning<
   "implicit conversion loses floating-point precision: %0 to %1">,
   InGroup<Conversion>, DefaultIgnore;
