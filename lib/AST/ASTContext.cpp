@@ -5050,6 +5050,10 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
                                false);
     return;
   }
+      
+  case Type::Nan: {
+    llvm_unreachable("will implement later...");
+  }
 
   case Type::Atomic: {
     const AtomicType *AT = T->castAs<AtomicType>();
